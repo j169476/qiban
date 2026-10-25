@@ -55,7 +55,7 @@ class PlatformRuns:
                 result["connectors"] = details
         return result
 
-    def control(self, thread, platform, action, arguments):
+    def control(self, thread, platform, action, arguments, *, management=False):
         if platform not in PLATFORMS:
             raise AssistantError("platform_unknown", "未知平台")
         if action == "status":
@@ -73,6 +73,7 @@ class PlatformRuns:
             return self.status(platform)
         if action != "start":
             raise AssistantError("unknown_tool", "未知平台操作")
+        self.service.require_runtime()
         if not core:
             raise AssistantError("platform_unavailable", "该平台尚未装配可运行连接器，其他平台保持原状态")
         if set(arguments) - {"read_only", "duration_minutes"} or (
@@ -97,7 +98,8 @@ class PlatformRuns:
             raise AssistantError("worker_busy", "本平台上次任务正在结束")
         with self.store.db() as db:
             row = db.execute("SELECT mode FROM sessions WHERE thread=?", (thread,)).fetchone()
-            if row and row["mode"] != "role":
+            if row and row["mode"] != "role" and not (
+                    management and row["mode"] == "admin" and thread == self.store.state("service-admin-thread")):
                 raise AssistantError("mode_conflict", "管理聊天不能接管平台运行")
             db.execute("INSERT INTO sessions VALUES(?,?) ON CONFLICT DO NOTHING", (thread, "role"))
         core.host.thread_id = thread

@@ -113,10 +113,27 @@ class ReplyManagement:
         accounts = {(t.scope.platform, t.scope.account_identity): t for t in targets.values()}
         if name == "reply_policy_list":
             require(not arguments)
+            participation = Participation(self.store)
+            groups = []
+            for target in targets.values():
+                scope = target.scope
+                if scope.kind != "group":
+                    continue
+                policy = policies.get(scope.platform, scope.account_identity)
+                window = self.store.state(participation.window_key(scope), {})
+                run = self.service.platform_runs.status(scope.platform)
+                active = (window.get("status") == "active" and window.get("expires", 0) > participation.now()
+                          and window.get("generation") == run.get("generation") and run.get("status") == "active"
+                          and window.get("policy") == policy["version"]
+                          and window.get("permission") == self.permissions.version(scope))
+                groups.append({"platform": scope.platform, "label": target.label, "active": active,
+                    "settings": policy["settings"], "used": participation.spent(window),
+                    "decisions": window.get("decisions", 0), "expires": window.get("expires"),
+                    "reply_limit": window.get("reply_limit", policy["settings"]["group_session_replies"])})
             return {"items": [policies.get(platform, account) | {"account_label": target.account_label,
                        "private_usage": Participation(self.store).usage(target.scope)[1]}
                     for (platform, account), target in sorted(accounts.items())], "bounds": BOUNDS,
-                    "platforms": platforms, "private_quota_scope": "platform_account_calendar_day"}
+                    "platforms": platforms, "private_quota_scope": "platform_account_calendar_day", "groups": groups}
         require(name == "reply_policy_set" and set(arguments) == {
             "platform", "account_identity", "changes", "expected_version"})
         platform, account = arguments["platform"], arguments["account_identity"]

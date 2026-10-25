@@ -12,6 +12,9 @@ from .storage import utcnow
 TEXT = {"type": "string"}
 DOC = {"type": "object"}
 TOOLS = {
+    "service_resume": ("管理聊天显式重启宿主连接；平台保持暂停，由用户选择启动。", obj({})),
+    "runtime_monitor": ("管理端读取 Qiban 上限与用量、Codex coding plan 额度、已观测 token 和任务元数据。", obj({
+        "days": {"type": "integer", "minimum": 1, "maximum": 30}}, [])),
     "reply_policy_list": ("管理端读取QQ/微信的私聊每日额度、群聊参与上限及私聊用量。", obj({})),
     "reply_policy_set": ("管理端修改私聊额度与群聊参与参数，版本冲突需重读，变更暂停对应平台。", obj({
         "platform": {"enum": ["qq", "wechat"]}, "account_identity": TEXT,

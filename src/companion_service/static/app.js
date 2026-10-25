@@ -15,14 +15,15 @@ bind("#login",async()=>{await api("/login",{password:$('#login input').value});l
 bind("#logout",async()=>{await api("/logout",{});location.reload();});
 let selected=null,next=null;
 async function refresh(){
-  const state=await api("/status");$("#status").textContent=state.status==="active"?(state.busy?"正在思考":"已启动"):"已暂停";$("#status").classList.toggle("active",state.status==="active");
+  let state;try{state=await api("/status");}catch(error){window.qibanConnectionLost?.();throw error;}$("#status").textContent=state.status==="active"?(state.busy?"正在思考":"已启动"):"已暂停";$("#status").classList.toggle("active",state.status==="active");
+  window.renderQibanState?.(state);
   if(kind!=="role"){
     const backup=state.backup||{};
     if($('#backup-state'))$('#backup-state').textContent=(backup.status==='failed'?'最近一次备份未成功：'+backup.error:backup.last_saved_at?'最近成功备份：'+new Date(backup.last_saved_at*1000).toLocaleString():'等待首次自动备份')+(backup.capacity_warning?'；资料已接近应用备份容量上限，请安排受保护的 PostgreSQL 备份。':'')+(backup.recovery_key_exported?'；已导出过恢复密钥。':'；尚未导出恢复密钥，请在下方导出并单独保管。');
     const compression=state.compression||{},labels={idle:"尚未达到整理阈值",running:"正在整理较早的对话",saved:"最近一次整理已保存",deferred:"等待条件恢复后再整理",failed:"整理暂未成功，原文已保留"};
     if($('#compression-state'))$('#compression-state').textContent=(state.status!=="active"?"角色已暂停。 ":"")+(labels[compression.status]||"尚未开始整理")+(compression.last_saved_at?"；上次保存："+new Date(compression.last_saved_at*1000).toLocaleString():"");
     return;
-  }$('#message button[type=submit]').disabled=state.status!=="active"||state.read_only;
+  }$('#message button[type=submit]').disabled=state.status!=="active"||state.read_only||state.host?.available===false||state.host?.restart_required;
   if($('#quota-hint'))$('#quota-hint').textContent='今日剩余模型调用 '+(state.quotas?.model.remaining??'—')+' 次，本机回复 '+(state.quotas?.local.remaining??'—')+' 次。额度不足时消息保留等待。';
   if(window.refreshTasks)await window.refreshTasks(state);
    if(window.refreshConversation)await window.refreshConversation();
@@ -60,7 +61,7 @@ bind("#restore",async()=>{if(!restoreToken)throw new Error("请先查看恢复�
 bind("#pause",async()=>{await operate("pause");notice("角色已暂停，重新启动需要 Codex 的明确指令。");await refresh();});
 bind("#backup",async()=>{notice("加密备份已保存："+JSON.stringify(await operate("backup")));});
 bind("#recovery-key",async()=>{const input=$('#recovery-key input');const response=await fetch("/recovery-key",{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({password:input.value})});input.value="";if(!response.ok)throw new Error("恢复密钥导出失败，请检查登录及口令长度");const url=URL.createObjectURL(await response.blob()),link=document.createElement("a");link.href=url;link.download="recovery-key.cckey";link.click();URL.revokeObjectURL(url);notice("已导出加密恢复密钥。请与加密备份分别保存，并保管口令。");},"submit");
-async function selectRecord(id){const type=$("#kind").value;selected={kind:type,id:id==="@config"?null:id};const value=await api("/records?kind="+encodeURIComponent(type)+"&id="+encodeURIComponent(selected.id||""));selected.value=value;$("#record-title").textContent=type+" / "+id+" · "+value.version.slice(0,12);$("#editor").value=JSON.stringify(value.data,null,2);$("#policy").textContent=JSON.stringify(value.policy,null,2);$("#classification").value=value.policy?.classification||"unclassified";$("#owners").value=(value.policy?.owners||[]).join(",");}
+async function selectRecord(id){const type=$("#kind").value;selected={kind:type,id:id==="@config"?null:id};const value=await api("/records?kind="+encodeURIComponent(type)+"&id="+encodeURIComponent(selected.id||""));selected.value=value;$("#record-title").textContent=type+" / "+id+" · "+value.version.slice(0,12);window.qibanNavigate?.("memories");$("#editor").value=JSON.stringify(value.data,null,2);$("#policy").textContent=JSON.stringify(value.policy,null,2);$("#classification").value=value.policy?.classification||"unclassified";$("#owners").value=(value.policy?.owners||[]).join(",");}
 async function load(after=""){const value=await api("/records?kind="+encodeURIComponent($("#kind").value)+"&after="+encodeURIComponent(after));$("#records").replaceChildren();next=value.next;$("#next").hidden=!next;for(const r of value.records){const b=document.createElement("button");b.textContent=r.id;const s=document.createElement("small");s.textContent=r.classification||"待审核";b.append(s);b.addEventListener("click",()=>selectRecord(r.id).catch(e=>notice(e.message)));$("#records").append(b);}}
 bind("#load",()=>load());bind("#next",()=>load(next));
 bind("#save",async()=>{if(!selected?.value)throw new Error("请先选择资料");await operate("record_correct",{kind:selected.kind,id:selected.id,data:JSON.parse($("#editor").value),expected_version:selected.value.version});await selectRecord(selected.id||"@config");notice("修改已保存；依赖旧版本的派生内容需重新复核。");});

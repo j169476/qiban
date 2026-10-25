@@ -12,7 +12,7 @@ from companion_core import __version__ as core_version
 
 
 def inspect(project, installed=None):
-    plugin = project / "plugins" / "bili-assistant"
+    plugin = project / "plugins" / "qiban"
     versions = {"python": __version__, "core": core_version, "codex_bridge": codex_version,
                 "core_package": tomllib.loads((project / "packages/companion-core/pyproject.toml").read_text(
                     encoding="utf-8"))["project"]["version"], "package": tomllib.loads(
@@ -23,18 +23,19 @@ def inspect(project, installed=None):
     if installed is not None:
         for relative in ("plugin.json", ".codex-plugin/plugin.json", ".mcp.json", "mcp.json",
                          "scripts/run.py", "scripts/browser-login.mjs", "hooks/lifecycle.py", "hooks/hooks.json",
-                         "skills/bili-start/SKILL.md", "skills/bili-start/agents/openai.yaml",
-                          "skills/wechat-start/SKILL.md", "skills/wechat-start/agents/openai.yaml",
-                          "skills/qq-start/SKILL.md", "skills/qq-start/agents/openai.yaml",
-                          "skills/local-start/SKILL.md", "skills/local-start/agents/openai.yaml",
-                         "skills/bili-admin/SKILL.md", "skills/bili-admin/agents/openai.yaml",
-                         "skills/bili-start/references/content-workflows.md",
-                          "skills/bili-start/references/persona-and-memory.md",
-                          "skills/bili-admin/references/browser-login.md",
-                           "skills/bili-admin/references/background-tools.md",
-                            "skills/bili-admin/references/storage-recovery.md",
-                             "skills/bili-admin/references/core-identity.md",
-                             "skills/bili-admin/references/runtime-metrics.md"):
+                         "skills/qiban-bilibili/SKILL.md", "skills/qiban-bilibili/agents/openai.yaml",
+                          "skills/qiban-wechat/SKILL.md", "skills/qiban-wechat/agents/openai.yaml",
+                          "skills/qiban-qq/SKILL.md", "skills/qiban-qq/agents/openai.yaml",
+                          "skills/qiban-local/SKILL.md", "skills/qiban-local/agents/openai.yaml",
+                         "skills/qiban/SKILL.md", "skills/qiban/agents/openai.yaml",
+                         "skills/qiban-admin/SKILL.md", "skills/qiban-admin/agents/openai.yaml",
+                         "skills/qiban-bilibili/references/content-workflows.md",
+                          "skills/qiban-bilibili/references/persona-and-memory.md",
+                          "skills/qiban-admin/references/browser-login.md",
+                           "skills/qiban-admin/references/background-tools.md",
+                            "skills/qiban-admin/references/storage-recovery.md",
+                             "skills/qiban-admin/references/core-identity.md",
+                             "skills/qiban-admin/references/runtime-metrics.md"):
             source, target = plugin / relative, installed / relative
             if not target.is_file() or hashlib.sha256(source.read_bytes()).digest() != hashlib.sha256(
                 target.read_bytes()

@@ -1,6 +1,6 @@
 # 第三方来源与许可证
 
-本项目自有代码采用 [MIT License](LICENSE)。第三方代码、第三方代码的派生实现及外部依赖继续适用各自的原始许可证；根目录 MIT 许可不替代或重新授权这些部分。保留所有随附的原始许可与声明。
+本项目自有代码及随仓库分发的白龙娘界面插画、SVG 图标采用 [MIT License](LICENSE)。第三方代码、第三方代码的派生实现及外部依赖继续适用各自的原始许可证；根目录 MIT 许可不替代或重新授权这些部分。保留所有随附的原始许可与声明。
 
 尤其是 `src/companion_wechat/db_windows.py` 中改编的读取算法适用下述 Apache-2.0 条款，`src/companion_wechat/native/` 和 `scripts/wechat_native_probe/` 中改编自 helper 的部分继续适用其非商业许可。包含这些组件的完整发行包不能仅按 MIT 许可解释。
 
@@ -12,6 +12,10 @@
 Python 依赖由安装器从各自发行源安装，不在源码包中捆绑。版本约束见 `pyproject.toml`、`constraints-windows.txt` 和 `requirements/`。SQLCipher、sqlcipher3、PostgreSQL、QQ/微信客户端以及 OneBot 桥接分别适用其发行方条款；本仓库不包含这些产品的登录资料或二进制安装包。
 
 原生桥接没有包含或编译 MinHook。上游声明中列出的组件不代表全部进入本项目的受限实现；具体改动与范围见各目录 README 和 NOTICE。
+
+## 界面素材
+
+`src/companion_service/static/white-dragon-tea.png` 和 `icons.svg` 由本项目按 MIT License 分发，使用、修改及再分发时保留版权和许可声明。该授权不包括用户上传的角色图片、聊天内容或未随仓库分发的参考资料，也不改变第三方素材已有的权利。
 
 ## 设计参考
 

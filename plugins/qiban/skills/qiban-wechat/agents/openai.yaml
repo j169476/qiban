@@ -1,0 +1,4 @@
+interface:
+  display_name: "栖伴-微信启停"
+  short_description: "独立控制微信模块的启停和状态，保留来源、权限与运行归属检查。"
+  default_prompt: "使用 $qiban-wechat 启动栖伴的微信模块。"

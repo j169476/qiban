@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "bili-assistant": {
-      "command": "python",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/run.py", "serve"]
-    }
-  }
-}

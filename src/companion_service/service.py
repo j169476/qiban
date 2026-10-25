@@ -52,6 +52,29 @@ class Service:
         self.loop = None
         self.maintenance_until = 0
         self.supervisor = None
+        self.plan_usage = None
+        self.plan_task = None
+
+    def host_status(self):
+        desktop = getattr(self.host, "desktop", None)
+        live = desktop.status() if desktop is not None else {"available": True, "status": "unchecked"}
+        saved = self.store.state("host-lifecycle", {})
+        return {**live, "restart_required": bool(saved.get("restart_required")),
+                "stopped_at": saved.get("stopped_at"), "message": "ChatGPT已停止运行" if
+                not live["available"] else "服务等待明确重启" if saved.get("restart_required") else "宿主在线"}
+
+    def require_runtime(self):
+        state = self.host_status()
+        if not state["available"] or state["restart_required"]:
+            raise AssistantError("host_stopped", state["message"] + "；请在管理聊天或命令行重启服务")
+
+    def check_desktop(self):
+        with self.state_lock:
+            if not self.host_status()["available"]:
+                if not self.store.state("host-lifecycle", {}).get("restart_required"):
+                    self.store.set_state("host-lifecycle", {"restart_required": True, "stopped_at": time.time()})
+                    self._pause("host_stopped")
+                    self.notify()
 
     def notify(self):
         if self.loop:
@@ -62,6 +85,7 @@ class Service:
     def status(self):
         run = self.store.state("core-run", {})
         return {"status": run.get("status", "paused"), "reason": run.get("reason", "explicit_start_required"),
+                "host": self.host_status(), "owner": run.get("owner"),
                 "generation": run.get("generation"), "busy": self.busy,
                 "platforms": [self.platform_runs.status(p) for p in ("bilibili", "wechat", "qq")],
                 "read_only": run.get("read_only", False), "deadline_at": run.get("deadline_at"),
@@ -90,12 +114,39 @@ class Service:
             from .faults import record
 
             record(self, "daemon_exited")
-        self._pause("service_restart")
+        self.recover_startup()
         self.loop = asyncio.get_running_loop()
         self.task = asyncio.create_task(self.work())
         self.monitor = asyncio.create_task(self.watch())
         self.receiver = asyncio.create_task(self.receive())
         self.platform_runs.open()
+
+    def recover_startup(self):
+        """Finish durable recovery before any worker or HTTP server starts.
+
+        A killed process cannot run shutdown callbacks. Mark this session first,
+        so a second interruption during recovery is detectable without a pulse.
+        """
+        previous = self.store.state("service-session", {})
+        heartbeat = self.store.state("service-heartbeat")
+        prior_shutdown = ("clean" if previous.get("closed") else "unclean") if previous else (
+            "unknown" if heartbeat else "first_start")
+        session = {"started_at": time.time(), "closed": False, "phase": "recovering",
+                   "previous_shutdown": prior_shutdown}
+        self.store.set_state("service-session", session)
+        if getattr(self.host, "desktop", None) is not None and (previous or heartbeat):
+            self.store.set_state("host-lifecycle", {"restart_required": True,
+                                                   "detected_at": time.time(), "reason": "service_restart"})
+        self._pause("service_restart")
+        # Include old generations and removed connectors. A prepared action was
+        # never dispatched; an in-flight action has an unknown external result.
+        # Keep usage reservations and dedupe records; never replay or refund here.
+        with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            for table in ("core_actions", "actions"):
+                db.execute("UPDATE " + table + " SET status='cancelled' WHERE status='prepared'")
+                db.execute("UPDATE " + table + " SET status='uncertain' WHERE status='dispatching'")
+            self.store.set_state("service-session", {**session, "phase": "ready", "checked_at": time.time()}, db)
 
     async def close(self):
         try:
@@ -115,6 +166,14 @@ class Service:
             await asyncio.gather(self.notice_task, return_exceptions=True)
         if self.backup_task:
             await asyncio.gather(self.backup_task, return_exceptions=True)
+        if self.plan_task:
+            await asyncio.gather(self.plan_task, return_exceptions=True)
+        if self.plan_usage:
+            self.plan_usage.close()
+        if not self.storage_unavailable:
+            session = self.store.state("service-session", {})
+            if session:
+                self.store.set_state("service-session", {**session, "closed": True, "closed_at": time.time()})
 
     def heartbeat(self):
         with self.state_lock:
@@ -130,6 +189,10 @@ class Service:
         while not self.shutdown.is_set():
             try:
                 self.recover_storage()
+                await asyncio.to_thread(self.check_desktop)
+                if (self.plan_usage and self.host_status()["available"]
+                        and (self.plan_task is None or self.plan_task.done())):
+                    self.plan_task = asyncio.create_task(asyncio.to_thread(self.plan_usage.refresh))
                 if not self.heartbeat():
                     await asyncio.sleep(1)
                     continue
@@ -369,13 +432,23 @@ class Service:
         with self.state_lock:
             return self._control(secret, thread, operation, arguments)
 
-    def _control(self, secret, thread, operation, arguments):
+    def _control(self, secret, thread, operation, arguments, *, managed=False):
         if not isinstance(arguments, dict) or not isinstance(operation, str):
             raise AssistantError("invalid_control", "控制参数无效")
         if not isinstance(secret, str) or not hmac.compare_digest(secret, self._bridge_secret):
             raise AssistantError("bridge_denied", "控制入口未认证")
         if not isinstance(thread, str) or not 1 <= len(thread) <= 200:
             raise AssistantError("bridge_denied", "缺少宿主聊天标识")
+        if operation == "service_resume":
+            if thread != self.store.state("service-admin-thread") or arguments:
+                raise AssistantError("admin_required", "仅已绑定管理聊天可重启服务")
+            desktop = getattr(self.host, "desktop", None)
+            if desktop is not None:
+                desktop.adopt()
+            self.control_verifier(thread)
+            self._pause("explicit_service_resume")
+            self.store.set_state("host-lifecycle", {"restart_required": False, "resumed_at": time.time()})
+            return {"service_ready": True, "role_started": False, "host": self.host_status()}
         self.control_verifier(thread)  # Official host checks project and archive state.
         if operation == "management_open":
             with self.store.db() as db:
@@ -392,6 +465,7 @@ class Service:
         if operation == "assistant_status":
             return self.status()
         if operation == "assistant_start":
+            self.require_runtime()
             if self.supervisor and not self.supervisor.status()["healthy"]:
                 raise AssistantError("supervisor_lost", "独立监护未就绪，请稍后再显式启动")
             if (set(arguments) - {"read_only", "background", "duration_minutes"}
@@ -415,7 +489,8 @@ class Service:
                 return {"run": old, "conversation_location": "local_web", "already_running": True}
             with self.store.db() as db:
                 row = db.execute("SELECT mode FROM sessions WHERE thread=?", (thread,)).fetchone()
-                if row and row["mode"] != "role":
+                if row and row["mode"] != "role" and not (
+                        managed and row["mode"] == "admin" and thread == self.store.state("service-admin-thread")):
                     raise AssistantError("mode_conflict", "管理聊天不能接管角色运行")
                 db.execute("INSERT INTO sessions VALUES(?,?) ON CONFLICT DO NOTHING", (thread, "role"))
             self.host.thread_id = thread
@@ -442,6 +517,10 @@ class Service:
                 raise AssistantError("invalid_control", "全部停止不接受参数")
             self._pause("explicit_stop_all")
             return self.status()
+        if operation == "runtime_monitor":
+            from .monitoring import snapshot
+
+            return snapshot(self, days=arguments.get("days", 1))
         from companion_core.contracts import ActorRef
 
         actor = ActorRef("codex-control", thread)
@@ -465,6 +544,32 @@ class Service:
             self._pause("password_reset")
             return {"ticket": self.sessions.reset_ticket()}
         raise AssistantError("web_entry_required", "角色内容已移至本机网页，此工具不能读取角色资料")
+
+    def manage_platform(self, platform, action, expected_generation, arguments):
+        """Called only after web administrator authentication, never with a caller-selected thread."""
+        if platform not in {"local", "bilibili", "wechat", "qq"} or action not in {"start", "stop"}:
+            raise AssistantError("invalid_control", "请选择平台与启停操作")
+        with self.state_lock:
+            key = "core-run" if platform == "local" else "core-run:" + platform
+            run = self.store.state(key, {})
+            if run.get("generation") != expected_generation:
+                raise AssistantError("edit_conflict", "平台运行已变化，请刷新后操作")
+            if action == "stop":
+                if arguments:
+                    raise AssistantError("invalid_control", "停止不接受其他参数")
+                if platform == "local":
+                    self._pause_local("admin_web_stop")
+                elif platform in self.platform_runs.cores:
+                    self.platform_runs.cores[platform].stop("admin_web_stop")
+                return self.status()
+            self.require_runtime()
+            thread = self.store.state("service-admin-thread")
+            if not thread:
+                raise AssistantError("admin_required", "先在 Codex 中通过 @qiban 绑定管理聊天")
+            self.control_verifier(thread)
+            if platform == "local":
+                return self._control(self._bridge_secret, thread, "assistant_start", arguments, managed=True)
+            return self.platform_runs.control(thread, platform, "start", arguments, management=True)
 
     def _task_conversation(self, actor):
         from companion_core.contracts import Event

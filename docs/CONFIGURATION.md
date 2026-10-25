@@ -33,7 +33,7 @@ locked_fields:
 | `.companion-service.json` / `.companion-install.json` | 本机服务定位与安装记录 | 不提交 |
 | `companion-service-data/` | 运行资料、加密备份等 | 不提交 |
 | `bili-assistant-data/` | 初始资料与旧版迁移来源 | 不提交 |
-| `plugins/bili-assistant/runtime.json` | 本机 Python 和项目路径 | 不提交 |
+| `plugins/qiban/runtime.json` | 本机 Python 和项目路径 | 不提交 |
 | `.dev/qq/` / `.dev/wechat/` | 连接器配置、构建及诊断 | 不提交 |
 | `.dev/release-private-archive/` | 本机历史文档与个人素材归档 | 不提交 |
 

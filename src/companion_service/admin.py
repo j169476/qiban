@@ -204,6 +204,35 @@ class Management:
 
     def operation(self, request, operation, args):
         self.require(request)
+        if operation == "open_codex":
+            if args:
+                raise AssistantError("invalid_operation", "打开 Codex 不接受额外参数")
+            return self.service.host.open_desktop()
+        if operation == "runtime_monitor":
+            from .monitoring import snapshot
+
+            if set(args) - {"days"}:
+                raise AssistantError("invalid_control", "运行监控只接受统计天数")
+            return snapshot(self.service, days=args.get("days", 1))
+        if operation == "platform_control":
+            if set(args) != {"platform", "action", "expected_generation", "options"} or not isinstance(args["options"], dict):
+                raise AssistantError("invalid_control", "平台控制参数无效")
+            result = self.service.manage_platform(args["platform"], args["action"], args["expected_generation"], args["options"])
+            self.admin.repository.audit(request.actor, "platform_" + args["action"], args["platform"])
+            return result
+        if operation == "task_cancel":
+            if set(args) != {"id", "expected_revision"} or not isinstance(args["id"], str):
+                raise AssistantError("invalid_control", "任务取消参数无效")
+            with self.store.lock, self.store.db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                state = self.service.tasks._state(args["id"])
+                if state["revision"] != args["expected_revision"]:
+                    raise AssistantError("edit_conflict", "任务状态已变化，请刷新")
+                if state["status"] not in {"queued", "running"}:
+                    raise AssistantError("task_control", "该任务已经结束")
+                result = self.service.tasks._save(args["id"], {**state, "status": "cancelled", "error": "admin_cancelled"})
+                self.admin.repository.audit(request.actor, "task_cancel", args["id"])
+                return result
         if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set"}:
             from .reply_management import ReplyManagement
 

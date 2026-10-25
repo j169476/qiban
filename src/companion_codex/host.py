@@ -17,7 +17,7 @@ from . import __version__
 
 
 class CodexHost:
-    def __init__(self, project: Path, *, active_cache_seconds=0.0):
+    def __init__(self, project: Path, *, active_cache_seconds=0.0, desktop=None):
         if type(active_cache_seconds) not in (int, float) or not 0 <= active_cache_seconds <= 0.1:
             raise AssistantError("host_config", "宿主状态合并窗口无效")
         self.project = project.resolve()
@@ -28,11 +28,29 @@ class CodexHost:
         self.lock = threading.RLock()
         self.active_cache_seconds = active_cache_seconds
         self._active_snapshot = None
+        self.desktop = desktop
 
     def identity(self):
         if not self.thread_id:
             raise AssistantError("host_identity_missing", "没有宿主聊天 ID；请从 Codex 聊天内调用 CLI 入口")
         return self.thread_id
+
+    def open_desktop(self):
+        """An explicit admin click opens the configured workspace, never a turn."""
+        executable = shutil.which("codex")
+        if not executable:
+            raise AssistantError("host_unavailable", "未找到 Codex CLI，请手动打开 Codex")
+        try:
+            result = subprocess.run(
+                [executable, "app", str(self.project)], stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            raise AssistantError("host_launch_failed", "未确认 Codex 已打开，请手动打开应用") from None
+        if result.returncode:
+            raise AssistantError("host_launch_failed", "Codex 未能打开，请手动打开应用")
+        return {"launch_requested": True, "role_started": False}
 
     def connect(self):
         if self.process and self.process.poll() is None:
@@ -64,7 +82,7 @@ class CodexHost:
         self._request(
             "initialize",
             {
-                "clientInfo": {"name": "bili-assistant", "version": __version__},
+                "clientInfo": {"name": "qiban", "version": __version__},
                 "capabilities": {"experimentalApi": True},
             },
         )
@@ -119,6 +137,8 @@ class CodexHost:
         raise AssistantError("host_state_unknown", "宿主列表无法确认聊天状态")
 
     def require_active(self, thread_id=None):
+        if self.desktop is not None:
+            self.desktop.require_online()
         target = thread_id or self.identity()
         with self.lock:
             cached = self._active_snapshot

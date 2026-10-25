@@ -361,7 +361,7 @@ def test_packaged_js_bridge_with_isolated_runtime(env, tmp_path, scenario):
     project = Path(__file__).resolve().parents[1]
     plugin = tmp_path / "isolated-plugin"
     (plugin / "scripts").mkdir(parents=True)
-    shutil.copyfile(project / "plugins/bili-assistant/scripts/browser-login.mjs",
+    shutil.copyfile(project / "plugins/qiban/scripts/browser-login.mjs",
                     plugin / "scripts/browser-login.mjs")
     (plugin / "runtime.json").write_text(json.dumps({
         "python": sys.executable, "project": str(project), "data": str(env.store.root),

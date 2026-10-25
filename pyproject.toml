@@ -3,8 +3,8 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "codex-bilibili-assistant"
-version = "0.8.0"
+name = "qiban"
+version = "0.9.0"
 description = "A local companion with shared memory and independent Bilibili, WeChat and QQ connectors."
 requires-python = ">=3.11"
 license = {text = "MIT for project-owned code; third-party components retain their original licenses (see THIRD_PARTY_NOTICES.md)"}
@@ -33,6 +33,7 @@ service = ["psycopg[binary,pool]>=3.2,<4", "cryptography>=46,<51", "starlette>=1
            "uvicorn>=0.54,<1", "Jinja2>=3.1.6,<4"]
 
 [project.scripts]
+qiban = "qiban.cli:main"
 bili-assistant = "bili_assistant.cli:main"
 
 [tool.setuptools.packages.find]
@@ -45,7 +46,7 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 bili_assistant = ["defaults/*.yaml", "schemas/*.json"]
 companion_core = ["*.json", "sql/*.sql"]
 companion_wechat = ["third_party/*.txt", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
-companion_service = ["templates/*.html", "static/*.css", "static/*.js"]
+companion_service = ["templates/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/*.png", "static/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests_core", "tests_wechat"]

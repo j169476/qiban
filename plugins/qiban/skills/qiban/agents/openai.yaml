@@ -1,0 +1,4 @@
+interface:
+  display_name: "Qiban 栖伴"
+  short_description: "打开栖伴管理室与会客室，管理平台、任务、记忆和额度，显式重启服务。"
+  default_prompt: "使用 $qiban 打开当前项目的栖伴管理入口，并查看运行与额度状态。"

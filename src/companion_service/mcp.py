@@ -9,7 +9,7 @@ from .config import metadata, urls
 
 
 async def serve(project):
-    server = Server("companion-local-service")
+    server = Server("qiban")
 
     @server.list_tools()
     async def listing():
@@ -18,7 +18,7 @@ async def serve(project):
 
     @server.call_tool()
     async def call(name, arguments):
-        value = {"web": urls(metadata(project)), "control": "请从当前 Codex 聊天运行 bili-assistant call；共享 MCP 不承载身份"}
+        value = {"web": urls(metadata(project)), "control": "请从当前 Codex 聊天运行 qiban call；共享 MCP 不承载身份"}
         return [types.TextContent(type="text", text=json.dumps(value, ensure_ascii=False))]
 
     async with stdio_server() as (reader, writer):

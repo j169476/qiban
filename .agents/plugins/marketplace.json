@@ -2,10 +2,10 @@
   "name": "xiaolongniang-local",
   "plugins": [
     {
-      "name": "bili-assistant",
+      "name": "qiban",
       "source": {
         "source": "local",
-        "path": "./plugins/bili-assistant"
+        "path": "./plugins/qiban"
       },
       "policy": {
         "installation": "AVAILABLE",

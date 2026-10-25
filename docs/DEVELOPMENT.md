@@ -51,3 +51,9 @@ python -m pip wheel --no-deps --no-build-isolation packages/companion-core --whe
 ```
 
 用 `scripts/check_core_package.py` 验证核心 wheel 的平台隔离性。QQ、微信独立包可分别从 `packages/companion-qq`、`packages/companion-wechat` 构建。核对 wheel 内容不包含运行库或角色素材，再整理发布附件。
+
+## v0.9 页面验收
+
+`tests/qiban_ui.mjs` 使用 Playwright、合成 API 和源码模板验证六个分区的 78 种宽度组合及 20 项立绘边界/间距检查、按钮命中、表单保留、宿主离线以及登录/会客室空状态。不会连接真实服务或发出平台消息。使用已安装的 Playwright 运行 `node tests/qiban_ui.mjs`；可通过 `QIBAN_PLAYWRIGHT_MODULE`、`QIBAN_BROWSER`、`QIBAN_PYTHON` 指定本机运行时。截图与结果保存在 `.dev/v09/browser/`。
+
+发布审计允许按 SHA-256 登记的界面 PNG 与 SVG，其余未审查二进制仍拒绝。更新素材后必须先目视验收再更新审计摘要。

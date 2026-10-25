@@ -229,7 +229,7 @@ def deliver_faults(engine):
             state_note = ("备份会按退避计划重试，角色运行状态没有因此改变。\n" if fault["code"] == "backup_failed" else
                           "角色已暂停，记忆和学习进度保存在本地。修复后仍需用户在角色聊天显式启动。\n")
             text = (
-                f"B站助手故障通知 [{fault['id']}]\n{FAULT_TEXT[fault['code']]}\n"
+                f"栖伴 B站模块故障通知 [{fault['id']}]\n{FAULT_TEXT[fault['code']]}\n"
                 + state_note +
                 "这是用户授权的单次管理提醒。请简短向用户呈现故障；不执行修复、不启动角色、"
                 "不向任何其他聊天发送消息。普通重试无需提醒。"

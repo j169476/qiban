@@ -24,7 +24,11 @@ async def serve(project):
     config, store, secret = open_store(project)
     lock = FileLock(str(store.runtime / "service.lock"), timeout=0)
     # Coalesce adjacent nested checks only; failures never reuse an old result.
-    host = CodexHost(Path(project), active_cache_seconds=0.1)
+    from companion_codex.desktop import Desktop
+    from companion_codex.plan_usage import PlanUsage
+
+    desktop = Desktop()
+    host = CodexHost(Path(project), active_cache_seconds=0.1, desktop=desktop)
     try:
         lock.acquire()
         adapter = Bilibili(store)
@@ -38,6 +42,7 @@ async def serve(project):
         service = Service(store, CodexModel(), host, adapters=adapters, bridge_secret=secret,
                           platform_models={p: CodexModel(model="gpt-6.1-sol") for p in ("qq", "wechat")})
         service.installation_id = config["id"]
+        service.plan_usage = PlanUsage(CodexHost(Path(project)))
         from .config import secrets_for
         from .recovery import wrap
 
@@ -69,6 +74,7 @@ async def serve(project):
                     await asyncio.to_thread(service.supervisor.close)
     finally:
         host.close()
+        desktop.close()
         lock.release()
         store.database.close()
 

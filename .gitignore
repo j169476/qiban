@@ -34,3 +34,5 @@ companion-service-data/
 docs/evidence/
 docs/personas/
 assets/avatars/
+
+plugins/qiban/runtime.json

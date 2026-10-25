@@ -12,7 +12,7 @@ from .storage import Store
 
 
 def parser():
-    root = argparse.ArgumentParser(description="Codex B站助手")
+    root = argparse.ArgumentParser(description="栖伴 Qiban · 本地多平台伙伴")
     root.add_argument("--project", type=Path, default=Path.cwd())
     root.add_argument("--data", type=Path)
     sub = root.add_subparsers(dest="command", required=True)

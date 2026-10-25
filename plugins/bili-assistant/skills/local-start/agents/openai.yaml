@@ -1,4 +1,0 @@
-interface:
-  display_name: "栖伴-本机会客室启停"
-  short_description: "独立控制本机会客室模块的启停和状态，保留来源、权限与运行归属检查。"
-  default_prompt: "使用 $local-start 启动栖伴的本机会客室模块。"

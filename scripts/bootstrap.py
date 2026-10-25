@@ -23,10 +23,13 @@ def main():
         install += ["-c", str(constraints)]
     subprocess.run(install + ["-e", f"{project}[dev,service]"], check=True)
     data = project / "bili-assistant-data"
-    plugin = project / "plugins" / "bili-assistant"
+    plugin = project / "plugins" / "qiban"
     settings = {"project": str(project), "python": str(python), "data": str(data)}
     (plugin / "runtime.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
-    subprocess.run([str(python), "-m", "bili_assistant", "--project", str(project), "init"], check=True)
+    from companion_service.config import metadata
+
+    if metadata(project) is None:
+        subprocess.run([str(python), "-m", "qiban", "--project", str(project), "init"], check=True)
     if args.register:
         path = project / ".agents" / "plugins" / "marketplace.json"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -36,12 +39,17 @@ def main():
             else {"name": "xiaolongniang-local", "plugins": []}
         )
         entry = {
-            "name": "bili-assistant",
-            "source": {"source": "local", "path": "./plugins/bili-assistant"},
+            "name": "qiban",
+            "source": {"source": "local", "path": "./plugins/qiban"},
             "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
             "category": "Productivity",
         }
-        existing = next((p for p in marketplace["plugins"] if p["name"] == "bili-assistant"), None)
+        # Migrate only this project's known old entry; preserve unrelated plugins.
+        for old in list(marketplace["plugins"]):
+            if (old["name"] == "bili-assistant" and old.get("source") == {
+                    "source": "local", "path": "./plugins/bili-assistant"}):
+                marketplace["plugins"].remove(old)
+        existing = next((p for p in marketplace["plugins"] if p["name"] == "qiban"), None)
         if existing and existing != entry:
             raise SystemExit("已有同名不同配置的插件条目，请手工检查；未覆盖。")
         if not existing:

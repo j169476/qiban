@@ -44,7 +44,7 @@ def test_export_excludes_history_local_state_and_personal_material(tmp_path):
     for name in (".git/config", ".dev/private.txt", "bili-assistant-data/persona.yaml",
                  "companion-service-data/secrets.json", "assets/avatars/owner.png",
                  "docs/evidence/real-chat.json", "docs/personas/private.yaml",
-                 "plugins/bili-assistant/runtime.json", "src/pkg/__pycache__/private.pyc"):
+                 "plugins/qiban/runtime.json", "src/pkg/__pycache__/private.pyc"):
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("PRIVATE-SYNTHETIC-MARKER", encoding="utf-8")
@@ -87,3 +87,24 @@ def test_repository_is_exportable_with_empty_defaults():
     names = {item["path"] for item in report["manifest"]}
     assert "tests_core/fixtures/retrieval/cases.json" in names
     assert "src/companion_wechat/native/LICENSE.helper" in names
+
+
+def test_browser_license_copies_match_release_originals():
+    for original, public in (("LICENSE", "LICENSE.txt"), ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.txt")):
+        assert (ROOT / original).read_text(encoding="utf-8") == (
+            ROOT / "src/companion_service/static" / public).read_text(encoding="utf-8")
+
+
+def test_public_attribution_does_not_allow_other_private_content(tmp_path):
+    root = synthetic_source(tmp_path)
+    approved = release.PUBLIC_TEXT[0]
+    marker = approved.split("和")[0]
+    (root / "README.md").write_text(approved, encoding="utf-8")
+    assert release.audit(root, (marker,))[1]["ok"]
+    (root / "src/private.py").write_text(approved, encoding="utf-8")
+    with pytest.raises(release.ReleaseError, match="src/private.py"):
+        release.audit(root, (marker,))
+    (root / "src/private.py").write_text("", encoding="utf-8")
+    (root / "README.md").write_text(approved + "\n" + marker, encoding="utf-8")
+    with pytest.raises(release.ReleaseError, match="README.md"):
+        release.audit(root, (marker,))

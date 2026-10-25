@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "qiban",
+  "version": "0.9.0",
+  "description": "共享本地记忆与独立 B站、微信、QQ 连接器的角色助手",
+  "extensions": {
+    "com.openai": {
+      "skills": "./skills/",
+      "hooks": "./hooks/hooks.json",
+      "interface": {
+        "displayName": "Qiban 栖伴",
+        "shortDescription": "温柔陪伴，清晰管理。统一平台、记忆、任务与用量。",
+        "category": "Productivity",
+        "brandColor": "#A28AB9"
+      }
+    }
+  }
+}

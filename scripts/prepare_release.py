@@ -1,4 +1,4 @@
-"""Audit/export a text-only source snapshot without Git history or local data.
+"""Audit/export a reviewed source and UI asset snapshot without Git history or local data.
 
 This is a bounded release check, not a general secret detector. Review the file
 manifest and use --deny-file for private identifiers known to the maintainer.
@@ -17,6 +17,11 @@ from pathlib import Path
 
 import yaml
 
+REVIEWED_ASSETS = {
+    "src/companion_service/static/white-dragon-tea.png": "d0a92800b16bcc0d2048c1f9efe54a619270047f3ed91d96fd380da11fc5ca98",
+    "src/companion_service/static/icons.svg": "0bd1166c93d3183933eb4b88c0a64ffcf9bbcd6682bb61244b220327977842ae"
+}
+
 ROOT_FILES = {
     "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "pyproject.toml", ".gitignore", ".gitattributes",
     "constraints-windows.txt", ".agents/plugins/marketplace.json",
@@ -30,6 +35,13 @@ PRIVATE_PREFIXES = ("docs/evidence/", "docs/personas/", "assets/avatars/")
 SKIP_FILES = {"runtime.json", "local-settings.json"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".log", ".db", ".sqlite", ".sqlite3", ".pem", ".key",
                  ".ccbackup", ".cckey", ".zip", ".whl"}
+# Explicitly approved public attribution and repository; other identifiers stay blocked.
+PUBLIC_TEXT = ("YiNing和ta的小龙", "https://github.com/j169476/qiban", "github.com/j169476/qiban", "j169476/qiban")
+PUBLIC_TEXT_FILES = {
+    "README.md", "docs/ABOUT.md", "src/companion_service/templates/about.html",
+    "tests/qiban_ui.mjs", "scripts/prepare_release.py", "tests/test_release_snapshot.py",
+}
+
 SECRET_PATTERNS = (
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b"),
@@ -77,7 +89,7 @@ def source_paths(root):
                 if (child in SKIP_FILES or path.suffix.lower() in SKIP_SUFFIXES or lower.startswith(".env")
                         or (lower.endswith(".json") and ("cookies" in lower or "credentials" in lower))):
                     continue
-                if linked(path) or (path.suffix.lower() not in EXTENSIONS and child != "LICENSE"):
+                if linked(path) or (path.suffix.lower() not in EXTENSIONS and child != "LICENSE" and relative not in REVIEWED_ASSETS):
                     raise ReleaseError(f"Unreviewed source file: {relative}")
                 yield path
 
@@ -95,13 +107,23 @@ def audit(root, deny=()):
         relative = path.relative_to(root).as_posix()
         if path.stat().st_size > 10_000_000:
             raise ReleaseError(f"Oversized source file: {relative}")
+        if relative in REVIEWED_ASSETS:
+            raw = path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != REVIEWED_ASSETS[relative]:
+                raise ReleaseError(f"Reviewed asset changed: {relative}")
+            payload[relative] = raw
+            continue
         try:
             text = path.read_text(encoding="utf-8-sig")
         except UnicodeError as exc:
             raise ReleaseError(f"Non-text source file: {relative}") from exc
         if "\x00" in text:
             raise ReleaseError(f"Binary source file: {relative}")
-        if any(marker in text for marker in deny) or any(pattern.search(text) for pattern in SECRET_PATTERNS):
+        private_text = text
+        if relative in PUBLIC_TEXT_FILES:
+            for approved in PUBLIC_TEXT:
+                private_text = private_text.replace(approved, "")
+        if any(marker in private_text for marker in deny) or any(pattern.search(text) for pattern in SECRET_PATTERNS):
             raise ReleaseError(f"Private marker or credential pattern: {relative}")
         payload[relative] = text.encode("utf-8")
     persona = yaml.safe_load(payload["src/bili_assistant/defaults/persona.yaml"])

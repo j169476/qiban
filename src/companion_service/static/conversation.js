@@ -8,7 +8,7 @@
   function render(){
     const area=$('#messages'), nearBottom=area.scrollHeight-area.scrollTop-area.clientHeight<100, position=area.scrollTop;
     area.replaceChildren();
-    if(!shown.length){const p=document.createElement('p');p.className='empty';p.textContent=query?'本页没有找到匹配内容；可继续搜索更早记录。':'这里还没有可显示的消息。';area.append(p);}
+    if(!shown.length){const box=document.createElement('div');box.className='empty';if(!query){const img=document.createElement('img');img.className='empty-mascot';img.src='/static/white-dragon-tea.png';img.alt='白龙娘为你备好热茶';img.width=180;img.height=180;box.append(img);}const p=document.createElement('p');p.textContent=query?'本页没有找到匹配内容；可继续搜索更早记录。':'茶已经泡好了，想聊些什么？';box.append(p);area.append(box);}
     for(const item of shown){const bubble=document.createElement('div');bubble.className='bubble '+item.speaker;
       const label=document.createElement('span');label.className='by';label.textContent=(item.speaker==='user'?'你':'角色')+' · '+new Date(item.at).toLocaleString();
       bubble.append(label,document.createTextNode(item.text));

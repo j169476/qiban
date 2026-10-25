@@ -72,8 +72,8 @@ def test_concurrent_clients_send_once(role):
     assert len(role.adapter.sent) == 1
 
 
-def test_real_hook_owner_and_admin_isolation(role, tmp_path):
-    source = Path(__file__).resolve().parents[1] / "plugins" / "bili-assistant" / "hooks" / "lifecycle.py"
+def test_session_end_is_a_hint_and_does_not_stop_role_or_admin(role, tmp_path):
+    source = Path(__file__).resolve().parents[1] / "plugins" / "qiban" / "hooks" / "lifecycle.py"
     plugin = tmp_path / "plugin"
     (plugin / "hooks").mkdir(parents=True)
     shutil.copy(source, plugin / "hooks" / "lifecycle.py")
@@ -97,7 +97,10 @@ def test_real_hook_owner_and_admin_isolation(role, tmp_path):
     hook("role", "SessionStart")
     assert (role.store.runtime / "hooks" / "role.json").exists()
     hook("role", "SessionEnd")
-    assert (role.store.runtime / f"stop-{generation}").exists()
+    assert not (role.store.runtime / f"stop-{generation}").exists()
+    event = json.loads((role.store.runtime / "hooks" / "role.json").read_text(encoding="utf-8"))
+    assert event["event"] == "SessionEnd" and event["thread_id"] == "role"
+    assert role.run()["generation"] == generation
 
 
 def test_host_paginates_all_sources(tmp_path):
