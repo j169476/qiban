@@ -1,0 +1,34 @@
+{
+  "description": "Authored synthetic regression cases, not a blind or live-model evaluation. Expansions are fixed test inputs.",
+  "documents": [
+    {"position": 20, "content": "北岸灯塔的碰面暗号是钴蓝纸鹤，约在周四。"},
+    {"position": 21, "content": "更正刚才的约定：改为周五，周四取消。"},
+    {"position": 40, "content": "林舟喜欢梨，林周喜欢苹果。这是两个人。"},
+    {"position": 60, "content": "我的饮品偏好：不喝含咖啡因的饮料，只喝麦茶。"},
+    {"position": 80, "content": "下雨时在地铁站等，晴天才去河边，不能弄反。"},
+    {"position": 100, "content": "备用钥匙保管盒编号 KZQ_4817，放在木柜第三层。"},
+    {"position": 120, "prefix_repeat": 1000, "content": "长卷轴末尾约定：银杏邮局包裹留给夏禾，不能交给夏荷。"},
+    {"position": 140, "content": "The courtyard lanterns turn off at 22:40. The side gate stays unlocked until 23:00."},
+    {"position": 160, "content": "我在转述朋友的话：‘我讨厌草莓’。我本人喜欢草莓，不要混为一谈。"},
+    {"position": 180, "content": "海角咖啡馆订位为周六下午三点，订位码 FZ_279。"},
+    {"position": 220, "content": "海角咖啡馆订位已取消，周六不要去，稍后再定日期。"},
+    {"position": 240, "content": "疲惫时希望有人安静陪伴，不需要建议或说教。"},
+    {"position": 260, "content": "Access to the workshop requires the bronze badge. A blue badge is for the library."},
+    {"position": 280, "content": "白榆只在周二练习小提琴，周末练习的是钢琴。"}
+  ],
+  "queries": [
+    {"id": "omitted-detail-and-adjacent-correction", "query": "北岸灯塔的碰面暗号和日期", "positions": [20, 21], "evidence": ["钴蓝纸鹤", "周五", "周四取消"], "expansions": []},
+    {"id": "similar-names", "query": "林舟和林周分别喜欢什么", "positions": [40], "evidence": ["林舟喜欢梨", "林周喜欢苹果"], "expansions": []},
+    {"id": "negation", "query": "饮品里能有咖啡因吗", "positions": [60], "evidence": ["不喝含咖啡因", "只喝麦茶"], "expansions": []},
+    {"id": "conditional-fact", "query": "下雨在哪等晴天去哪", "positions": [80], "evidence": ["下雨时在地铁站", "晴天才去河边"], "expansions": []},
+    {"id": "exact-identifier", "query": "KZQ_4817", "positions": [100], "evidence": ["木柜第三层"], "expansions": []},
+    {"id": "long-tail-and-name-boundary", "query": "银杏邮局包裹留给谁", "positions": [120], "evidence": ["留给夏禾", "不能交给夏荷"], "expansions": []},
+    {"id": "cross-language-lantern", "query": "庭院灯笼几点熄灭", "positions": [140], "evidence": ["22:40"], "expansions": ["courtyard lanterns turn off"]},
+    {"id": "quoted-third-party", "query": "对草莓是什么态度", "positions": [160], "evidence": ["转述朋友", "我本人喜欢草莓"], "expansions": []},
+    {"id": "distant-cancellation", "query": "海角咖啡馆订位的前后变化", "positions": [180, 220], "evidence": ["周六下午三点", "订位已取消"], "expansions": []},
+    {"id": "paraphrased-emotional-need", "query": "累到不想说话的时候怎么相处", "positions": [240], "evidence": ["安静陪伴", "不需要建议或说教"], "expansions": ["疲惫 安静陪伴 建议 说教"]},
+    {"id": "cross-language-access", "query": "工作坊要哪种通行证", "positions": [260], "evidence": ["bronze badge", "blue badge is for the library"], "expansions": ["workshop access badge"]},
+    {"id": "temporal-condition", "query": "白榆周二和周末练什么", "positions": [280], "evidence": ["周二练习小提琴", "周末练习的是钢琴"], "expansions": []},
+    {"id": "absent-evidence", "query": "xenon_delta_unobserved", "positions": [], "evidence": [], "expansions": []}
+  ]
+}

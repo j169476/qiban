@@ -1,0 +1,11 @@
+schema_version: 1
+id: main
+name: ""
+core:
+  description: ""
+  speaking_style: []
+interests: []
+foundation_memories: []
+locked_fields:
+  - name
+  - core

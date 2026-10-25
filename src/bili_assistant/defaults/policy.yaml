@@ -1,0 +1,25 @@
+schema_version: 1
+mode: autonomous
+timezone: Asia/Shanghai
+active_hours:
+  start: "09:00"
+  end: "23:00"
+cycle_minutes: 15
+items_per_cycle: 2
+daily_videos: 12
+daily_model_cycles: 56
+worker_timeout_seconds: 180
+min_action_interval_seconds: 300
+max_reply_turns_per_uid_day: 3
+favorite_folder_id: 0
+backup_keep: 14
+actions:
+  comment: {enabled: true, daily_limit: 2}
+  reply: {enabled: true, daily_limit: 5}
+  comment_like: {enabled: true, daily_limit: 5}
+  dm_reply: {enabled: true, daily_limit: 3}
+  dynamic: {enabled: true, daily_limit: 1}
+  like: {enabled: true, daily_limit: 10}
+  favorite: {enabled: true, daily_limit: 10}
+  follow: {enabled: true, daily_limit: 2}
+  coin: {enabled: true, daily_limit: 2}

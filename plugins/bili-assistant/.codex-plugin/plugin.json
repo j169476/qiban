@@ -1,0 +1,13 @@
+{
+  "name": "bili-assistant",
+  "version": "0.8.0",
+  "description": "共享本地记忆与独立 B站、微信、QQ 连接器的角色助手",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "栖伴 Qiban",
+    "shortDescription": "角色与管理聊天分离，网页统一管理会话授权、额度和本地记忆。",
+    "category": "Productivity"
+  }
+}

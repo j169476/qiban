@@ -1,0 +1,534 @@
+{
+  "q01": [
+    "发版出错 可用版本回退 此前恢复经验",
+    "发布回滚 恢复点 版本快照 状态一致性",
+    "Failed deployment rollback last known good release",
+    "Release rollback recovery checkpoints state restoration",
+    "上线出了问题 退回上个能用的版本 恢复正常的旧办法"
+  ],
+  "q02": [
+    "Git 标签 数据库反向迁移 版本回退经验",
+    "代码与数据库版本一致性 回滚兼容性 可逆迁移",
+    "Git tags database down migrations release rollback",
+    "Coordinated rollback reversible schema migrations compatibility",
+    "Git 旧标签 数据库改动撤回 代码和库的版本配套"
+  ],
+  "q03": [
+    "信息流 越刷越窄 重复作者 内容多样性",
+    "过滤气泡 作者曝光集中 推荐探索 多样性重排",
+    "Recommendation feeds author diversity filter bubbles",
+    "Exploration and exploitation diversity-aware ranking exposure concentration",
+    "刷来刷去都是那几个人 换些作者看看 别越看范围越小"
+  ],
+  "q04": [
+    "主题占比 作者分布 内容构成",
+    "主题覆盖度 作者集中度 分布均衡性",
+    "Topic proportions author distribution content diversity",
+    "Topic coverage author concentration distribution entropy",
+    "各类内容各占多少 哪些作者出现得多 作者是否扎堆"
+  ],
+  "q05": [
+    "我邀她观看一次 非永久爱好 非长期偏好",
+    "她的单次参与 长期偏好推断边界 兴趣证据强度",
+    "My one-time invitation for her to watch no assumed lasting interest",
+    "Single-event evidence limits no enduring preference inference about her",
+    "我只请她看过这一次 不等于她一直喜欢 别记成她的固定爱好"
+  ],
+  "q06": [
+    "同一作品 重复讨论 兴趣线索",
+    "跨次话题复现 兴趣信号累积 偏好推断置信度",
+    "Repeated discussion of the same work interest signals",
+    "Repeated engagement preference inference evidence accumulation",
+    "同一个作品聊了好几回 反复提起 可能喜欢的线索"
+  ],
+  "q07": [
+    "扣款接口 未收到响应 重试 重复扣款风险",
+    "请求结果不确定 幂等重试 交易状态查询",
+    "Payment request missing response retry duplicate charges",
+    "Idempotent retries transaction status reconciliation",
+    "扣钱接口没回音 再点一次 上一笔是否成功 扣两遍的风险"
+  ],
+  "q08": [
+    "HTTP 超时 幂等键 请求重试",
+    "超时后的结果不确定 请求去重 幂等键复用",
+    "HTTP timeouts idempotency keys request retries",
+    "Idempotent retry handling request deduplication key persistence",
+    "HTTP 请求等不到回复 同一件事重发 同一个请求标记 避免做两遍"
+  ],
+  "q09": [
+    "模型 练习题记忆 新题表现越来越差 过拟合",
+    "训练集拟合 泛化误差增大 记忆与泛化权衡",
+    "Model overfitting memorization worsening performance on unseen examples",
+    "Generalization gap high variance training data memorization",
+    "练过的题背得很熟 换新题就不行 越练新题做得越差"
+  ],
+  "q10": [
+    "训练误差 验证误差 早停 正则化",
+    "训练与验证损失分离 过拟合控制 模型复杂度约束",
+    "Training error validation error early stopping regularization",
+    "Validation-guided early stopping model complexity penalties",
+    "练习题成绩 留出题成绩 早点停练 给模型加约束 别把训练题记太死"
+  ],
+  "q11": [
+    "白花照片 花瓣死白 高光过曝 上次处理方法",
+    "高光剪切 曝光补偿 测光 动态范围",
+    "White flower photography blown highlights petal detail",
+    "Highlight clipping exposure compensation highlight recovery",
+    "白花拍得太亮 花瓣纹路没了 一片白没层次 之前的补救办法"
+  ],
+  "q12": [
+    "花瓣摄影 直方图 反光板 RAW",
+    "高光溢出监测 补光对比控制 RAW 高光恢复",
+    "Petal photography histogram reflector RAW image files",
+    "Highlight clipping detection fill light control raw highlight recovery",
+    "拍花瓣 看亮度分布 用板子补光 保留 RAW 原片细节"
+  ],
+  "q13": [
+    "记忆文件 已修改 搜索仍返回旧内容",
+    "检索索引陈旧 缓存失效 增量更新检测 内容指纹",
+    "Edited memory files stale search results search index",
+    "Index invalidation change detection cache coherence",
+    "文件里的记忆改了 搜出来还是老版本 旧结果没刷新"
+  ],
+  "q14": [
+    "YAML 同长度覆盖 内容摘要 变更检测",
+    "等长修改检测 内容哈希 文件大小比较",
+    "YAML same-length overwrite content digest change detection",
+    "Content-based change detection size-based comparison limitations",
+    "YAML 文件大小没变 内容换了 用摘要识别改动"
+  ],
+  "q15": [
+    "视频 仅看几张截图 完整观看声明",
+    "抽样证据边界 时序覆盖不足 观看范围与声明一致性",
+    "Video screenshots limited viewing full-viewing claims",
+    "Sparse visual evidence temporal coverage limits claim calibration",
+    "只看了几张画面 从头看到尾的说法 实际看过多少"
+  ],
+  "q16": [
+    "稀疏视频抽帧 字幕覆盖率",
+    "时间采样遗漏 短时字幕捕获 字幕覆盖完整性",
+    "Sparse frame sampling subtitle coverage",
+    "Temporal undersampling transient subtitle omission coverage estimation",
+    "隔很久截一帧 容易漏掉的字幕 画面里的字是否看全"
+  ],
+  "q17": [
+    "冷藏面包胚 出炉实心 此前经验",
+    "面团复温 发酵不足 酵母活性 气体膨胀",
+    "Refrigerated bread dough dense crumb baking",
+    "Cold dough proofing yeast activity gas retention",
+    "冰箱拿出的面胚 烤后瓷实不蓬松 回温醒面 之前的处理办法"
+  ],
+  "q18": [
+    "面团 二次发酵 按压回弹 判断状态",
+    "最终醒发成熟度 手指按压测试 发酵不足与过度",
+    "Dough second proof finger poke test springback",
+    "Final proof assessment indentation recovery fermentation readiness",
+    "面团第二次醒发 手指按一下 弹得快慢 凹痕留不留"
+  ],
+  "q19": [
+    "无边权图 最少步数 遍历顺序",
+    "广度优先搜索 按层扩展 先进先出队列 最短路径",
+    "Unweighted graph minimum hops traversal order",
+    "Breadth-first search level-order traversal shortest path discovery",
+    "边上没标权重 找少走几步的路线 一圈圈找路的顺序"
+  ],
+  "q20": [
+    "无权图 最短路径 先进先出队列",
+    "广度优先搜索 分层遍历 首次访问 最短距离保证",
+    "unweighted graph shortest paths first-in-first-out queue",
+    "breadth-first search level-order traversal shortest-path guarantee",
+    "每条边一样长 先进去的先处理 一层层找 最少走几条边"
+  ],
+  "q21": [
+    "他 喜欢看拆东西 不推荐买车排行榜",
+    "内容偏好纠正 拆解兴趣匹配 购车排行排除",
+    "teardown video preference no car buying rankings",
+    "recommendation preference correction teardown interest car ranking exclusion",
+    "他爱看东西拆开 拆给人看 别再推买车榜"
+  ],
+  "q22": [
+    "机械结构 拆解 修复 内容偏好更正",
+    "兴趣偏好修订 机械构造 拆卸复原 偏好记录纠错",
+    "mechanical structures disassembly repair preference correction",
+    "preference revision mechanical disassembly repair interest matching",
+    "机器里面怎么装 拆开怎么修 喜好记录改正"
+  ],
+  "q23": [
+    "铅笔画 手碰纸面发黑 石墨蹭脏",
+    "石墨转移 手掌摩擦污迹 垫纸隔离 绘画防蹭",
+    "pencil drawing hand smudging graphite transfer",
+    "graphite smudge prevention hand barrier drawing direction",
+    "画铅笔画 手一蹭纸就黑 手下垫纸 避免抹花"
+  ],
+  "q24": [
+    "左利手 石墨笔 纸面清洁 防蹭脏",
+    "左手绘画 石墨摩擦转移 手掌隔离 运笔方向",
+    "left-handed graphite pencil drawing clean paper",
+    "left-handed drawing smudge prevention hand barriers stroke direction",
+    "左手拿铅笔 手别擦到画过的地方 垫张纸 保持纸干净"
+  ],
+  "q25": [
+    "账号7001 小河 适合分享的内容 兴趣偏好",
+    "7001 小河 账号身份绑定 内容偏好匹配",
+    "account 7001 小河 content sharing interests",
+    "7001 小河 identity-specific preference matching content selection",
+    "7001 小河 爱看什么 给小河发什么 分享哪类东西"
+  ],
+  "q26": [
+    "UID 7001 现场演奏 乐器制作",
+    "UID 7001 演奏呈现 制作工序 音乐内容兴趣匹配",
+    "UID 7001 live music performance musical instrument making",
+    "UID 7001 live performance instrument craftsmanship content matching",
+    "UID 7001 现场奏乐 看演出 乐器怎么做 制作过程"
+  ],
+  "q27": [
+    "7002 两位同名朋友 视频偏好 身份区分",
+    "7002 同名消歧 账号绑定 兴趣归属 防止人物混淆",
+    "7002 namesake friends video preferences",
+    "7002 account-bound preference attribution namesake disambiguation",
+    "7002 那位朋友 爱看哪类视频 两个人名字一样 别记串了"
+  ],
+  "q28": [
+    "UID 7002 无旁白 陶艺视频",
+    "UID 7002 无旁白内容筛选 陶艺制作过程呈现",
+    "UID 7002 pottery videos without narration",
+    "UID 7002 narration exclusion pottery process content matching",
+    "UID 7002 做陶器的视频 不配旁白 没有解说"
+  ],
+  "q29": [
+    "主人 后来更正 外面称呼 不要太亲昵",
+    "称呼偏好更新 公开场景约束 后续更正覆盖旧偏好",
+    "master public address excessive endearments later correction",
+    "address preference revision public context endearment limits",
+    "主人 后来改口 在外面别叫太甜 别用腻歪称呼"
+  ],
+  "q30": [
+    "公开评论 普通称呼 私下亲近 称呼偏好更正",
+    "称呼策略修订 公开与私聊场景区分 亲密程度控制",
+    "public comments neutral address private affectionate address correction",
+    "address preference revision public neutrality private intimacy",
+    "评论区叫普通点 私下可以亲近 称呼按后来改的来"
+  ],
+  "q31": [
+    "目录迁移 避免重复花币 防止自动唤醒",
+    "迁移状态持久化 扣费幂等 去重记录 恢复时暂停自动任务",
+    "directory migration duplicate coin spending automatic wake prevention",
+    "spending idempotency persistent deduplication paused recovery scheduler state",
+    "搬到新文件夹 钱别扣两遍 恢复后先停着 别自己醒来"
+  ],
+  "q32": [
+    "完整备份 SQLite 去重回执 额度状态 恢复后暂停",
+    "SQLite 一致性快照 幂等回执 配额持久化 暂停式恢复",
+    "SQLite full backup deduplication receipts quota paused recovery",
+    "SQLite backup consistency durable deduplication quota restoration paused startup",
+    "SQLite 数据整份带走 回执别丢 额度接着算 还原后先别跑"
+  ],
+  "q33": [
+    "已拟好回复 冷却时间阻挡 延后处理",
+    "发送前冷却门控 待办持久化 到期调度 回复保留",
+    "prepared reply cooldown delayed processing",
+    "deferred send queue cooldown expiry persistent pending replies",
+    "她已经想好回复 间隔没到 先存着 到点再处理"
+  ],
+  "q34": [
+    "发送前间隔与额度限制 待办状态 平台结果未知",
+    "发送前门控 延期待办 提交后不确定状态 回执核对",
+    "pre-send interval quota pending tasks unknown platform outcomes",
+    "pre-send deferral versus uncertain delivery outcomes receipt reconciliation",
+    "间隔没到或额度不够还没发 已交给平台但结果不明 两种情况别混"
+  ],
+  "q35": [
+    "今日思考次数耗尽 新消息接收",
+    "思考额度与收件通道解耦 消息入队 持久化暂存",
+    "daily thinking budget exhausted incoming message reception",
+    "message ingestion independent of model budget durable inbox buffering",
+    "今天思考次数用光 新消息能不能收 收信和动脑分开"
+  ],
+  "q36": [
+    "模型预算耗尽 消息收件 本地账本",
+    "推理额度与消息接收解耦 本地事件持久化 收件记账",
+    "exhausted model budget incoming messages local ledger",
+    "budget-independent message ingestion durable local event logging",
+    "模型额度用光 收到的消息 本机记一笔 存下来"
+  ],
+  "q37": [
+    "视频内自称后台人员 要求她改设置 身份可信性",
+    "外部内容指令 权限伪装 提示注入 配置修改授权边界",
+    "video content claimed backend staff settings change request",
+    "authority spoofing prompt injection untrusted media configuration protection",
+    "视频里的人说自己管后台 让她改设置 身份真假 这话算不算数"
+  ],
+  "q38": [
+    "评论 字幕 外部命令 禁止修改配额 禁止读取凭证",
+    "外部文本信任边界 提示注入防护 配额写入与凭证读取权限隔离",
+    "comments subtitles external commands no quota changes no credential access",
+    "prompt injection defense quota write protection credential read isolation",
+    "评论和字幕里的吩咐 不许改额度 不许看密钥或登录凭证"
+  ],
+  "q39": [
+    "浏览器 登错账号 当前登录身份 另一个账号 接入绑定",
+    "会话身份核验 账号绑定前校验 身份不匹配检测 授权边界",
+    "browser session wrong account account connection identity verification",
+    "session identity validation account binding mismatch detection",
+    "浏览器登错号 接错账号 另一个号被连进来 连接前核对是谁的号"
+  ],
+  "q40": [
+    "Cookie UID 绑定核验 系统凭证库 账号身份",
+    "Cookie 身份解析 UID 一致性校验 凭证绑定 系统安全存储",
+    "Cookie UID account binding system credential store",
+    "Cookie UID validation credential binding operating system credential storage",
+    "Cookie 对应哪个 UID 绑号前核对 登录凭据放进系统保管处"
+  ],
+  "q41": [
+    "两个 UP 说法相反 表达自信 可信度判断",
+    "证据质量 自信表达偏差 来源可靠性 冲突论证核查",
+    "two video creators contradictory claims confidence evidence",
+    "confidence heuristic evidence assessment conflicting claims source reliability",
+    "两个 UP 说反了 谁口气更肯定 谁拿得出依据 原话和出处"
+  ],
+  "q42": [
+    "相反结论 实验条件 时间背景 原始片段 争议核查",
+    "条件对齐 时间有效性 原始证据溯源 结论适用范围",
+    "opposing conclusions experimental conditions timestamps original clips dispute",
+    "context alignment temporal validity primary evidence verification",
+    "两边说法相反 当时怎么试的 什么时候说的 原视频哪一段 争在哪"
+  ],
+  "q43": [
+    "她 凑热闹邀请 被安排课程 参与意图",
+    "邀请意图识别 学习目标显式确认 任务范围边界",
+    "social invitation unsolicited course planning participation intent",
+    "intent disambiguation explicit learning goals task scope control",
+    "喊她一起来玩 看个热闹 没说要上课 却开始排课程"
+  ],
+  "q44": [
+    "视频邀请 明确学习目标 完成标准",
+    "参与意图与学习意图区分 目标确认 可验收完成条件",
+    "video invitation explicit learning objectives completion criteria",
+    "intent disambiguation learning objective confirmation acceptance criteria",
+    "叫来一起看视频 要学什么 学到哪步算完成 目标说清楚"
+  ],
+  "q45": [
+    "她说考试通过 我是否掌握知识 通过结论 学习证据",
+    "通过结论来源 学习者主体归属 知识掌握独立验证",
+    "her report of an exam pass my knowledge mastery assessment evidence",
+    "learner identity attribution independent assessment mastery verification",
+    "她说过关了 考过的是谁 我有没有真学会 我自己能不能答对"
+  ],
+  "q46": [
+    "model_check_passed 模型自检 独立验证 通过证据",
+    "自检与外部验证区分 证据来源独立性 能力验收",
+    "model_check_passed model self-check independent verification",
+    "independent evidence validation self-assessment bias external evaluation",
+    "model_check_passed 模型自己说过关 另做一次检查 核对实际结果"
+  ],
+  "q47": [
+    "好感已入账 文件未写完 断电 用户手动修改 恢复",
+    "持久化账本 待完成投影 并发编辑冲突检测 幂等恢复",
+    "affection ledger incomplete file write power loss user edits recovery",
+    "crash recovery durable receipts idempotent replay three-way merge",
+    "好感记上了 文件没写完就断电 我也改过文件 两边对账 恢复更新"
+  ],
+  "q48": [
+    "事务日志 待处理投影 可编辑 YAML 状态对账",
+    "日志驱动恢复 投影状态同步 编辑冲突检测 幂等对账",
+    "transaction journal pending projection editable YAML reconciliation",
+    "journal replay projection reconciliation editable YAML conflict detection",
+    "日志里的待办更新 还没写回的内容 能手改的 YAML 文件 两边状态对齐"
+  ],
+  "h01": [
+    "手工修改 本地记录 检索旧版本 索引 缓存",
+    "源文件与检索索引同步 缓存失效 增量更新 链路排查",
+    "manual local record edits stale search results index cache",
+    "source and index synchronization cache invalidation stale read diagnosis",
+    "本地内容改过了 搜出来还是旧的 原文件重读 索引刷新 缓存更新"
+  ],
+  "h02": [
+    "文字已更换 字数不变 修改时间不变 旧检索结果",
+    "内容哈希变更检测 缓存键设计 索引失效 重建触发",
+    "changed text unchanged length unchanged modification time stale results",
+    "content-based change detection hash-based cache invalidation index refresh",
+    "字换了 长度没变 时间也没变 旧内容还在 正文比对 重读刷新"
+  ],
+  "h03": [
+    "关系分数已入账 断电 正文未同步 正文被手动编辑 两份状态",
+    "账本与正文一致性 待完成更新恢复 并发修改合并 重复记账防护",
+    "relationship score ledger power loss unsynced text manual edits reconciliation",
+    "durable state recovery editable projection reconciliation three-way merge",
+    "分数记好了 正文没跟上就断电 有人又改正文 账和文件重新对齐"
+  ],
+  "h04": [
+    "持久化回执 待完成可编辑文件更新 用户并发修改 恢复",
+    "持久化回执核对 并发修改检测 三方合并 幂等恢复",
+    "pending editable-file update durable receipt concurrent user edit recovery",
+    "receipt-based recovery idempotent replay conflict detection three-way merge",
+    "回执已经保存 文件更新还挂着 用户同时改了文件 恢复时对账合并"
+  ],
+  "h05": [
+    "线上更新失败 升级前代码版本 配置设置 历史定位",
+    "发布版本追踪 代码与配置快照 部署清单 版本对应关系",
+    "failed production update previous release source code configuration",
+    "release provenance deployment manifest code and configuration version mapping",
+    "线上升级出错 找升级前那版代码 当时用的设置 对应哪次发布"
+  ],
+  "h06": [
+    "请求未收到答复 同一笔扣款 重复执行 超时重试",
+    "幂等键 去重记录 支付状态查询 不确定结果对账",
+    "request timeout missing response duplicate charge payment transaction",
+    "payment idempotency deduplication uncertain outcome reconciliation",
+    "没等到回音 这笔钱可能已扣 重试同一笔 查账避免再扣"
+  ],
+  "h07": [
+    "少量时间点截图 整段视频声音 是否听完 覆盖范围",
+    "抽样证据边界 视觉与听觉模态区分 时间覆盖校验 声明约束",
+    "sparse video stills sampled timestamps full audio coverage claim",
+    "modality-specific evidence temporal coverage validation sampling limits",
+    "只有几个时刻的截图 整段声音是否听过 能确认看过听过哪些部分"
+  ],
+  "h08": [
+    "少量静帧 无连续声音 视频覆盖声明 证据支持范围",
+    "模态证据约束 稀疏采样覆盖 观察范围与声明一致性",
+    "few still frames no continuous sound supported coverage claim",
+    "evidence scope temporal sampling audiovisual coverage validation",
+    "只有几张静态图 没有连着的声音 看到了多少 能说听到了多少"
+  ],
+  "h09": [
+    "阿岚 UID 7001 UID 7002 同名人物 演出推荐 接收意愿",
+    "阿岚 7001 7002 身份消歧 UID 绑定偏好 推荐意愿独立核验",
+    "阿岚 UID 7001 UID 7002 performance recommendations recipient preferences",
+    "阿岚 UID 7001 UID 7002 entity resolution preference attribution",
+    "两个都叫阿岚 7001 和 7002 分开查 谁说过想收演出消息"
+  ],
+  "h10": [
+    "7002 不想听吵闹的东西 观看邀请 内容推荐",
+    "7002 不想听吵闹 声音刺激限制 观看偏好匹配",
+    "7002 viewing invitations content recommendations no loud audio",
+    "7002 viewing preference matching unwanted loud audio exclusion",
+    "7002 她不想听吵的 闹腾的 约她一起看什么 安静一点"
+  ],
+  "h11": [
+    "改口后 公开留言 当前称呼 不沿用私聊称呼",
+    "称呼偏好更新 时间优先级 公开与私聊场景区分",
+    "revised public comment name preference private chat name exclusion",
+    "latest naming preference precedence public comment scope private name exclusion",
+    "我改过叫法 公开留言该叫啥 别照私聊那样喊我"
+  ],
+  "h12": [
+    "资料还原后 她是否自动运行 旧动作计数是否保留",
+    "恢复状态 自动启动触发 计数持久化 历史动作连续性",
+    "data restoration automatic startup previous action counters",
+    "restore lifecycle execution triggers counter persistence state continuity",
+    "资料恢复好 她会自己动吗 以前做了几次还记着吗"
+  ],
+  "h13": [
+    "思考次数用完 后续评论 能否保存 保存位置",
+    "思考预算耗尽 评论接收与处理分离 待处理队列 持久化",
+    "exhausted reasoning budget incoming comments storage",
+    "reasoning budget exhaustion comment ingestion durable buffering deferred processing",
+    "思考机会用光 后来发的留言 还能不能收 存在哪里"
+  ],
+  "h14": [
+    "评论内容 要求改变系统权限 发言身份 判断依据",
+    "评论权限请求 来源可信度 角色归属 指令层级 权限边界",
+    "comment text system permission change request message origin authority",
+    "comment permission requests role provenance instruction hierarchy trust boundary",
+    "有人在评论里让系统改权限 谁说的 算什么身份 有没有权这样要求"
+  ],
+  "h15": [
+    "两段材料说法冲突 旧笔记覆盖 不同条件保留",
+    "冲突证据 条件化记忆 适用范围区分 笔记更新策略",
+    "conflicting source passages existing notes differing conditions",
+    "note replacement conditional coexistence evidence reconciliation provenance",
+    "两份资料对不上 旧记录要不要改 各自在什么情况下算数 分开记"
+  ],
+  "h16": [
+    "助手自出题 自己答对 用户是否学会 学习证据",
+    "助手自测 答题主体区分 掌握程度评估 证据归属 独立验证",
+    "assistant-generated questions correct assistant answers user mastery evidence",
+    "user mastery assessment evidence attribution assistant self-evaluation validity",
+    "助手自己出题自己答对 能算我会了吗 谁答出来的"
+  ],
+  "h6001": [
+    "海盐摄影社 相机出现条纹 优先核对 拍摄设置",
+    "海盐摄影社 条纹排查 快门与照明频率匹配 防闪烁设置",
+    "海盐摄影社 camera image banding shutter settings flicker reduction",
+    "海盐摄影社 camera banding exposure timing light flicker frequency synchronization",
+    "海盐摄影社 相机拍出一道道条纹 先看哪些设置 快门 防闪烁"
+  ],
+  "h6002": [
+    "830021青禾 不想听重金属 音乐推荐 偏好限制",
+    "830021青禾 重金属排除 音乐偏好匹配 替代推荐",
+    "830021青禾 music recommendations no heavy metal",
+    "830021青禾 preference-based music filtering heavy metal exclusion",
+    "830021青禾 不想听重金属 换什么歌 听点别的"
+  ],
+  "h6003": [
+    "830022青禾 最喜欢的音乐 首选曲风",
+    "830022青禾 音乐偏好排序 明确喜爱表述 首选偏好",
+    "830022青禾 favorite music strongest listening preferences",
+    "830022青禾 music preference ranking explicit favorites identity-specific retrieval",
+    "830022青禾 最爱听什么 歌和曲子 最中意哪类"
+  ],
+  "h6004": [
+    "雾桥 已取消周五 最新可约时间 时间变更",
+    "雾桥 预约时间更新 周五取消记录 最新有效可用时段",
+    "雾桥 Friday cancellation latest availability appointment time",
+    "雾桥 temporal updates canceled Friday slot latest valid availability",
+    "雾桥 周五不约了 后来改到什么时候 现在还能约哪天"
+  ],
+  "h6005": [
+    "Quartz 相机标定 棋盘格规格 自动对焦开关",
+    "Quartz 标定板几何参数 相机内参稳定性 自动对焦状态",
+    "Quartz camera calibration checkerboard dimensions square size autofocus",
+    "Quartz calibration target geometry focus stability autofocus control",
+    "Quartz 校准相机 用哪块棋盘格 格子多大 自动对焦开不开"
+  ],
+  "h6006": [
+    "Lapwing 下载完成后 不能立即更新消息确认游标 原因",
+    "Lapwing 消息确认游标推进 下载与持久化边界 崩溃恢复",
+    "Lapwing message acknowledgment cursor download completion update restriction",
+    "Lapwing acknowledgment cursor commit boundary durable processing crash recovery",
+    "Lapwing 消息刚下完 还不能把已确认位置往前移 会不会漏消息"
+  ],
+  "h6007": [
+    "海棠 离线同步 OCC revision mismatch 处理",
+    "海棠 离线同步 乐观并发控制 版本冲突 重读状态 合并与重试",
+    "海棠 offline synchronization optimistic concurrency control revision mismatch",
+    "海棠 revision mismatch conflict recovery version refresh merge retry semantics",
+    "海棠 离线同步 版本号对不上 revision mismatch 重新拿版本 再同步"
+  ],
+  "h6008": [
+    "纸鸢 防冻实验 纯水 结论适用范围 能否直接推广",
+    "纸鸢 防冻效果 外部效度 实验介质差异 纯水条件可迁移性",
+    "纸鸢 freeze protection experiment pure water applicability",
+    "纸鸢 freezing prevention external validity medium composition extrapolation to pure water",
+    "纸鸢 防冻试验 换成纯水还能算吗 原来怎么做的 条件一样吗"
+  ],
+  "h6009": [
+    "松塔夹具 开盖前 停机操作顺序",
+    "松塔夹具 开盖条件 停机状态转换 安全联锁 残余能量",
+    "松塔夹具 shutdown procedure cover opening order",
+    "松塔夹具 shutdown sequencing cover interlocks residual energy verification",
+    "松塔夹具 打开盖子前 先停哪一步 后停哪一步 怎么确认停好"
+  ],
+  "h6010": [
+    "北窗项目 公开评论 当前称呼 小窗 队长",
+    "北窗项目 称呼偏好更新 公开场景 最新有效称谓 小窗 队长",
+    "北窗项目 public comments current name preference 小窗 队长",
+    "北窗项目 public naming scope latest preference precedence 小窗 队长",
+    "北窗项目 现在公开留言 喊小窗还是队长 按现在的叫法"
+  ],
+  "h6011": [
+    "苍鹭观测台 三张薄雾照片 整夜连续有雾 证据充分性",
+    "苍鹭观测台 三张薄雾照片 时间采样覆盖 整夜持续性 间隔证据",
+    "苍鹭观测台 three mist photos continuous fog throughout the night evidence",
+    "苍鹭观测台 three mist photos temporal sampling gaps overnight continuity inference",
+    "苍鹭观测台 就三张薄雾照片 一整晚都有雾吗 中间有没有断"
+  ],
+  "h6012": [
+    "月桂 文件时间戳未变 人工修改 缓存失效检查",
+    "月桂 时间戳不变 人工内容变更检测 内容指纹 缓存有效性",
+    "月桂 unchanged file timestamp manual edits cache invalidation",
+    "月桂 unchanged timestamps content hashing cache dependency validation manual edits",
+    "月桂 文件时间没动 人却改过内容 查旧缓存还能不能用 比对内容"
+  ]
+}

@@ -1,0 +1,6 @@
+# Isolated Windows P0 environment; audited installation on 2026-10-24.
+# Keep desktop automation out of the production service's default dependencies.
+pywinauto==0.6.9; sys_platform == 'win32'
+comtypes==1.4.17; sys_platform == 'win32'
+pywin32==312; sys_platform == 'win32'
+six==1.17.0; sys_platform == 'win32'

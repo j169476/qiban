@@ -1,0 +1,12 @@
+The restricted Windows cipher-object reader in db_windows.py adapts layout
+constants and the extraction algorithm from fanyuantaier/wechatauto-replica,
+commit d322c4a9b1124228820bab363e5676016f188fc6, wechatauto/db.py.
+Source: https://github.com/fanyuantaier/wechatauto-replica
+License: Apache License 2.0; see wechatauto-replica-LICENSE.txt.
+
+Modifications: separate, bounded read-only process access; exact-version gate;
+caller-supplied page authentication; volatile key buffers; no original package
+initialization, UI manipulation, key files, or plaintext database caching.
+
+SQLCipher and sqlcipher3 are separately installed optional dependencies, not
+vendored here. Their packages retain their respective upstream licenses.

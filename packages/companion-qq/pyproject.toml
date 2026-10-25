@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-companion-qq"
+version = "0.1.0"
+description = "Scoped OneBot QQ connector with shared reply authorization and participation policy."
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = ["local-companion-core>=0.8,<0.9", "httpx>=0.28,<1", "websockets>=15,<17", "keyring>=25,<26"]
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["companion_qq*"]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "栖伴 Qiban-后台管理"
+  short_description: "管理本地人设、每天额度与运行时段，检查状态，不写入角色记忆。"
+  default_prompt: "使用 $bili-admin 打开本项目的 栖伴 Qiban后台管理。"

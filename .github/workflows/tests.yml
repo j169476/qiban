@@ -1,0 +1,78 @@
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -c constraints-windows.txt -e .[dev,service,qq]
+      - run: python scripts/run_unit_shard.py --index ${{ matrix.shard }} --count 3
+      - if: matrix.shard == 0
+        run: ruff check src tests tests_core tests_postgres tests_wechat scripts
+      - if: matrix.shard == 0
+        run: python scripts/check_release.py
+      - if: matrix.shard == 0
+        run: python scripts/prepare_release.py
+      - if: matrix.shard == 0
+        run: python -m pytest -q --confcutdir=tests_core tests_core --junitxml=.dev/core-results.xml
+      - if: matrix.shard == 0
+        run: python -m pip install -r requirements/wechat-db.txt
+      - if: matrix.shard == 0
+        run: python -m pytest -q --confcutdir=tests_wechat tests_wechat --junitxml=.dev/wechat-results.xml
+      - if: matrix.shard == 0
+        run: python -m pip wheel --no-deps packages/companion-core --wheel-dir dist/core
+      - shell: pwsh
+        if: matrix.shard == 0
+        run: |
+          $coreWheel = Get-ChildItem dist/core/local_companion_core-*.whl | Select-Object -First 1
+          python scripts/check_core_package.py $coreWheel.FullName
+      - name: Save unit and core test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.shard }}
+          path: |
+            .dev/unit-${{ matrix.shard }}.xml
+            .dev/core-results.xml
+            .dev/wechat-results.xml
+          include-hidden-files: true
+  postgres:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      COMPANION_TEST_DATABASE: .dev/ci-postgres/connection.json
+      COMPANION_REQUIRE_POSTGRES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: python -m pip install -c constraints-windows.txt -e .[dev,service,qq]
+      - name: Prepare isolated PostgreSQL
+        run: python scripts/ci_postgres.py start
+      - name: Run database and service regressions
+        run: python -m pytest -q tests_postgres --junitxml=.dev/postgres-results.xml
+      - name: Stop isolated PostgreSQL
+        if: always()
+        run: python scripts/ci_postgres.py stop
+      - name: Save database test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-test-results
+          path: .dev/postgres-results.xml
+          include-hidden-files: true

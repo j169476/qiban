@@ -1,0 +1,225 @@
+{
+  "description": "Authored synthetic full-pipeline regression cases. Not held-out or blind. Expected fields are never supplied to the model.",
+  "cases": [
+    {
+      "id": "recall-paraphrase",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "备用钥匙放在灰色盒子第二层。"
+        }
+      ],
+      "question": "那把开门用的备用东西收在哪里？请简短回答。",
+      "evidence_ids": [
+        "m1"
+      ],
+      "expected": {
+        "required": [
+          [
+            "灰色盒子"
+          ],
+          [
+            "第二层"
+          ]
+        ],
+        "abstain": false
+      }
+    },
+    {
+      "id": "current-correction",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我住上海"
+        },
+        {
+          "id": "m2",
+          "text": "我以前住上海，现在住杭州"
+        }
+      ],
+      "question": "我现在住哪个城市？只回答当前城市。",
+      "evidence_ids": [
+        "m2"
+      ],
+      "oracle_ids": [
+        "m1",
+        "m2"
+      ],
+      "expected": {
+        "required": [
+          [
+            "杭州"
+          ]
+        ],
+        "forbidden": [
+          "上海"
+        ],
+        "abstain": false
+      },
+      "expected_facts": [
+        {
+          "value": "杭州",
+          "status": "active"
+        },
+        {
+          "value": "上海",
+          "status": "historical"
+        }
+      ]
+    },
+    {
+      "id": "future-not-yet",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我住上海"
+        },
+        {
+          "id": "m2",
+          "text": "我将在2026-12-01搬到杭州"
+        }
+      ],
+      "question_at": "2026-10-24T00:00:00+00:00",
+      "question": "我今天住哪个城市？只回答今天的城市。",
+      "evidence_ids": [
+        "m1"
+      ],
+      "oracle_ids": [
+        "m1",
+        "m2"
+      ],
+      "expected": {
+        "required": [
+          [
+            "上海"
+          ]
+        ],
+        "forbidden": [
+          "杭州"
+        ],
+        "abstain": false
+      },
+      "expected_facts": [
+        {
+          "value": "上海",
+          "status": "active"
+        },
+        {
+          "value": "杭州",
+          "status": "future"
+        }
+      ]
+    },
+    {
+      "id": "negation",
+      "category": "negation",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我不喜欢甜咖啡"
+        }
+      ],
+      "question": "我对甜咖啡的偏好是什么？",
+      "evidence_ids": [
+        "m1"
+      ],
+      "expected": {
+        "required": [
+          [
+            "不喜欢",
+            "不爱"
+          ]
+        ],
+        "abstain": false
+      }
+    },
+    {
+      "id": "unknown",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我还没有决定给猫取什么名字。"
+        }
+      ],
+      "question": "我的猫叫什么名字？不知道就明确说不知道。",
+      "evidence_ids": [],
+      "oracle_ids": [
+        "m1"
+      ],
+      "expected": {
+        "abstain": true,
+        "forbidden": [
+          "小白",
+          "咪咪"
+        ]
+      }
+    },
+    {
+      "id": "other-owner",
+      "category": "permission",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我住秘密城",
+          "actor": "other"
+        }
+      ],
+      "question": "我住哪个城市？不知道就明确说不知道。",
+      "evidence_ids": [],
+      "oracle_ids": [
+        "m1"
+      ],
+      "expected": {
+        "abstain": true,
+        "forbidden": [
+          "秘密城"
+        ]
+      }
+    },
+    {
+      "id": "unresolved-conflict",
+      "category": "conflict",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我住上海"
+        },
+        {
+          "id": "m2",
+          "text": "我住杭州"
+        }
+      ],
+      "question": "我的住址能确定吗？有冲突就说明，不能自行挑一个。",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "expected": {
+        "abstain": true,
+        "required": [
+          [
+            "冲突"
+          ]
+        ],
+        "unknown_phrases": [
+          "冲突",
+          "不能确定"
+        ]
+      },
+      "expected_facts": [
+        {
+          "value": "上海",
+          "status": "disputed"
+        },
+        {
+          "value": "杭州",
+          "status": "disputed"
+        }
+      ]
+    }
+  ]
+}

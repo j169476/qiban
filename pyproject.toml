@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-bilibili-assistant"
+version = "0.8.0"
+description = "A local companion with shared memory and independent Bilibili, WeChat and QQ connectors."
+requires-python = ">=3.11"
+license = {text = "MIT for project-owned code; third-party components retain their original licenses (see THIRD_PARTY_NOTICES.md)"}
+dependencies = [
+  "PyYAML>=6.0.2,<7",
+  "jsonschema>=4.23,<5",
+  "filelock>=3.16,<4",
+  "mcp>=1.9,<2",
+  "bilibili-api-python==17.4.2",
+  "httpx>=0.28,<1",
+  "qrcode>=7.4,<9",
+  "keyring>=25,<26",
+  "tzdata>=2025.1",
+  "Pillow>=11,<14",
+  "python-docx>=1.1,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "pytest-asyncio>=0.26,<2", "ruff>=0.11,<1"]
+speech = ["faster-whisper>=1.1,<2"]
+wechat-probe = ["pywinauto==0.6.9; sys_platform == 'win32'"]
+wechat-visual = ["rapidocr==3.10.0", "onnxruntime==1.31.0"]
+wechat-db = ["sqlcipher3==0.6.4; sys_platform == 'win32'", "cryptography>=46,<51", "zstandard==0.25.0"]
+qq = ["websockets>=15,<17"]
+service = ["psycopg[binary,pool]>=3.2,<4", "cryptography>=46,<51", "starlette>=1.9,<2",
+           "uvicorn>=0.54,<1", "Jinja2>=3.1.6,<4"]
+
+[project.scripts]
+bili-assistant = "bili_assistant.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+
+[tool.setuptools.package-data]
+bili_assistant = ["defaults/*.yaml", "schemas/*.json"]
+companion_core = ["*.json", "sql/*.sql"]
+companion_wechat = ["third_party/*.txt", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
+companion_service = ["templates/*.html", "static/*.css", "static/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tests_core", "tests_wechat"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

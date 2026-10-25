@@ -1,0 +1,17 @@
+{
+  "name": "xiaolongniang-local",
+  "plugins": [
+    {
+      "name": "bili-assistant",
+      "source": {
+        "source": "local",
+        "path": "./plugins/bili-assistant"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

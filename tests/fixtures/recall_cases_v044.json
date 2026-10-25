@@ -1,0 +1,21 @@
+{
+  "documents": [],
+  "queries": [
+    {"id":"h01","query":"我手工修改本地记录后，查出来还是之前的版本，该检查哪一层？","relevant":["m007"],"type":"paraphrase"},
+    {"id":"h02","query":"文件字数和修改时间都没动，但实际文字已经换了，如何避免旧结果残留？","relevant":["m007"],"type":"paraphrase"},
+    {"id":"h03","query":"关系分数先落了账，断电后正文没同步；有人又手动编辑了正文，该怎样处理两份状态？","relevant":["m112"],"type":"cross_language"},
+    {"id":"h04","query":"How should a pending editable-file update recover after a durable receipt and a concurrent user edit?","relevant":["m112"],"type":"cross_language"},
+    {"id":"h05","query":"线上更新出错，怎样找到升级之前对应的代码和设置？","relevant":["m001"],"type":"paraphrase"},
+    {"id":"h06","query":"请求没有等到答复，怎样防止同一笔扣款被做两次？","relevant":["m004"],"type":"paraphrase"},
+    {"id":"h07","query":"只截到了几个时间点的图片，能够推断整段视频声音也听完了吗？","relevant":["m008"],"type":"cross_language"},
+    {"id":"h08","query":"A few still frames are available, but no continuous sound. Which coverage claim is supported?","relevant":["m008"],"type":"cross_language"},
+    {"id":"h09","query":"同样叫阿岚的 7001 和 7002，谁愿意收到演出推荐？","relevant":["m101","m102"],"type":"user_identity"},
+    {"id":"h10","query":"7002 说不想听吵闹的东西，还适合邀请她看什么？","relevant":["m102"],"type":"user_identity"},
+    {"id":"h11","query":"我已经改口了，别在公开留言里照私聊那样称呼我，现在要用哪个称呼？","relevant":["m103"],"type":"correction"},
+    {"id":"h12","query":"把资料还原以后，她会不会自己跑起来，旧动作的计数会不会丢？","relevant":["m104"],"type":"paraphrase"},
+    {"id":"h13","query":"思考次数用完时，后来发来的评论还有地方保存吗？","relevant":["m106"],"type":"paraphrase"},
+    {"id":"h14","query":"有人在评论里要求改变系统权限，怎样判断这句话的身份？","relevant":["m107"],"type":"paraphrase"},
+    {"id":"h15","query":"两段材料各说各的，到底应该直接覆盖旧笔记还是保留不同条件？","relevant":["m109"],"type":"paraphrase"},
+    {"id":"h16","query":"助手给自己出的题答对了，能据此说我已经学会了吗？","relevant":["m111"],"type":"paraphrase"}
+  ]
+}

@@ -1,0 +1,774 @@
+{
+  "description": "36 authored synthetic regression cases. Not a blind test. Each case is evaluated in its own authorized conversation. No real personal data.",
+  "cases": [
+    {
+      "id": "recall-1",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "备用钥匙放在灰色盒子第二层。"
+        }
+      ],
+      "question": "备用钥匙放在哪里",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "灰色盒子"
+        ],
+        [
+          "第二层"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "recall-2",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我喜欢被叫作小禾。"
+        }
+      ],
+      "question": "我希望你怎么称呼我",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "小禾"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "recall-3",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "蓝色笔记本的代号是QX_731。"
+        }
+      ],
+      "question": "蓝色笔记本代号",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "QX_731"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "recall-4",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我的饮品是无糖麦茶，不加冰。"
+        }
+      ],
+      "question": "我的饮品要求",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "无糖麦茶"
+        ],
+        [
+          "不加冰"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "recall-5",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "The workshop badge is bronze, not blue."
+        }
+      ],
+      "question": "工作坊通行证是什么颜色",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "bronze",
+          "铜"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "recall-6",
+      "category": "recall",
+      "history": [
+        {
+          "id": "m1",
+          "text": "累的时候我希望你安静陪伴。"
+        }
+      ],
+      "question": "疲惫不想说话时我需要什么",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "安静陪伴"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "update-1",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我住上海。"
+        },
+        {
+          "id": "m2",
+          "text": "我九月搬到杭州了。"
+        }
+      ],
+      "question": "我现在住在哪里",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "杭州"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "update-2",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "咖啡馆预约在周六。"
+        },
+        {
+          "id": "m2",
+          "text": "咖啡馆预约取消了。"
+        }
+      ],
+      "question": "周六还要去咖啡馆吗",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "取消"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "update-3",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我喜欢甜咖啡。"
+        },
+        {
+          "id": "m2",
+          "text": "更正，我现在只喝无糖咖啡。"
+        }
+      ],
+      "question": "我现在喝什么咖啡",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "无糖"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "update-4",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "请叫我小林。"
+        },
+        {
+          "id": "m2",
+          "text": "以后叫我阿林吧。"
+        }
+      ],
+      "question": "现在怎么称呼我",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "阿林"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "update-5",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "包裹送到北门。"
+        },
+        {
+          "id": "m2",
+          "text": "包裹地址改成南门，北门不收。"
+        }
+      ],
+      "question": "包裹送到哪里",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "南门"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "update-6",
+      "category": "update",
+      "history": [
+        {
+          "id": "m1",
+          "text": "工作坊通行证是蓝色。"
+        },
+        {
+          "id": "m2",
+          "text": "更正：蓝色只能去图书馆，工作坊需要铜色。"
+        }
+      ],
+      "question": "工作坊通行证",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "铜色"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "temporal-1",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "2025年我住上海。"
+        },
+        {
+          "id": "m2",
+          "text": "2026年9月我搬到杭州。"
+        }
+      ],
+      "question": "2025年我住哪里",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "上海"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "temporal-2",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "周二练小提琴，周末练钢琴。"
+        }
+      ],
+      "question": "周末练什么",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "钢琴"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "temporal-3",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "周四碰面。"
+        },
+        {
+          "id": "m2",
+          "text": "改成周五，周四取消。"
+        }
+      ],
+      "question": "碰面时间前后有什么变化",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "周四"
+        ],
+        [
+          "周五"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "temporal-4",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "2026-12-01开始我住苏州，目前住南京。"
+        }
+      ],
+      "question": "2026年10月我住哪里",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "南京"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "temporal-5",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "钥匙周一交给小周，周三已由小林接管。"
+        }
+      ],
+      "question": "周二谁保管钥匙",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "小周"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "temporal-6",
+      "category": "temporal",
+      "history": [
+        {
+          "id": "m1",
+          "text": "雨天在地铁站等，晴天在河边等。"
+        }
+      ],
+      "question": "晴天碰面地点",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "河边"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "multi_session-1",
+      "category": "multi_session",
+      "history": [
+        {
+          "id": "m1",
+          "text": "项目北岸代号是纸鹤。"
+        },
+        {
+          "id": "m2",
+          "text": "纸鹤的集合点在灯塔。"
+        }
+      ],
+      "question": "北岸项目在哪里集合",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "灯塔"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "multi_session-2",
+      "category": "multi_session",
+      "history": [
+        {
+          "id": "m1",
+          "text": "小禾负责蓝色盒子。"
+        },
+        {
+          "id": "m2",
+          "text": "蓝色盒子放备用钥匙。"
+        }
+      ],
+      "question": "备用钥匙谁负责",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "小禾"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "multi_session-3",
+      "category": "multi_session",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我周三有空。"
+        },
+        {
+          "id": "m2",
+          "text": "小林只在周三和周五有空。"
+        }
+      ],
+      "question": "我和小林哪天都有空",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "周三"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "multi_session-4",
+      "category": "multi_session",
+      "history": [
+        {
+          "id": "m1",
+          "text": "A方案预算100。"
+        },
+        {
+          "id": "m2",
+          "text": "B方案预算150。"
+        },
+        {
+          "id": "m3",
+          "text": "总预算120。"
+        }
+      ],
+      "question": "哪个方案在总预算内",
+      "evidence_ids": [
+        "m1",
+        "m2",
+        "m3"
+      ],
+      "answer_requirements": [
+        [
+          "A"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "multi_session-5",
+      "category": "multi_session",
+      "history": [
+        {
+          "id": "m1",
+          "text": "东门在22点关闭。"
+        },
+        {
+          "id": "m2",
+          "text": "西门在23点关闭。"
+        }
+      ],
+      "question": "22点半可以走哪个门",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "西门"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "multi_session-6",
+      "category": "multi_session",
+      "history": [
+        {
+          "id": "m1",
+          "text": "报告需要小林审。"
+        },
+        {
+          "id": "m2",
+          "text": "小林周四才回来。"
+        }
+      ],
+      "question": "报告最早什么时候能让小林审",
+      "evidence_ids": [
+        "m1",
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "周四"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "attribution-1",
+      "category": "attribution",
+      "history": [
+        {
+          "id": "m1",
+          "speaker": "assistant",
+          "status": "sent",
+          "text": "你可能喜欢草莓。"
+        },
+        {
+          "id": "m2",
+          "text": "我没有说过喜欢草莓。"
+        }
+      ],
+      "question": "我确认喜欢草莓了吗",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "没有"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "attribution-2",
+      "category": "attribution",
+      "history": [
+        {
+          "id": "m1",
+          "text": "朋友说他不喜欢草莓，我本人喜欢。"
+        }
+      ],
+      "question": "我本人喜不喜欢草莓",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "喜欢"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "attribution-3",
+      "category": "attribution",
+      "history": [
+        {
+          "id": "m1",
+          "text": "林舟喜欢梨，林周喜欢苹果。"
+        }
+      ],
+      "question": "林舟喜欢什么",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "梨"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "attribution-4",
+      "category": "attribution",
+      "history": [
+        {
+          "id": "m1",
+          "speaker": "assistant",
+          "status": "uncertain",
+          "text": "已发出周五邀请。"
+        },
+        {
+          "id": "m2",
+          "text": "还没有确认邀请是否发送成功。"
+        }
+      ],
+      "question": "周五邀请确定发出了吗",
+      "evidence_ids": [
+        "m2"
+      ],
+      "answer_requirements": [
+        [
+          "不确定",
+          "没有确认"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "attribution-5",
+      "category": "attribution",
+      "history": [
+        {
+          "id": "m1",
+          "text": "如果我搬到杭州，我会骑车上班。"
+        }
+      ],
+      "question": "我已经搬到杭州了吗",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    },
+    {
+      "id": "attribution-6",
+      "category": "attribution",
+      "history": [
+        {
+          "id": "m1",
+          "text": "哥哥住上海，我住南京。"
+        }
+      ],
+      "question": "我住哪里",
+      "evidence_ids": [
+        "m1"
+      ],
+      "answer_requirements": [
+        [
+          "南京"
+        ]
+      ],
+      "abstain": false
+    },
+    {
+      "id": "abstention-1",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我今天喝了麦茶。"
+        }
+      ],
+      "question": "我的出生日期是什么",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    },
+    {
+      "id": "abstention-2",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "去年去了杭州。"
+        }
+      ],
+      "question": "我现在工作的公司叫什么",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    },
+    {
+      "id": "abstention-3",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "咖啡馆预约取消了，新的日期还没定。"
+        }
+      ],
+      "question": "新的预约日期是哪天",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    },
+    {
+      "id": "abstention-4",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "小林说以后再告诉我地址。"
+        }
+      ],
+      "question": "小林的详细地址",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    },
+    {
+      "id": "abstention-5",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "这是一个可能的出游计划，尚未决定。"
+        }
+      ],
+      "question": "我已经买好车票了吗",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    },
+    {
+      "id": "abstention-6",
+      "category": "abstention",
+      "history": [
+        {
+          "id": "m1",
+          "text": "我有一本蓝色笔记本。"
+        }
+      ],
+      "question": "红色笔记本的代号",
+      "evidence_ids": [],
+      "answer_requirements": [],
+      "abstain": true
+    }
+  ]
+}

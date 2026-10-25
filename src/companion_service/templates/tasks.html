@@ -1,0 +1,10 @@
+<section class="card"><p class="eyebrow">EXPLICIT TASKS</p><h2>一起做点什么</h2>
+<p class="task-hint">明确安排一次查资料、专题学习、视频补读或图片生成。任务使用当前额度，结果保存在这段私密会话中。</p>
+<form id="explicit-task"><fieldset id="task-fields" disabled>
+<label>任务类型<select id="task-kind"><option value="web">查网页资料</option><option value="learn">专题学习 · 网页资料</option><option value="video">B站视频按区间补读</option><option value="image">生成图片</option></select></label>
+<label id="task-prompt-label">要求<textarea id="task-prompt" rows="3" maxlength="2000" required placeholder="写下要查什么、学习目标，或图片要求"></textarea></label>
+<div id="task-learn-fields" hidden><label>验收要点（每行一项，最多 6 项）<textarea id="task-criteria" rows="3" maxlength="3000"></textarea></label><label>最多学习轮数<input id="task-rounds" type="number" min="1" max="6" value="2"></label><p class="task-hint">按材料出题、隐藏答案自答、评分并补查。模型自检有局限，不能作为独立实测或你已掌握的证明。</p></div>
+<div id="task-video-fields" hidden><div class="task-grid"><label>视频 BV 号<input id="task-bvid" pattern="BV[0-9A-Za-z]{10}" maxlength="12" placeholder="BV…"></label><label>分 P 序号（从 1 开始）<input id="task-page" type="number" min="1" max="1000" value="1"></label><label>开始秒数<input id="task-start" type="number" min="0" max="86400" value="0"></label><label>结束秒数<input id="task-end" type="number" min="1" max="86400" value="600"></label><label>阅读方式<select id="task-mode"><option value="text">字幕或转写文本</option><option value="visual">画面采样与文本</option></select></label></div><p class="task-hint">按实际缺口逐窗读取。覆盖记录区分文本和画面采样，不代表连续完整观看。</p></div>
+<button type="submit">安排任务</button></fieldset></form>
+<div class="section-heading"><h2>任务与结果</h2><button id="tasks-refresh" class="quiet">刷新</button></div><div id="task-list" aria-live="polite"><p class="task-hint">暂无已安排的任务。</p></div>
+</section>

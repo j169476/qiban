@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python \"${PLUGIN_ROOT}/hooks/lifecycle.py\"", "timeout": 3}]}
+    ],
+    "SessionEnd": [
+      {"hooks": [{"type": "command", "command": "python \"${PLUGIN_ROOT}/hooks/lifecycle.py\"", "timeout": 3}]}
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-companion-wechat"
+version = "0.1.0"
+description = "Windows WeChat readonly database receiver, scoped native text sender and role connector."
+requires-python = ">=3.11"
+license = {text = "MIT for project-owned code; Apache-2.0 and helper noncommercial terms apply to adapted components (see bundled notices)"}
+dependencies = ["local-companion-core>=0.8,<0.9"]
+
+[project.optional-dependencies]
+probe = ["pywinauto==0.6.9; sys_platform == 'win32'"]
+visual = ["rapidocr==3.10.0", "onnxruntime==1.31.0"]
+database = ["sqlcipher3==0.6.4; sys_platform == 'win32'", "cryptography>=46,<51", "zstandard==0.25.0"]
+
+[tool.setuptools.package-data]
+companion_wechat = ["third_party/*.txt", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
+
+[tool.setuptools.packages.find]
+where = ["../../src"]
+include = ["companion_wechat*"]

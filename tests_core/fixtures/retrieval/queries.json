@@ -1,0 +1,386 @@
+{
+  "q01": [
+    "发版出错 恢复可用状态 发布前版本 配置记录",
+    "发布回滚 恢复点 版本与配置对应关系",
+    "Failed deployment rollback previous working release",
+    "Release checkpoints code and configuration restoration"
+  ],
+  "q02": [
+    "Git 标签 数据库反向迁移 版本回退经验",
+    "代码版本锚点 数据库迁移可逆性 回滚兼容性",
+    "Git tags database down migrations release rollback",
+    "Schema migration reversibility code and database compatibility"
+  ],
+  "q03": [
+    "内容推荐 越刷越窄 同一批作者 主题与作者多样性",
+    "过滤气泡 推荐反馈循环 探索机制 曝光去集中化",
+    "Recommendation diversity filter bubbles repeated creators",
+    "Exploration and exploitation creator exposure diversification"
+  ],
+  "q04": [
+    "主题占比 作者分布 内容构成",
+    "主题多样性 作者集中度 分布均衡",
+    "Topic proportions creator distribution content diversity",
+    "Topic entropy creator concentration exposure balance"
+  ],
+  "q05": [
+    "她 单次观看邀请 非永久爱好",
+    "一次性互动 兴趣证据强度 情境偏好与长期偏好区分",
+    "One-time viewing invitation no permanent preference inference",
+    "Situational interest weak preference evidence persistence limits"
+  ],
+  "q06": [
+    "同一作品 重复讨论 兴趣线索",
+    "重复互动 兴趣证据累积 偏好推断置信度",
+    "Repeated discussion of the same work interest signals",
+    "Repeated engagement preference inference evidence strength"
+  ],
+  "q07": [
+    "扣款接口 未收到响应 再次操作 重复扣款风险",
+    "支付结果未知 幂等重试 交易状态查询",
+    "Payment request timeout unknown outcome duplicate charge",
+    "Idempotent payment retry transaction status reconciliation"
+  ],
+  "q08": [
+    "HTTP 超时 幂等键 请求重试",
+    "响应丢失 重复请求去重 幂等键作用域与有效期",
+    "HTTP timeouts idempotency keys request retries",
+    "Request deduplication idempotency key scope and retention"
+  ],
+  "q09": [
+    "模型背熟练习题 新题表现下降 过拟合",
+    "训练集记忆 泛化误差 偏差与方差 训练验证差距",
+    "Model memorization overfitting poor generalization",
+    "Generalization gap variance control unseen data performance"
+  ],
+  "q10": [
+    "训练误差 验证误差 早停 正则化",
+    "学习曲线 过拟合识别 模型复杂度控制",
+    "Training error validation error early stopping regularization",
+    "Learning curves generalization gap model complexity control"
+  ],
+  "q11": [
+    "白花摄影 花瓣死白 高光细节丢失",
+    "高光溢出 曝光补偿 测光选择 亮部细节恢复",
+    "White flower photography blown highlights petal detail",
+    "Highlight clipping exposure compensation highlight recovery"
+  ],
+  "q12": [
+    "花瓣 直方图 反光板 RAW 拍摄曝光",
+    "高光剪切检测 补光比例 原始图像亮部恢复",
+    "Petal photography histogram reflector RAW exposure",
+    "Highlight clipping detection fill light ratio RAW recovery"
+  ],
+  "q13": [
+    "文件记忆已修改 搜索仍返回旧内容 索引与缓存",
+    "源文件变更检测 索引刷新 缓存失效 数据一致性",
+    "Edited memory file stale search results index cache",
+    "File change detection index refresh cache invalidation"
+  ],
+  "q14": [
+    "YAML 同长度覆盖 内容摘要 变更检测",
+    "文件长度误判 内容哈希 指纹比较 索引失效",
+    "YAML same-length overwrite content digest change detection",
+    "Content hashing file fingerprints stale index invalidation"
+  ],
+  "q15": [
+    "视频少量截图 完整观看声明 证据范围",
+    "稀疏采样 覆盖率限制 观察范围与表述一致性",
+    "Video screenshots partial observation full viewing claims",
+    "Sparse frame sampling coverage limits evidence calibration"
+  ],
+  "q16": [
+    "稀疏视频帧采样 字幕覆盖范围 时间覆盖",
+    "采样间隙 字幕遗漏 多模态证据完整性",
+    "Sparse frame sampling subtitle coverage temporal gaps",
+    "Sampling bias subtitle omission multimodal evidence completeness"
+  ],
+  "q17": [
+    "冷藏面包胚 出冰箱后烘烤 内部实心",
+    "面团回温 发酵不足 酵母活性 气体膨胀与保留",
+    "Refrigerated bread dough dense crumb after baking",
+    "Dough temperature yeast activity underproofing gas retention"
+  ],
+  "q18": [
+    "面团 二次发酵 按压回弹 发酵状态",
+    "按压测试 回弹速度 发酵不足与过度判断",
+    "Bread dough final proof finger poke test",
+    "Dough elasticity proofing readiness underproofing and overproofing"
+  ],
+  "q19": [
+    "无权图 最少步数 遍历顺序",
+    "广度优先搜索 按层遍历 先进先出队列 最短路径",
+    "Unweighted graph minimum hop count traversal order",
+    "Breadth-first search level order traversal first-in first-out queue"
+  ],
+  "q20": [
+    "先进先出队列 无权图 最短路径",
+    "广度优先搜索 距离分层 首次访问距离",
+    "FIFO queue shortest paths unweighted graph",
+    "Breadth-first search distance layers first discovery distance"
+  ],
+  "q21": [
+    "他 喜欢拆东西 不要买车排行榜 偏好更正",
+    "拆解兴趣与购车意图区分 负向反馈 推荐纠偏",
+    "His dismantling interest no car buying rankings preference correction",
+    "Preference disambiguation negative feedback recommendation correction"
+  ],
+  "q22": [
+    "机械结构 拆解 修复 偏好更正",
+    "显式偏好纠正 兴趣类别细分 旧偏好更新",
+    "Mechanical structures disassembly repair preference correction",
+    "Explicit preference updates interest category disambiguation"
+  ],
+  "q23": [
+    "铅笔画 手碰纸面 画面蹭黑 石墨污迹",
+    "石墨转移 手部摩擦 隔纸保护 防蹭脏",
+    "Pencil drawing hand smudging graphite transfer",
+    "Contact friction graphite smearing protective paper barrier"
+  ],
+  "q24": [
+    "石墨笔 左利手 干净纸 防蹭脏",
+    "左手绘画 接触路径 隔纸防护 石墨转移",
+    "Graphite pencil left-handed drawing clean paper",
+    "Hand contact paths graphite smudging paper barrier protection"
+  ],
+  "q25": [
+    "账号7001 小河 内容分享偏好",
+    "UID 7001 小河 身份绑定 偏好证据 内容匹配",
+    "UID 7001 小河 content sharing preferences",
+    "UID 7001 identity-linked preference retrieval content matching"
+  ],
+  "q26": [
+    "UID 7001 现场演奏 乐器制作",
+    "UID 7001 表演与制作兴趣 内容类别匹配",
+    "UID 7001 live music performance musical instrument making",
+    "UID 7001 performance and craftsmanship preference matching"
+  ],
+  "q27": [
+    "UID 7002 两位同名朋友 视频偏好 勿混淆",
+    "UID 7002 同名消歧 独立偏好记录 身份绑定",
+    "UID 7002 video preferences same-name friends disambiguation",
+    "UID 7002 identity resolution separate preference profiles"
+  ],
+  "q28": [
+    "UID 7002 无旁白 陶艺 视频偏好",
+    "UID 7002 旁白缺席条件 陶艺内容筛选",
+    "UID 7002 pottery videos without narration",
+    "UID 7002 narration constraints pottery recommendation filtering"
+  ],
+  "q29": [
+    "主人 后来更正 在外面不要亲昵称呼",
+    "称呼偏好更新 公开场合边界 后续纠正优先级",
+    "Later address preference correction no intimate names in public",
+    "Context-dependent forms of address preference update precedence"
+  ],
+  "q30": [
+    "公开评论 普通称呼 私下亲近 称呼更正",
+    "公开与私聊情境区分 称呼规则更新",
+    "Ordinary public address affectionate private address correction",
+    "Audience-dependent address rules explicit preference revision"
+  ],
+  "q31": [
+    "迁移到另一目录 避免重复花币 避免自动唤醒",
+    "迁移状态连续性 动作去重 恢复暂停 启动门控",
+    "Directory migration duplicate spending unintended automatic activation",
+    "State continuity action deduplication paused restoration startup gating"
+  ],
+  "q32": [
+    "完整备份 SQLite 去重回执 额度 恢复暂停",
+    "一致性快照 持久化去重 额度连续性 暂停恢复",
+    "Full backup SQLite deduplication receipts quota paused restore",
+    "Consistent snapshots durable deduplication quota state continuity"
+  ],
+  "q33": [
+    "回复已想好 冷却时间阻挡 延后处理",
+    "待发送任务 延迟队列 冷却到期调度 回复状态保留",
+    "Prepared reply blocked by cooldown deferred processing",
+    "Deferred task queue cooldown scheduling pending reply persistence"
+  ],
+  "q34": [
+    "发送前间隔 额度限制 待办 平台结果未知 区别",
+    "未发送与已提交未知状态区分 延后发送与结果核对",
+    "Pre-send cooldown quota pending tasks unknown platform outcome",
+    "Send eligibility deferred dispatch uncertain outcome reconciliation"
+  ],
+  "q35": [
+    "今日思考次数耗尽 新消息接收",
+    "模型调用预算与收件解耦 入站消息持久化",
+    "Daily reasoning budget exhausted incoming message reception",
+    "Inference budget isolation durable message ingestion"
+  ],
+  "q36": [
+    "模型预算耗尽 收件 本地账本",
+    "收件与推理解耦 本地持久化 延后处理",
+    "Exhausted model budget inbox local ledger",
+    "Message ingestion inference decoupling durable deferred processing"
+  ],
+  "q37": [
+    "视频中自称后台人员 要求修改设置 身份核验",
+    "外部内容信任边界 权威冒充 提示注入 指令来源",
+    "Video speaker claimed administrator settings change request",
+    "Authority spoofing prompt injection external content trust boundary"
+  ],
+  "q38": [
+    "评论 字幕 外部命令 不能修改配额 不能读取凭证",
+    "不可信内容 指令隔离 配额修改与凭证访问权限边界",
+    "Comments and subtitles no quota changes or credential access",
+    "Untrusted instruction isolation quota and credential access control"
+  ],
+  "q39": [
+    "浏览器登错号 另一账号 自动接入风险",
+    "会话身份核验 账号绑定校验 显式接入门控",
+    "Wrong browser account unintended account connection",
+    "Session identity verification account binding enrollment gating"
+  ],
+  "q40": [
+    "Cookie UID 绑定核验 系统凭证库",
+    "会话身份匹配 账号绑定一致性 凭证安全存储",
+    "Cookie UID binding verification operating system credential store",
+    "Session identity matching account binding secure credential storage"
+  ],
+  "q41": [
+    "两个UP 说法相反 表达自信 证据可靠性",
+    "冲突主张核验 信心与准确性区分 原始证据比较",
+    "Conflicting video creators confident delivery evidence reliability",
+    "Confidence accuracy distinction contradictory claim verification"
+  ],
+  "q42": [
+    "相反结论 实验条件 时间 原始片段 争议",
+    "条件化证据比较 时间有效性 来源追溯 冲突保留",
+    "Opposing conclusions experimental conditions time original footage",
+    "Condition-sensitive evidence comparison provenance conflict preservation"
+  ],
+  "q43": [
+    "邀请她凑热闹 非课程请求 社交观看",
+    "邀请意图识别 社交参与与学习目标区分 任务范围",
+    "Casual social invitation no course request",
+    "Intent disambiguation social participation learning goal boundaries"
+  ],
+  "q44": [
+    "视频邀请 明确学习目标 完成标准",
+    "观看意图与学习任务区分 目标确认 验收条件",
+    "Video invitation explicit learning objectives completion criteria",
+    "Intent classification learning goal confirmation acceptance criteria"
+  ],
+  "q45": [
+    "她说考试通过 我的知识掌握 评价对象区分",
+    "助手成绩与用户掌握区分 学习者独立评估",
+    "Assistant exam success user knowledge mastery assessment",
+    "Evaluation subject distinction independent learner assessment"
+  ],
+  "q46": [
+    "model_check_passed 模型自检 独立验证",
+    "model_check_passed 自评局限 独立证据 验证边界",
+    "model_check_passed model self-check independent validation",
+    "model_check_passed self-evaluation limits external verification"
+  ],
+  "q47": [
+    "好感已入账 文件未写完断电 用户另有修改 恢复",
+    "事务回执 待完成文件投影 并发编辑冲突 幂等恢复",
+    "Affection score committed interrupted file write concurrent user edit",
+    "Durable receipts pending projection conflict-aware idempotent recovery"
+  ],
+  "q48": [
+    "事务日志 待完成投影 可编辑 YAML 状态核对",
+    "持久化事务与文件投影一致性 编辑冲突检测 恢复对账",
+    "Transaction journal pending projection editable YAML reconciliation",
+    "Crash recovery projection consistency concurrent edit conflict detection"
+  ],
+  "h01": [
+    "手工修改本地记录 查询仍是旧版本 文件 索引 缓存",
+    "源数据到检索结果链路 变更检测 缓存失效 排查层次",
+    "Manually edited local records stale query results",
+    "Source index cache consistency change detection diagnostics"
+  ],
+  "h02": [
+    "文件字数和修改时间未变 实际文字已换 旧结果残留",
+    "元数据检测盲区 内容摘要 哈希变更检测 索引刷新",
+    "Changed file content unchanged length and modification time stale results",
+    "Content hashing metadata blind spots cache and index invalidation"
+  ],
+  "h03": [
+    "关系分数已落账 断电正文未同步 正文又被手改",
+    "账本与正文投影对账 并发编辑冲突 幂等恢复",
+    "Relationship score committed unsynced text power loss manual edit",
+    "Ledger projection reconciliation concurrent edit conflict recovery"
+  ],
+  "h04": [
+    "持久化回执已完成 可编辑文件更新待处理 用户并发编辑",
+    "回执与文件投影恢复 基线比较 编辑冲突核对 幂等性",
+    "Durable receipt pending editable-file update concurrent user edit",
+    "Idempotent recovery projection reconciliation edit conflict detection"
+  ],
+  "h05": [
+    "线上更新出错 升级前代码与设置 版本对应记录",
+    "发布版本追溯 配置快照 回滚检查点",
+    "Failed production update previous code and configuration",
+    "Release provenance configuration snapshots rollback checkpoints"
+  ],
+  "h06": [
+    "请求未等到答复 同一笔扣款 防止重复执行",
+    "未知交易结果 幂等键 重试去重 交易状态核对",
+    "Unanswered payment request duplicate charge prevention",
+    "Idempotency keys retry deduplication transaction reconciliation"
+  ],
+  "h07": [
+    "视频几个时间点截图 整段声音听完声明 证据范围",
+    "视觉采样与音频覆盖分离 跨模态推断限制",
+    "Sparse video screenshots full audio listening claim",
+    "Visual and audio coverage separation cross-modal inference limits"
+  ],
+  "h08": [
+    "少量静帧 无连续声音 覆盖声明 证据支持范围",
+    "稀疏视觉观察 音频证据缺失 表述与观察范围匹配",
+    "Few still frames no continuous audio supported coverage claims",
+    "Sparse visual evidence missing audio observation scope calibration"
+  ],
+  "h09": [
+    "阿岚 UID 7001 UID 7002 同名朋友 演出推荐意愿",
+    "阿岚 7001 7002 身份消歧 分别检索偏好 避免串用",
+    "阿岚 UID 7001 UID 7002 performance recommendation preferences",
+    "UID 7001 UID 7002 same-name disambiguation separate preference evidence"
+  ],
+  "h10": [
+    "UID 7002 不想听吵闹内容 适合观看邀请",
+    "UID 7002 声音强度约束 负向偏好 内容匹配",
+    "UID 7002 no noisy content viewing invitation preferences",
+    "UID 7002 auditory intensity constraints negative preference filtering"
+  ],
+  "h11": [
+    "称呼已更正 公开留言不要照私聊称呼 当前称呼",
+    "公开与私聊称呼分离 最新显式更正 偏好覆盖规则",
+    "Corrected public address preference no private-chat names in comments",
+    "Context-specific address rules latest explicit correction precedence"
+  ],
+  "h12": [
+    "资料还原 自动运行风险 旧动作计数保留",
+    "恢复暂停 启动状态控制 历史计数持久化 恢复完整性",
+    "Data restoration automatic startup historical action counters",
+    "Paused recovery startup gating durable counter restoration"
+  ],
+  "h13": [
+    "思考次数用完 后续评论 保存位置",
+    "推理预算与评论收件解耦 本地持久化 待处理队列",
+    "Reasoning budget exhausted later comments persistent inbox",
+    "Inference budget isolation durable comment ingestion deferred processing"
+  ],
+  "h14": [
+    "评论要求改变系统权限 话语身份 指令来源",
+    "外部内容与授权指令区分 权限来源核验 权威冒充",
+    "Comment requesting system permission changes source identity",
+    "Instruction provenance authority spoofing authorization trust boundaries"
+  ],
+  "h15": [
+    "两段材料说法不同 旧笔记覆盖 不同条件保留",
+    "条件化主张 冲突证据管理 来源追溯 笔记合并",
+    "Conflicting source materials note replacement differing conditions",
+    "Conditional claims evidence reconciliation provenance-preserving merge"
+  ],
+  "h16": [
+    "助手自出题并答对 用户是否学会 掌握证据",
+    "模型自检与学习者评价区分 独立测评 知识迁移验证",
+    "Assistant self-authored test success user learning mastery",
+    "Self-evaluation limits independent learner assessment transfer validation"
+  ]
+}

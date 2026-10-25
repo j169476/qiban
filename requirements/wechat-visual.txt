@@ -1,0 +1,7 @@
+# Optional, isolated CPU OCR feasibility probe. No live capture or sending.
+rapidocr==3.10.0
+onnxruntime==1.31.0
+# Versions exercised with the pinned OCR package on Python 3.11 / Windows.
+numpy==2.4.6
+opencv-python-headless==5.0.0.93
+Pillow==13.0.0

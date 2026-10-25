@@ -1,0 +1,43 @@
+{
+  "description": "人工编写的独立提问与相关性标注。正文不含问题、扩展词或答案 ID。合成干扰数据只用于规模和排序测试。",
+  "documents": [
+    {"id": "m001", "content": "发布前建立 Git 标签和配置快照；部署出问题时检出旧提交并恢复对应配置。数据库结构变更还要准备反向迁移。", "tags": ["发布记录"]},
+    {"id": "m002", "content": "每天的内容推荐应同时保留少量陌生主题。观察主题占比和作者分布，连续集中时主动探索相邻领域。", "tags": ["阅读观察"]},
+    {"id": "m003", "content": "推荐一个视频只能算兴趣线索。除非用户明确说喜欢，否则先标为不确定；重复讨论同一个作品只算一个样本。", "tags": ["兴趣记录"]},
+    {"id": "m004", "content": "HTTP 写请求超时后，服务端可能已执行成功。先用业务键查状态，使用幂等键防止重复扣款；不能直接重发。", "tags": ["网络观察"]},
+    {"id": "m005", "content": "训练误差不断减小而验证误差增大，说明泛化能力可能变差。保留独立测试集，尝试早停和正则化，并检查数据泄漏。", "tags": ["实验笔记"]},
+    {"id": "m006", "content": "花瓣高光容易失去层次。拍摄白色花卉时观察直方图，降低曝光并用反光板柔化阴影，保留 RAW 文件便于调整。", "tags": ["周末摄影"]},
+    {"id": "m007", "content": "外部编辑 YAML 后必须重新计算内容摘要。检索缓存只是派生数据，原文件被删除或改坏时旧条目应失效；同长度覆盖也不能漏检。", "tags": ["本地记录"]},
+    {"id": "m008", "content": "Sparse frame sampling provides visual clues but cannot establish continuous audiovisual coverage. Subtitle coverage and decoded audio intervals must be tracked separately.", "tags": ["media notes"]},
+    {"id": "m009", "content": "冷藏面团先回温，再观察体积和按压回弹。二次发酵不足时组织紧实；不要只按固定分钟数判断。", "tags": ["烘焙记录"]},
+    {"id": "m010", "content": "Depth-first search uses a stack or recursion. Breadth-first search uses a FIFO queue and finds shortest paths in an unweighted graph.", "tags": ["algorithm notes"]},
+    {"id": "m011", "content": "用户后来更正：喜欢的是机械结构拆解和修复过程，不是所有汽车测评；不要据此持续推荐新车榜单。", "tags": ["偏好更正"]},
+    {"id": "m012", "content": "石墨笔容易蹭脏画纸。绘制素描时从左上向右下推进，并在手掌下垫干净纸；左利手可以反向安排。", "tags": ["绘画记录"]}
+  ],
+  "queries": [
+    {"id": "q01", "query": "发版出错时，之前提过怎么退回可用的状态？", "relevant": ["m001"], "type": "paraphrase"},
+    {"id": "q02", "query": "Git 标签和数据库反向迁移的那条经验", "relevant": ["m001"], "type": "exact"},
+    {"id": "q03", "query": "怎么避免越刷越窄，总被同一批作者包围？", "relevant": ["m002"], "type": "paraphrase"},
+    {"id": "q04", "query": "主题占比和作者分布", "relevant": ["m002"], "type": "exact"},
+    {"id": "q05", "query": "我只让她看了一回，别把这次邀请当永久爱好", "relevant": ["m003"], "type": "paraphrase"},
+    {"id": "q06", "query": "重复讨论同一个作品与兴趣线索", "relevant": ["m003"], "type": "exact"},
+    {"id": "q07", "query": "扣钱接口没回消息，能不能再按一次？", "relevant": ["m004"], "type": "paraphrase"},
+    {"id": "q08", "query": "HTTP 超时和幂等键", "relevant": ["m004"], "type": "exact"},
+    {"id": "q09", "query": "模型背熟练习题，碰到新题反而越来越差的那种情况", "relevant": ["m005"], "type": "paraphrase"},
+    {"id": "q10", "query": "训练误差验证误差早停正则化", "relevant": ["m005"], "type": "exact"},
+    {"id": "q11", "query": "白花拍成一片死白，上次怎么处理的？", "relevant": ["m006"], "type": "paraphrase"},
+    {"id": "q12", "query": "花瓣直方图反光板 RAW", "relevant": ["m006"], "type": "exact"},
+    {"id": "q13", "query": "我在文件里改了记忆，为什么搜索还吐出旧内容？", "relevant": ["m007"], "type": "paraphrase"},
+    {"id": "q14", "query": "YAML 同长度覆盖内容摘要", "relevant": ["m007"], "type": "exact"},
+    {"id": "q15", "query": "只看几张视频截图能不能说已经完整看过？", "relevant": ["m008"], "type": "cross_language"},
+    {"id": "q16", "query": "sparse frame sampling subtitle coverage", "relevant": ["m008"], "type": "exact"},
+    {"id": "q17", "query": "从冰箱拿出的面包胚烤出来实心，之前那条经验是什么？", "relevant": ["m009"], "type": "paraphrase"},
+    {"id": "q18", "query": "面团二次发酵按压回弹", "relevant": ["m009"], "type": "exact"},
+    {"id": "q19", "query": "没有边权时想找最少步数，应该按什么顺序遍历？", "relevant": ["m010"], "type": "cross_language"},
+    {"id": "q20", "query": "FIFO queue shortest paths unweighted graph", "relevant": ["m010"], "type": "exact"},
+    {"id": "q21", "query": "他明明说喜欢看拆东西，别又给他推买车排行榜了", "relevant": ["m011"], "type": "correction"},
+    {"id": "q22", "query": "机械结构拆解修复偏好更正", "relevant": ["m011"], "type": "exact"},
+    {"id": "q23", "query": "画铅笔画时手一碰纸就黑了怎么办？", "relevant": ["m012"], "type": "paraphrase"},
+    {"id": "q24", "query": "石墨笔左利手干净纸", "relevant": ["m012"], "type": "exact"}
+  ]
+}

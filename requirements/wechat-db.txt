@@ -1,0 +1,4 @@
+# Isolated Windows probe environment. No service/database credentials required.
+sqlcipher3==0.6.4; sys_platform == "win32"
+cryptography>=46,<51
+zstandard==0.25.0
