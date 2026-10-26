@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-companion-wechat"
-version = "0.1.0"
+version = "0.9.1"
 description = "Windows WeChat readonly database receiver, scoped native text sender and role connector."
 requires-python = ">=3.11"
 license = {text = "MIT for project-owned code; Apache-2.0 and helper noncommercial terms apply to adapted components (see bundled notices)"}
-dependencies = ["local-companion-core>=0.9,<0.10"]
+dependencies = ["local-companion-core>=0.9.1,<0.10"]
 
 [project.optional-dependencies]
 probe = ["pywinauto==0.6.9; sys_platform == 'win32'"]

@@ -12,7 +12,7 @@
   };
   const names = {local:"本机会客室",bilibili:"哔哩哔哩",wechat:"微信",qq:"QQ"};
   const phases = {running:"进行中",queued:"等待执行",success:"完成",completed:"已完成",failed:"未完成",cancelled:"已取消",paused:"已暂停",active:"运行中",start:"准备开始",research:"资料检索",write:"整理内容"};
-  const reasons = {explicit_start_required:"等待你开启陪伴",service_restart:"服务已启动，等待明确开启",host_stopped:"ChatGPT已停止运行，请重启服务",outside_active_hours:"等待设定的活动时间",platform_unavailable:"连接器尚未就绪",chat_archived:"归属聊天已归档",admin_web_stop:"已在管理页暂停",explicit_stop:"已按指令停止",duration_complete:"本次运行时间已结束",explicit_service_resume:"服务已重启，请选择要启动的平台"};
+  const reasons = {explicit_start_required:"等待你开启陪伴",service_restart:"服务已启动，等待明确开启",host_stopped:"ChatGPT已停止运行，请重启服务",platform_unavailable:"连接器尚未就绪",chat_archived:"归属聊天已归档",admin_web_stop:"已在管理页暂停",explicit_stop:"已按指令停止",duration_complete:"本次运行时间已结束",explicit_service_resume:"服务已重启，请选择要启动的平台"};
   const format = value => typeof value === "number" && Number.isFinite(value) ? new Intl.NumberFormat("zh-CN").format(value) : "—";
   const time = value => typeof value === "number" ? new Date(value*1000).toLocaleString("zh-CN",{hour12:false}) : "未知";
   const text = (selector,value) => { const el=$(selector); if(el) el.textContent=value; };
@@ -61,17 +61,26 @@
     if(stopped){text("#status","等待重启");$("#status")?.classList.remove("active");}
   }
   const disconnected=row=>row.status==="active"&&row.connection&&row.connection.state!=="connected";
-  function runtimeLabel(row){return !row.available?"未接入":disconnected(row)?(row.connection.state==="blocked"?"连接受阻":"等待重连"):row.status==="active"?(row.busy?"处理中":"运行中"):"已暂停";}
-  function runtimeDescription(row){return !row.available?"完成连接器配置后，即可在这里管理。":disconnected(row)?"平台连接尚未恢复，请检查客户端登录与连接器。"+(row.connection.code?"（"+row.connection.code+"）":""):reasons[row.reason]||(row.status==="active"?"陪伴正在继续。":"等待你的下一次启动。");}
+  function connectionCopy(row){
+    if(row.connection?.code==='client_restart_required')return ['需重启客户端','请正常退出并重开对应账号的客户端，然后重新启动平台。'];
+    return ({new:['准备连接','平台已启动，正在准备首次连接。'],connecting:['正在连接','正在建立平台连接，请稍候。'],retrying:['等待重连','平台连接尚未恢复，请检查客户端登录与连接器。'],blocked:['连接受阻','平台连接受阻，请检查登录、账号身份和连接器配置。'],uncertain:['发送待核实','上次发送结果不确定，请先核实实际收件；系统不会自动补发。']})[row.connection?.state]||['连接待确认','尚未取得平台连接状态，请稍后查看。'];
+  }
+  function runtimeLabel(row){return !row.available?"未接入":disconnected(row)?connectionCopy(row)[0]:row.status==="active"?(row.busy?"处理中":"运行中"):"已暂停";}
+  function runtimeDescription(row){return !row.available?"完成连接器配置后，即可在这里管理。":disconnected(row)?connectionCopy(row)[1]+(row.connection.code?"（"+row.connection.code+"）":""):reasons[row.reason]||(row.status==="active"?"陪伴正在继续。":"等待你的下一次启动。");}
+  function connectorLink(card,row){
+    if(row.platform!=='qq')return;
+    const link=card.querySelector('[data-connector-link]'),url=localConnectorURL(row.management_url);
+    if(link){link.hidden=!url;if(url)link.href=url;else link.removeAttribute('href');}
+  }
   function runtimeCards(state) {
     const list=[{platform:"local",available:true,...state},...(state.platforms||[])];
-    const signature=JSON.stringify(list.map(p=>[p.platform,p.available,p.status,p.reason,p.owner,p.generation,p.busy,p.connection,state.host]));
+    const signature=JSON.stringify(list.map(p=>[p.platform,p.available,p.status,p.reason,p.owner,p.generation,p.busy,p.connection,p.management_url,state.host]));
     if(signature===platformSignature)return;platformSignature=signature;
     const grid=$("#platform-grid");if(!grid)return;
     // Keep edited options through background refreshes; never replace controls
     // while a user is focusing them.
     if(grid.contains(document.activeElement)){
-      for(const row of list){const card=grid.querySelector(`[data-platform="${row.platform}"]`);if(!card)continue;const badge=card.querySelector('.badge');badge.textContent=runtimeLabel(row);badge.classList.toggle('active',row.status==='active'&&!disconnected(row));card.querySelector('.platform-description').textContent=runtimeDescription(row);card.querySelector('[data-runtime-start]').disabled=!row.available||row.status==='active'||state.host?.available===false||state.host?.restart_required===true;card.querySelector('[data-runtime-stop]').disabled=row.status!=='active';}
+      for(const row of list){const card=grid.querySelector(`[data-platform="${row.platform}"]`);if(!card)continue;const badge=card.querySelector('.badge');badge.textContent=runtimeLabel(row);badge.classList.toggle('active',row.status==='active'&&!disconnected(row));card.querySelector('.platform-description').textContent=runtimeDescription(row);card.querySelector('[data-runtime-start]').disabled=!row.available||row.status==='active'||state.host?.available===false||state.host?.restart_required===true;card.querySelector('[data-runtime-stop]').disabled=row.status!=='active';connectorLink(card,row);}
       if(state.host?.available===false||state.host?.restart_required)grid.querySelectorAll("[data-runtime-start]").forEach(button=>button.disabled=true);
       platformSignature="";return;
     }
@@ -100,7 +109,11 @@
           platformSignature="";notice(names[row.platform]+(action==="start"?"已启动。":"已暂停。"));await refresh();
         }catch(e){notice(e.message);button.disabled=false;}
       });
-      actions.append(start,stop);card.append(options,actions);grid.append(card);
+      actions.append(start,stop);
+      if(row.platform==='qq'){
+        const link=element('a','button secondary connector-link','打开 QQ 连接器 ↗');link.dataset.connectorLink='true';link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','打开 QQ 连接器管理页（新窗口）');actions.append(link);
+      }
+      card.append(options,actions);connectorLink(card,row);grid.append(card);
     }
   }
   function activity(state){
@@ -109,7 +122,7 @@
     text("#metric-replies-note","已用 "+format(state.quotas?.local?.used)+" / 上限 "+format(state.quotas?.local?.limit));
     const box=$("#activity-summary");if(!box)return;
     if(busy.length){box.replaceChildren(icon("spark"),element("h3","",busy.map(x=>names[x.platform]).join("、")+"正在处理任务"),element("p","","执行状态会自动更新，关闭此页面不会中断任务。"));}
-    else if(offline.length){box.replaceChildren(icon("moon"),element("h3","","部分平台等待恢复连接"),element("p","",offline.map(x=>names[x.platform]).join("、")+"尚未连接，恢复后继续接收消息。"));}
+    else if(offline.length){const preparing=offline.every(x=>['new','connecting'].includes(x.connection.state));box.replaceChildren(icon("moon"),element("h3","",preparing?"正在准备平台连接":"部分平台连接需要检查"),element("p","",offline.map(x=>names[x.platform]+"："+connectionCopy(x)[0]).join("；")+"。请查看平台卡片中的具体提示。"));}
     else if(active.length){box.replaceChildren(icon("cup"),element("h3","","陪伴已就绪"),element("p","",active.map(x=>names[x.platform]).join("、")+"正在等待下一次交流。"));}
     else empty(box,"休息一下，也很好",state.host?.restart_required?"请从管理聊天或命令行重启服务。":"所有平台已暂停。准备好了，再开启陪伴。");
   }

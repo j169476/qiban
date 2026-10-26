@@ -92,7 +92,7 @@ class PlatformSetup:
                   "running_job": platform in self.running, "job": self.store.state("platform-setup:" + platform),
                   "role_started": False}
         if platform == "qq":
-            from companion_qq.config import token
+            from companion_qq.config import management_url, token
 
             present = False
             if options:
@@ -103,7 +103,7 @@ class PlatformSetup:
                     pass
             result.update(configuration=options, token_saved=present,
                           installation_url="https://napneko.github.io/guide/boot/Shell",
-                          login_url="http://127.0.0.1:6099/webui",
+                          login_url=management_url(self.project),
                           instructions="先在 NapCat 登录机器人 QQ，启用本机 HTTP 与正向 WebSocket，设置相同 Token，然后核验。普通 QQ 登录不能代替桥接登录。")
         else:
             files = {key: bool(options and options[key].is_file()) for key in ("database_python", "native_dll", "locations", "targets")}

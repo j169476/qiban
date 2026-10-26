@@ -19,6 +19,9 @@ def inspect(project, installed=None):
         (project / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]}
     for name in ("plugin.json", ".codex-plugin/plugin.json"):
         versions[name] = json.loads((plugin / name).read_text(encoding="utf-8"))["version"]
+    for name in ("companion-qq", "companion-wechat"):
+        versions[name] = tomllib.loads((project / "packages" / name / "pyproject.toml").read_text(
+            encoding="utf-8"))["project"]["version"]
     mismatches = []
     if installed is not None:
         for relative in ("plugin.json", ".codex-plugin/plugin.json", ".mcp.json", "mcp.json",

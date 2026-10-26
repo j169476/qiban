@@ -1,6 +1,6 @@
 {
   "name": "qiban",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "共享本地记忆与独立 B站、微信、QQ 连接器的角色助手",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",

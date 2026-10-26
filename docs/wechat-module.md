@@ -46,6 +46,12 @@ python -m venv .dev/wechat-db-venv
 
 `offline_ready` 只证明配置文件和构建一致，不表示登录、收件或发送已经通过实测。账号登记仍需要实际运行的受支持微信，不能从截图昵称推断内部身份。只读探针和采集命令的参数可用 `db-probe --help`、`collect --help` 查看。
 
+## 升级后构建检查
+
+源码更新后，旧桥接可能与本次构建签名不一致。启动提示 `bridge_build_changed`、`bridge_build_missing` 或 `bridge_build_invalid` 时，在接入向导选择微信并重新准备连接依赖；也可按上面的构建命令重新编译。预检失败后平台保持暂停，不跳过文件摘要或客户端指纹检查。若提示 `client_restart_required`，正常退出并重开对应账号的微信客户端后再检查。
+
+网页会区分准备连接、等待重连、连接受阻和发送待核实。移除活动时段限制后，启动的收件器可持续轮询；发送结果不明仍需人工核实，不会因恢复连接而自动重放。
+
 ## 授权与运行
 
 在管理网页或后台管理聊天核对已验证的个人/群内部 ID 并分别授权，再在角色控制聊天显式 `wechat_start`。`wechat_status` 查询状态，`wechat_stop` 停止。私聊额度与群有限参与采用 [统一规则](CONVERSATION_REPLY_AUTHORIZATION.md)。

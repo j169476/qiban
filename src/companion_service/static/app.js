@@ -3,7 +3,18 @@ const $ = (s) => document.querySelector(s), csrf = $('meta[name="csrf-token"]').
 const notice = (t) => { $("#notice").textContent = t; };
 async function api(path, body) {
   const response = await fetch(path, body === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify(body)});
-  const value = await response.json(); if (!response.ok) {if(response.status===401){$("#messages")?.replaceChildren();$("#task-list")?.replaceChildren();if($("#task-fields"))$("#task-fields").disabled=true;if($("#message button[type=submit]"))$("#message button[type=submit]").disabled=true;window.qibanSessionExpired?.();}const error=new Error(value.message || value.error || "操作失败");error.httpStatus=response.status;throw error;} return value;
+  let value, readable=true;
+  try {value=await response.json();} catch {readable=false;}
+  if (!response.ok || !readable) {
+    if(response.status===401){$("#messages")?.replaceChildren();$("#task-list")?.replaceChildren();if($("#task-fields"))$("#task-fields").disabled=true;if($("#message button[type=submit]"))$("#message button[type=submit]").disabled=true;window.qibanSessionExpired?.();}
+    const fallback=response.status===401?"登录已过期，请刷新页面并重新登录。":response.ok?`服务返回了无法识别的响应（HTTP ${response.status}），请刷新页面后重试。`:`服务暂时无法完成操作（HTTP ${response.status}），请稍后重试。`;
+    const message=typeof value?.message==="string"?value.message:typeof value?.error==="string"?value.error:fallback;
+    const error=new Error(message);error.httpStatus=response.status;throw error;
+  }
+  return value;
+}
+function localConnectorURL(value) {
+  try {const url=new URL(value);return url.protocol==='http:'&&url.hostname==='127.0.0.1'&&Number(url.port)>=1024&&Number(url.port)<=65535&&url.pathname==='/webui'&&!url.username&&!url.password&&!url.search&&!url.hash?url.href:null;} catch {return null;}
 }
 function bind(selector, callback, event="click") {
   const el=$(selector); if (el) el.addEventListener(event,async e=>{e.preventDefault();el.disabled=true;try{await callback(e);}catch(err){notice(err.message);}finally{el.disabled=false;}});
@@ -51,10 +62,9 @@ const actionLabels={comment:"发表评论",reply:"回复评论",comment_like:"�
 bind("#quota-load",async()=>{quotaRecord=await api("/records?kind=policy&id=");$("#quota-fields").replaceChildren();const fields=quotaRecord.data;
   function add(name,label,value,type="number"){const wrap=document.createElement("label");wrap.textContent=label;const input=document.createElement("input");input.name=name;input.type=type;if(type==="checkbox")input.checked=value;else input.value=value;if(type==="number")input.min="0";wrap.append(input);$("#quota-fields").append(wrap);}
   for(const [key,label] of Object.entries(fieldLabels)){const value=fields[key]??(key==='daily_local_replies'?fields.daily_model_cycles:key==='backup_interval_minutes'?60:undefined);if(value!==undefined)add(key,label,value);}
-  if(fields.active_hours){add("start","活动开始",fields.active_hours.start,"time");add("end","活动结束",fields.active_hours.end,"time");}
   for(const [key,setting] of Object.entries(fields.actions||{})){add("enabled:"+key,"允许"+(actionLabels[key]||key),setting.enabled,"checkbox");add("limit:"+key,(actionLabels[key]||key)+"每日额度",setting.daily_limit);}
 });
-bind("#quota",async()=>{if(!quotaRecord)throw new Error("先读取当前设置");const patch={},actions=structuredClone(quotaRecord.data.actions||{}),hours=structuredClone(quotaRecord.data.active_hours||{});for(const input of $('#quota-fields').querySelectorAll('input')){if(input.name.startsWith('enabled:'))actions[input.name.slice(8)].enabled=input.checked;else if(input.name.startsWith('limit:'))actions[input.name.slice(6)].daily_limit=Number(input.value);else if(input.type==='time')hours[input.name]=input.value;else patch[input.name]=Number(input.value);}if(Object.keys(actions).length)patch.actions=actions;if(Object.keys(hours).length)patch.active_hours=hours;quotaRecord=await operate("config_patch",{kind:"policy",changes:patch,expected_version:quotaRecord.version});notice("日常设置已保存，角色运行状态未改变。");},"submit");
+bind("#quota",async()=>{if(!quotaRecord)throw new Error("先读取当前设置");const patch={},actions=structuredClone(quotaRecord.data.actions||{});for(const input of $('#quota-fields').querySelectorAll('input')){if(input.name.startsWith('enabled:'))actions[input.name.slice(8)].enabled=input.checked;else if(input.name.startsWith('limit:'))actions[input.name.slice(6)].daily_limit=Number(input.value);else patch[input.name]=Number(input.value);}if(Object.keys(actions).length)patch.actions=actions;quotaRecord=await operate("config_patch",{kind:"policy",changes:patch,expected_version:quotaRecord.version});notice("日常设置已保存，角色运行状态未改变。");},"submit");
 bind("#backup-list",async()=>{const files=await operate("backup_list");$('#restore-file').replaceChildren();for(const file of files){const option=document.createElement('option');option.value=file.name;option.textContent=file.name;$('#restore-file').append(option);}});
 bind("#restore-preview",async()=>{const preview=await operate("restore_preview",{name:$('#restore-file').value});restoreToken=preview.token;const labels={content_records:"内容资料",content_history:"历史版本",core_events:"核心收件",core_actions:"核心动作",governance_grants:"跨账号授权",relationship_claims:"用户关系"};$('#restore-details').textContent=["备份："+preview.name,...Object.entries(labels).map(([key,label])=>label+"："+(preview.counts[key]||0)+" 条"),preview.effect].join("\n");notice("角色已暂停。请核对备份和覆盖范围，预览两分钟内有效。");});
 bind("#restore",async()=>{if(!restoreToken)throw new Error("请先查看恢复预览");if(!confirm("将以该备份覆盖当前资料，撤销全部网页会话和跨账号授权。确认继续？"))return;await operate("restore",{token:restoreToken,password:$('#restore input').value});location.reload();},"submit");

@@ -20,6 +20,8 @@ def key(event):
 def config_token(store):
     values = {kind: store.read(kind)["version"]
               for kind in ("manifest", "policy", "preferences", "persona", "companion")}
+    # Wake pre-0.9.1 waits in the indexed inbox query when scheduling rules change.
+    values["delivery_rules"] = 2
     return sha256(json.dumps(values, sort_keys=True).encode()).hexdigest()
 
 
@@ -47,7 +49,8 @@ def eligible(core, event, version, run):
     if record.get("attempts", 0) >= MAX_DEFERRALS:
         finish(core, event, version, run, "retry_limit")
         return False
-    return (core.clock() >= datetime.fromisoformat(record["due_at"])
+    return (record.get("reason") == "outside_hours"  # Old unsent waits no longer depend on wall-clock hours.
+            or core.clock() >= datetime.fromisoformat(record["due_at"])
             or record.get("config_token") != config_token(core.store))
 
 
@@ -60,11 +63,7 @@ def defer(core, event, version, run, reason):
     elif reason == "interval":
         due = now + timedelta(seconds=max(1, policy["min_action_interval_seconds"]))
     elif reason == "outside_hours":
-        local = now.astimezone(ZoneInfo(policy["timezone"]))
-        hour, minute = map(int, policy["active_hours"]["start"].split(":"))
-        due = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if due <= local:
-            due += timedelta(days=1)
+        due = now  # Compatibility only; new scheduling never emits this reason.
     else:
         due = now + timedelta(seconds=30)
     with core.store.lock, core.store.db() as db:

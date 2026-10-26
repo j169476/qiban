@@ -1,9 +1,6 @@
 schema_version: 1
 mode: autonomous
 timezone: Asia/Shanghai
-active_hours:
-  start: "09:00"
-  end: "23:00"
 cycle_minutes: 15
 items_per_cycle: 2
 daily_videos: 12

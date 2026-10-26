@@ -19,7 +19,8 @@ const monitor={"updated_at":1792967200,"timezone":"Asia/Shanghai","quotas":[{"la
 const browser=await chromium.launch({headless:true,...(process.env.QIBAN_BROWSER?{executablePath:process.env.QIBAN_BROWSER}:{})});
 const errors=[],checks=[],geometry=[],aboutChecks=[],mutations=[];let mode='admin',replyRows=[];
 const modelChanges=[],modelChoices={version:null,global:null,overrides:{}};
-const setupChanges=[],importChanges=[];let statusHttp=200;
+const setupChanges=[],importChanges=[];let statusHttp=200,apiError=null;
+state.platforms.find(p=>p.platform==='qq').management_url='http://127.0.0.1:6099/webui';
 const modelSnapshot=()=>({...modelChoices,effective:Object.fromEntries(['global','local','bilibili','qq','wechat'].map(scope=>{
  const choice=modelChoices.overrides[scope]||modelChoices.global;
  return [scope,choice?{...choice,source:modelChoices.overrides[scope]?scope:'global'}:{model:'host-model',effort:'low',source:'codex_config'}];
@@ -31,10 +32,12 @@ await page.route('**/*',async route=>{
  let body,type='application/json';
  if(p==='/status'&&statusHttp===401){await route.fulfill({status:401,body:JSON.stringify({error:'session_expired'}),contentType:type});return;}
  if(p==='/status')body=JSON.stringify(state);
+ else if(p==='/records'&&url.searchParams.get('kind')==='policy')body=JSON.stringify({version:'synthetic-policy',data:{timezone:'Asia/Shanghai',active_hours:{start:'09:00',end:'23:00'},daily_model_cycles:200,min_action_interval_seconds:60,actions:{reply:{enabled:true,daily_limit:10}}}});
  else if(p==='/operate'){
   const data=request.postDataJSON();
+  if(data.operation==='platform_control'&&apiError){await route.fulfill(apiError);return;}
   if(data.operation==='runtime_monitor')body=JSON.stringify({...monitor,days:data.arguments.days||1});
-  else if(data.operation==='platform_setup_status')body=JSON.stringify({platform:data.arguments.platform,configured:true,version:'setup-v1',running_job:false,token_saved:true,configuration:data.arguments.platform==='qq'?{account:'10001',private_targets:['10002'],groups:[],http:'http://127.0.0.1:3000',ws:'ws://127.0.0.1:3001'}:{account_dirs:['C:/synthetic/account'],target_hints:[{kind:'private',hint:'wxid_test'}]},instructions:'合成配置测试，不连接实际账号。'});
+  else if(data.operation==='platform_setup_status')body=JSON.stringify({platform:data.arguments.platform,configured:true,version:'setup-v1',running_job:false,token_saved:true,login_url:'http://127.0.0.1:6099/webui',configuration:data.arguments.platform==='qq'?{account:'10001',private_targets:['10002'],groups:[],http:'http://127.0.0.1:3000',ws:'ws://127.0.0.1:3001'}:{account_dirs:['C:/synthetic/account'],target_hints:[{kind:'private',hint:'wxid_test'}]},instructions:'合成配置测试，不连接实际账号。'});
   else if(data.operation==='platform_setup_run'){setupChanges.push(data.arguments);body=JSON.stringify({accepted:true});}
   else if(data.operation==='reply_import_preview'){importChanges.push(data);body=JSON.stringify({token:'synthetic-preview',confirmable:true,duplicates_removed:1,items:[{identifier:'10002',status:'ready'}]});}
   else if(data.operation==='reply_import_confirm'){importChanges.push(data);body=JSON.stringify({added:1,already_authorized:0,platform_paused:false});}
@@ -70,9 +73,46 @@ try{
  await page.evaluate(()=>refresh());
  for(const platform of ['qq','wechat'])assert.equal(await page.locator(`[data-platform="${platform}"] .badge`).textContent(),'等待重连');
  for(const platform of ['qq','wechat'])assert.equal(await page.locator(`[data-platform="${platform}"] [data-runtime-stop]`).isEnabled(),true);
- assert.match(await page.locator('#activity-summary').textContent(),/等待恢复连接/);
+ assert.match(await page.locator('#activity-summary').textContent(),/连接需要检查/);
  await page.screenshot({path:path.join(output,'platform-connection-retrying.png'),fullPage:true});
+ for(const [connection,label] of [[{state:'new',code:''},'准备连接'],[{state:'blocked',code:'source_unavailable'},'连接受阻'],[{state:'blocked',code:'client_restart_required'},'需重启客户端'],[{state:'uncertain',code:'send_unconfirmed'},'发送待核实']]){
+  qq.connection=wechat.connection=connection;await page.evaluate(()=>refresh());
+  for(const platform of ['qq','wechat'])assert.equal(await page.locator(`[data-platform="${platform}"] .badge`).textContent(),label);
+  if(connection.state==='new')assert.match(await page.locator('#activity-summary').textContent(),/正在准备平台连接/);
+ }
+ const connectorLink=page.locator('[data-platform="qq"] [data-connector-link]');
+ assert.equal(await connectorLink.getAttribute('href'),'http://127.0.0.1:6099/webui');
+ assert.equal(await connectorLink.getAttribute('target'),'_blank');
+ assert.equal(await connectorLink.getAttribute('rel'),'noopener noreferrer');
+ qq.management_url='http://127.0.0.1:6209/webui';await page.evaluate(()=>refresh());
+ assert.equal(await connectorLink.getAttribute('href'),qq.management_url);
+ for(const invalid of ['javascript:alert(1)','http://127.0.0.1:6099/webui?token=secret','http://example.com:6099/webui']){
+  qq.management_url=invalid;await page.evaluate(()=>refresh());assert.equal(await connectorLink.isVisible(),false);assert.equal(await connectorLink.getAttribute('href'),null);
+ }
+ qq.management_url=originalQQ.management_url;await page.evaluate(()=>refresh());
+ for(const [status,contentType,body] of [[500,'text/plain','Internal Server Error private-path'],[502,'text/html','<html>private-token</html>'],[503,'text/plain',''],[200,'text/plain','not JSON']]){
+  apiError={status,contentType,body};
+  const error=await page.evaluate(()=>operate('platform_control',{}).catch(e=>({message:e.message,status:e.httpStatus})));
+  assert.equal(error.status,status);assert.match(error.message,new RegExp('HTTP '+status));assert.doesNotMatch(error.message,/private-|Unexpected token|Internal Server Error/);
+ }
+ apiError={status:403,contentType:'application/json',body:JSON.stringify({error:'bridge_build_changed',message:'微信桥接构建与当前源码不一致，请重新准备连接依赖。'})};
+ assert.match(await page.evaluate(()=>operate('platform_control',{}).catch(e=>e.message)),/桥接构建与当前源码不一致/);
+ apiError=null;
  qq.connection={state:'connected',code:''};wechat.connection={state:'connected',code:''};await page.evaluate(()=>refresh());
+ for(const width of [1440,390,320]){
+  await page.setViewportSize({width,height:1050});await connectorLink.scrollIntoViewIfNeeded();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  assert.equal(await connectorLink.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),true);
+  await page.screenshot({path:path.join(output,`qq-connector-management-link-${width}.png`)});
+ }
+ await page.context().route('http://127.0.0.1:6099/webui',route=>route.fulfill({body:'Synthetic connector management page',contentType:'text/html'}));
+ const [popup]=await Promise.all([page.waitForEvent('popup'),connectorLink.click()]);
+ await popup.waitForLoadState();assert.equal(popup.url(),'http://127.0.0.1:6099/webui');await popup.close();
+ await page.evaluate(()=>window.qibanNavigate('usage'));await page.locator('#quota-load').click();
+ await page.waitForFunction(()=>document.querySelector('#quota-fields input[name=daily_model_cycles]'));
+ assert.equal(await page.locator('#quota-fields input[type=time]').count(),0);
+ assert.doesNotMatch(await page.locator('#quota').textContent(),/活动|休息/);
+ await page.evaluate(()=>window.qibanNavigate('platforms'));
  for(const platform of ['qq','wechat'])assert.equal(await page.locator(`[data-platform="${platform}"] .badge`).textContent(),'运行中');
  statusHttp=401;await page.evaluate(()=>refresh().catch(()=>{}));
  assert.equal(await page.locator('#host-banner-title').textContent(),'管理页登录已过期');
@@ -106,6 +146,7 @@ try{
  assert.equal(await page.locator('#reply-authorizations article').count(),0);
  replyRows=[];
  await page.locator('#setup-load').click();await page.waitForFunction(()=>document.querySelector('#setup-qq-account').value==='10001');
+ assert.equal(await page.locator('#setup-qq-login').getAttribute('href'),'http://127.0.0.1:6099/webui');
  await page.locator('#setup-qq-private').fill('10002\n10003');await page.locator('#setup-form button[type=submit]').click();
  await page.waitForFunction(()=>!document.querySelector('#setup-form').disabled);
  assert.equal(setupChanges.length,1);assert.deepEqual(setupChanges[0].settings.private_targets,['10002','10003']);

@@ -130,17 +130,18 @@ async def test_invalid_credentials_pause_immediately_and_do_not_start_role(role)
 
 
 @pytest.mark.asyncio
-async def test_outside_hours_never_contacts_platform(role):
+async def test_collector_runs_at_night_with_legacy_hours(role):
     now = role.clock()
     role.clock = lambda: now + timedelta(hours=12)
 
-    async def forbidden(since):
-        pytest.fail("outside active hours")
-
-    role.adapter.inbox = forbidden
+    policy = role.store.read('policy')
+    role.store.write('policy', {**policy['data'], 'active_hours': {'start': '09:00', 'end': '23:00'}},
+                     policy['version'], 'synthetic')
+    role.adapter = LearningAdapter(events=[event(role)])
     worker = InboxWorker(role, role.run()["generation"])
     await worker.poll()
-    assert worker.values["wait_reason"] == "outside_hours"
+    assert worker.values["wait_reason"] is None
+    assert worker.values['received'] == 1
 
 
 @pytest.mark.asyncio

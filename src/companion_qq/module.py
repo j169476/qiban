@@ -91,7 +91,7 @@ class QQModule:
         require(bool(self.reply_targets()), "qq_enrollment_required")
         self.provider = self.factory()
         self.tainted = False
-        self.code, self.retry_at = "", 0
+        self.code, self.failures, self.retry_at = "", 0, 0
 
     def validate_run(self, run):
         require(self.provider is not None, "qq_not_started")
@@ -312,7 +312,8 @@ class QQModule:
             self.provider = None
 
     def runtime_status(self):
-        return {"state": "connected" if self.ready else "retrying" if self.provider else "paused",
+        return {"state": "connected" if self.ready else (
+                    "retrying" if self.failures or self.code else "new") if self.provider else "paused",
                 "code": self.code, "pending": len(self.store.state(self.queue_key, [])),
                 "uncertain": self.tainted, "automatic_start": False}
 

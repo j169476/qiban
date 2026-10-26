@@ -209,13 +209,27 @@ class WeChatModule:
         return ContinuousAdapter(receiver, sender, permits, session)
 
     def validate_start(self):
+        from .native.protocol import ProbeFailure
+
         require(not self.stopping and self.delegate is None, "wechat_module_stopping")
-        delegate = self.factory()
+        delegate = None
         try:
+            delegate = self.factory()
             delegate.bind_runtime(self.core)
             delegate.validate_start()
-        except BaseException:
-            delegate.session.close()  # No worker or native process was opened by preflight.
+        except BaseException as exc:
+            if delegate is not None:
+                delegate.session.close()  # Preflight does not open workers or native processes.
+            if isinstance(exc, (ProbeFailure, OSError, ValueError)):
+                messages = {
+                    "bridge_build_changed": "微信桥接构建与当前源码不一致，请在接入向导重新准备微信连接依赖。",
+                    "bridge_build_missing": "微信桥接构建或清单缺失，请在接入向导准备微信连接依赖。",
+                    "bridge_build_invalid": "微信桥接构建或清单无法读取，请在接入向导重新准备微信连接依赖。",
+                    "invalid_bridge": "微信桥接文件无效，请在接入向导重新准备微信连接依赖。",
+                    "client_restart_required": "微信客户端需要重启，请正常退出并重开对应账号的客户端。",
+                }
+                code = str(exc) if isinstance(exc, ProbeFailure) and str(exc) in messages else "wechat_native_preflight_failed"
+                raise AssistantError(code, messages.get(code, "微信原生预检未通过，请检查接入配置和桥接构建。")) from None
             raise
         self.delegate = delegate
 

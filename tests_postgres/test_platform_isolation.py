@@ -108,24 +108,21 @@ def test_repeated_start_cannot_change_mode_owner_or_extend_deadline(pg_store):
 
 
 @pytest.mark.asyncio
-async def test_outside_hours_reports_schedule_wait_without_polling(pg_store):
+async def test_started_platform_polls_without_schedule_gate(pg_store):
     service = prepare(pg_store)
     call(service, "qq-owner", "qq_start")
-    service.platform_hours = lambda: False
     status = service.platform_runs.status("qq")
-    assert status["status"] == "active" and status["waiting_for_schedule"]
-    assert status["reason"] == "outside_active_hours" and not status["busy"]
+    assert status["status"] == "active" and "waiting_for_schedule" not in status
+    polled = []
 
-    def outside_hours():
+    async def poll():
+        polled.append(True)
         service.shutdown.set()
-        return False
+        return []
 
-    def forbidden_guard():
-        pytest.fail("schedule wait must not start platform processing")
-
-    service.platform_hours = outside_hours
-    service.platform_runs.cores["qq"].guard = forbidden_guard
+    service.platform_runs.cores["qq"].platforms.all()[0].runtime_poll = poll
     await asyncio.wait_for(service.platform_runs.work("qq"), 3)
+    assert polled == [True]
     assert not service.platform_runs.busy
 
 
@@ -156,7 +153,6 @@ def test_only_admin_can_stop_all_slots(pg_store):
 @pytest.mark.asyncio
 async def test_slow_platform_does_not_block_another_platform_receiver(pg_store):
     service = prepare(pg_store)
-    service.platform_hours = lambda: True
     call(service, "bili-owner", "bili_start")
     call(service, "qq-owner", "qq_start")
     blocked, received = asyncio.Event(), asyncio.Event()
@@ -188,7 +184,6 @@ async def test_slow_platform_does_not_block_another_platform_receiver(pg_store):
 @pytest.mark.asyncio
 async def test_public_events_cannot_fill_the_private_reply_batch(pg_store):
     service = prepare(pg_store)
-    service.platform_hours = lambda: True
     call(service, "qq-owner", "qq_start")
     core, handled = service.platform_runs.cores["qq"], []
     private = SimpleNamespace(visibility="private")
@@ -215,7 +210,6 @@ async def test_scheduler_failure_records_stage_generation_without_secret(pg_stor
     from companion_core.diagnostics import KEY
 
     service = prepare(pg_store)
-    service.platform_hours = lambda: True
     call(service, "qq-owner", "qq_start")
     run = service.platform_runs.status("qq")
 

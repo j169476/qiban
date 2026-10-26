@@ -11,7 +11,7 @@ from pathlib import Path
 
 from companion_wechat.db_windows import _QT_CLASS
 
-from .protocol import build_signature, fingerprint, pe_exports, require
+from .protocol import ProbeFailure, build_signature, fingerprint, pe_exports, require
 from .windows import RemoteCalls, Windows
 
 
@@ -30,8 +30,13 @@ class Status(c.Structure):
 
 def validate_build(path):
     path = Path(path)
-    data = path.read_bytes()
-    manifest = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+    try:
+        data = path.read_bytes()
+        manifest = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ProbeFailure("bridge_build_missing") from None
+    except (OSError, ValueError):
+        raise ProbeFailure("bridge_build_invalid") from None
     require(manifest == {"sources": build_signature(), "sha256": hashlib.sha256(data).hexdigest()},
             "bridge_build_changed")
     return pe_exports(data)

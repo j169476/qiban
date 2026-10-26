@@ -6,7 +6,6 @@ import hmac
 import time
 from contextvars import ContextVar
 from threading import RLock
-from zoneinfo import ZoneInfo
 
 from companion_core import events
 from companion_core.backup_maintenance import BackupMaintenance
@@ -241,15 +240,6 @@ class Service:
         self.store.set_state("core-processed:" + event.id, row["version"])
         self.store.set_state("web-message:" + event.id, {"status": "cancelled", "reason": "session_or_run_ended"})
 
-    def platform_hours(self):
-        policy = self.store.read("policy")["data"]
-        hours = policy.get("active_hours")
-        if not hours:
-            return True
-        now = self.core.clock().astimezone(ZoneInfo(policy.get("timezone", "Asia/Shanghai"))).strftime("%H:%M")
-        start, end = hours["start"], hours["end"]
-        return start <= now < end if start < end else now >= start or now < end
-
     async def receive(self):
         next_poll, failures, generation = 0, 0, None
         while not self.shutdown.is_set():
@@ -259,7 +249,7 @@ class Service:
                 continue
             if run.get("generation") != generation:
                 generation, next_poll, failures = run["generation"], 0, 0
-            if time.monotonic() < next_poll or not self.platform_hours():
+            if time.monotonic() < next_poll:
                 continue
             settings = self.store.read("companion")["data"]
             interval = settings.get("inbox_poll_seconds", 60)
@@ -291,7 +281,7 @@ class Service:
 
     async def drain_private(self):
         run = self.core.guard()
-        if run["read_only"] or not self.store.state("service-background", True) or not self.platform_hours():
+        if run["read_only"] or not self.store.state("service-background", True):
             return
         from companion_core import delivery
 

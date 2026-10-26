@@ -40,7 +40,6 @@ class PlatformRuns:
 
     def status(self, platform):
         run = self.store.state("core-run:" + platform, {})
-        waiting_hours = run.get("status") == "active" and not self.service.platform_hours()
         result = {"platform": platform, "available": platform in self.cores,
                 "status": run.get("status", "paused"), "reason": run.get(
                     "reason", "running" if run.get("status") == "active" else
@@ -48,9 +47,12 @@ class PlatformRuns:
                 "owner": run.get("owner"), "generation": run.get("generation"),
                 "read_only": run.get("read_only", False), "deadline_at": run.get("deadline_at"),
                 "busy": platform in self.busy}
-        if waiting_hours:
-            result["reason"] = "outside_active_hours"
-        result["waiting_for_schedule"] = waiting_hours
+        if result["reason"] == "outside_active_hours":
+            result["reason"] = "running" if result["status"] == "active" else "explicit_start_required"
+        if platform == "qq":
+            from companion_qq.config import management_url
+
+            result["management_url"] = management_url(getattr(self.service.host, "project", None))
         if run.get("reply_test"):
             result["reply_test"] = run["reply_test"]
         core = self.cores.get(platform)
@@ -66,6 +68,12 @@ class PlatformRuns:
                                   details[0].get("receiver", details[0]))
                 result["connection"] = {"state": connection.get("state", "unknown"),
                                         "code": connection.get("code", "")}
+                for item in details:
+                    native = item.get("native", {})
+                    if native.get("code"):
+                        result["connection"] = {"state": "blocked", "code": native["code"]}
+                    if item.get("uncertain") or item.get("native_uncertain") or native.get("uncertain"):
+                        result["connection"] = {"state": "uncertain", "code": "send_unconfirmed"}
         return result
 
     def control(self, thread, platform, action, arguments, *, management=False):
@@ -249,8 +257,6 @@ class PlatformRuns:
                     continue
                 if (self.service.storage_unavailable or self.service.maintenance_until > time.time()
                         or self.status(platform)["status"] != "active"):
-                    continue
-                if not self.service.platform_hours():
                     continue
                 self.busy.add(platform)
                 stage = "guard"

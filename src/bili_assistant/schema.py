@@ -587,6 +587,12 @@ SCHEMAS["policy"]["properties"].update(SERVICE_POLICY)
 SCHEMAS["memories"]["properties"]["fact"] = PERSONAL_FACT
 
 
+# Retain old documents without preserving the removed scheduling rule.
+SCHEMAS["policy"]["required"].remove("active_hours")
+SCHEMAS["policy"]["properties"]["active_hours"].update(
+    deprecated=True, description="旧版兼容字段，已忽略；启动后不再限制活动时段。")
+
+
 def validate(kind, data):
     schema = SCHEMAS.get(kind)
     if schema is None:
@@ -606,8 +612,6 @@ def validate(kind, data):
             ZoneInfo(data["timezone"])
         except (ValueError, ZoneInfoNotFoundError):
             raise AssistantError("invalid_timezone", "无法识别 policy.timezone") from None
-        if data["active_hours"]["start"] == data["active_hours"]["end"]:
-            raise AssistantError("invalid_hours", "开始和结束时刻不能相同")
     if kind in ("knowledge", "source_snapshots"):
         coverage = data["coverage"]
         if coverage["end_seconds"] < coverage["start_seconds"]:

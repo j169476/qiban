@@ -320,7 +320,7 @@ async def test_service_scheduler_uses_admitted_group_events_and_closes_module(pg
     module.account = env.receiver.account
     env.adapter.core = env.session.core = None
     service = SimpleNamespace(store=pg_store, host=Host(), shutdown=asyncio.Event(), storage_unavailable=False,
-                              maintenance_until=0, platform_hours=lambda: True, supervisor=None)
+                              maintenance_until=0, supervisor=None)
     runs = implementation.PlatformRuns(service, Model(), [module])
     core = runs.cores["wechat"]
     core.clock = env.core.clock

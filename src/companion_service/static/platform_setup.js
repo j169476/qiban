@@ -6,6 +6,7 @@
   function reset(){request++;snapshot=null;clearTimeout(timer);$('#setup-form').hidden=true;$('#setup-probe').disabled=true;$('#setup-prepare').disabled=true;$('#setup-qq-token').value='';$('#setup-status').textContent='请检查所选平台的配置。';}
   function render(value,fill){
     snapshot=value;const qq=value.platform==='qq';
+    const login=$('#setup-qq-login'),loginURL=qq?localConnectorURL(value.login_url):null;login.hidden=!loginURL;if(loginURL)login.href=loginURL;else login.removeAttribute('href');
     $('#setup-form').hidden=false;$('#setup-qq-fields').hidden=!qq;$('#setup-qq-guide').hidden=!qq;$('#setup-wechat-fields').hidden=qq;
     $('#setup-probe').disabled=value.running_job||!value.configured;$('#setup-prepare').disabled=value.running_job;
     $('#setup-form button[type=submit]').disabled=value.running_job;

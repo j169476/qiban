@@ -46,7 +46,7 @@
 1. 用 imagegen 生成或修改配图，取其真实本地文件；也可用用户自带图片。实际查看成品，检查图中文字与拟发正文一致。
 2. `publication_image_import(path,origin,description)`；绝对路径，`origin` 为 `codex_imagegen` 或 `user_provided`。单张至多 5 MB，PNG/JPEG/WebP。此步只复制到本地素材目录。
 3. 准备 `kind=dynamic`，payload 为 `{"text":"拟发布正文","images":[{"id":"导入返回的 data.id","version":"导入返回的 version"}]}`。
-4. `action_execute(action_id)` 服从 `dynamic` 开关、额度、活动时段、暂停和归档。最多九张图片；每次上传和最终发布前都重查。素材改变后重新导入/读取，不能用旧版本发送。
+4. `action_execute(action_id)` 服从 `dynamic` 开关、额度、暂停和归档。最多九张图片；每次上传和最终发布前都重查。素材改变后重新导入/读取，不能用旧版本发送。
 5. 已上传图片但最终动态未确认时保留不确定状态，不自动重发。只有返回成功及动态 ID 才报告发布成功，生成图片或本地导入不等于已发布。
 
 整理、导出不要求恢复后台；真正执行 B站动作仍要求角色处于已明确启动的运行中。

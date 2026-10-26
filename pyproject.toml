@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qiban"
-version = "0.9.0"
+version = "0.9.1"
 description = "A local companion with shared memory and independent Bilibili, WeChat and QQ connectors."
 requires-python = ">=3.11"
 license = {text = "MIT for project-owned code; third-party components retain their original licenses (see THIRD_PARTY_NOTICES.md)"}

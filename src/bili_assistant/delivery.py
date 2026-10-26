@@ -71,7 +71,8 @@ def eligible(engine, event):
     if record.get("attempts", 0) >= MAX_DEFERRALS:
         finish(engine, event, "retry_limit")
         return False
-    return (engine.clock() >= datetime.fromisoformat(record["due_at"])
+    return (record.get("reason") == "outside_hours"  # Compatibility with unsent pre-0.9.1 waits.
+            or engine.clock() >= datetime.fromisoformat(record["due_at"])
             or record.get("config_versions") != config_versions(engine.store))
 
 

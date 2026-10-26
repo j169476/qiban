@@ -337,11 +337,6 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
         if not action_policy["enabled"]:
             raise AssistantError("action_disabled", f"{kind} 已关闭")
         now = self.clock().astimezone(ZoneInfo(policy["timezone"]))
-        hhmm = now.strftime("%H:%M")
-        start, end = policy["active_hours"]["start"], policy["active_hours"]["end"]
-        inside = start <= hhmm < end if start < end else hhmm >= start or hhmm < end
-        if not inside:
-            raise AssistantError("outside_hours", "当前不在活动时段")
         day = now.date().isoformat()
         row = db.execute(
             """SELECT COALESCE(SUM(units),0) FROM actions WHERE account=? AND day=?

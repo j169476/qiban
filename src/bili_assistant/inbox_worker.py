@@ -2,7 +2,6 @@
 
 import asyncio
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 from .errors import AssistantError
 from .health import BENIGN_STOPS, fail
@@ -12,13 +11,6 @@ FATAL = {
     "account_mismatch", "account_changed", "keyring_unavailable", "critical_state_invalid", "supervisor_lost",
     "host_unavailable", "host_timeout", "host_protocol_error", "stale_generation", *BENIGN_STOPS,
 }
-
-
-def active_hours(engine):
-    policy = engine.store.read("policy")["data"]
-    local = engine.clock().astimezone(ZoneInfo(policy["timezone"])).strftime("%H:%M")
-    start, end = policy["active_hours"]["start"], policy["active_hours"]["end"]
-    return start <= local < end if start < end else local >= start or local < end
 
 
 class InboxWorker:
@@ -38,9 +30,6 @@ class InboxWorker:
         self.engine.run(self.generation)
         settings = self.engine.store.read("companion")["data"]
         interval = settings.get("inbox_poll_seconds", 60)
-        if not active_hours(self.engine):
-            self.pulse(phase="waiting", wait_reason="outside_hours")
-            return interval
         self.pulse(phase="receiving", wait_reason=None)
         try:
             result = await asyncio.wait_for(

@@ -54,12 +54,6 @@ class BilibiliWorkflow:
         engine = self.engine
         policy = engine.store.read("policy")["data"]
         state["policy"] = policy
-        local = engine.clock().astimezone(ZoneInfo(policy["timezone"])).strftime("%H:%M")
-        start, end = policy["active_hours"]["start"], policy["active_hours"]["end"]
-        inside = start <= local < end if start < end else local >= start or local < end
-        if not inside:
-            self.scheduler.phase("waiting", wait_reason="outside_hours")
-            return Flow.STOP
         # The daemon collector runs independently of model work. Explicit cycles
         # still journal their inbox before applying a model-budget limit.
         state["inbox"] = await engine.inbox() if self.scheduler.collector is None else []

@@ -9,6 +9,8 @@ import sys
 import threading
 import time
 
+from bili_assistant import __version__
+
 
 def main():
     report = {
@@ -54,7 +56,7 @@ def main():
         init = rpc(
             "initialize",
             {
-                "clientInfo": {"name": "bili-host-probe", "version": "0.1.0"},
+                "clientInfo": {"name": "bili-host-probe", "version": __version__},
                 "capabilities": {"experimentalApi": True},
             },
             1,
