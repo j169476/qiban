@@ -25,7 +25,6 @@ class ReplyManagement:
                     continue
                 try:
                     candidates = tuple(discover())
-                    require(len(candidates) <= 1000, "reply_target_invalid")
                     validated = {}
                     for target in candidates:
                         require(isinstance(target, ReplyTarget) and target.scope.platform == platform
@@ -41,20 +40,36 @@ class ReplyManagement:
                 result.update(validated)
         return result, platforms
 
-    def listing(self, request):
+    def listing(self, request, *, platform=None, query="", view="all", offset=0, limit=20):
         self.service.admin.authority.require(request, administrator=True)
+        require(platform is None or isinstance(platform, str) and platform in PLATFORMS)
+        require(isinstance(query, str) and len(query) <= 256)
+        require(view in ("all", "search", "authorized"))
+        require(type(offset) is int and 0 <= offset <= 1000000)
+        require(type(limit) is int and 1 <= limit <= 50)
+        query = query.strip()
+        require(view != "search" or platform is not None and bool(query))
         targets, platforms = self.targets()
         records = {r["id"]: r for r in self.permissions.records()}
         for key, target in targets.items():
             records[key] = self.permissions.record(target.scope)
         items = []
         for key, record in records.items():
+            if platform is not None and record["scope"]["platform"] != platform:
+                continue
+            if query and record["scope"]["target_id"] != query:
+                continue
+            if view == "authorized" and not record["enabled"]:
+                continue
             target = targets.get(key)
             items.append({**record, "verified_target": target is not None,
                 "label": target.label if target else "当前连接器未提供此会话",
                 "account_label": target.account_label if target else record["scope"]["account_identity"],
                 "restriction": target.restriction if target else "只可撤销，重新授权需要连接器核验"})
-        return {"items": sorted(items, key=lambda x: (x["scope"]["platform"], x["id"])),
+        items.sort(key=lambda x: (x["scope"]["platform"], x["id"]))
+        total = len(items)
+        return {"items": items[offset:offset + limit], "total": total, "offset": offset, "limit": limit,
+                "next_offset": offset + limit if offset + limit < total else None,
                 "platforms": platforms,
                 "default_allow": False, "change_pauses_platform": True}
 
@@ -97,11 +112,21 @@ class ReplyManagement:
     def operation(self, request, name, arguments):
         self.service.admin.authority.require(request, administrator=True)
         require(isinstance(arguments, dict))
+        if name in {"reply_import_preview", "reply_import_confirm"}:
+            from .reply_import import ReplyImport
+
+            importer = ReplyImport(self)
+            if name == "reply_import_preview":
+                require({"platform", "identifiers"} <= set(arguments)
+                        and not set(arguments) - {"platform", "identifiers", "account_identity"})
+                return importer.preview(request, **arguments)
+            require(set(arguments) == {"token"})
+            return importer.confirm(request, **arguments)
         if name.startswith("reply_policy_"):
             return self.policy_operation(request, name, arguments)
         if name == "reply_authorization_list":
-            require(not arguments)
-            return self.listing(request)
+            require(not set(arguments) - {"platform", "query", "view", "offset", "limit"})
+            return self.listing(request, **arguments)
         require(name == "reply_authorization_set" and set(arguments) == {"scope_id", "enabled", "expected_version"})
         return self.update(request, **arguments)
 

@@ -136,7 +136,8 @@ class DatabaseReceiptReader:
                         for target in self._enrollment["targets"].values())
         for connection, expected in tables.values():
             present = self._query(connection,
-                                  "SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?)",
+                                  "SELECT name FROM sqlite_master WHERE type='table' AND name IN ("
+                                  + ",".join("?" for _ in allowed) + ")",
                                   allowed)
             if {row[0] for row in present} != expected:
                 raise SourceError("source_catalog_changed")
@@ -254,7 +255,7 @@ class DatabaseReceiptReader:
                             or not _integer(kind, 1) or not _username(sender)):
                         complete = False
                         continue
-                    if self._alias == "owner_main" and sender not in (scope.self_ref, scope.target_ref):
+                    if self._enrollment["targets"][self._alias]["kind"] == "private" and sender not in (scope.self_ref, scope.target_ref):
                         complete = False
                         continue
                     if sender != scope.self_ref or kind != 1:
@@ -277,7 +278,7 @@ class DatabaseReceiptReader:
                     if not proof._text(text):
                         complete = False
                         continue
-                    if self._alias == "family" and text.startswith(sender + ":\n"):
+                    if self._enrollment["targets"][self._alias]["kind"] == "group" and text.startswith(sender + ":\n"):
                         text = text[len(sender) + 2:]
                     rows.append({"source_id": key, "generation": self._items[key]["salt"],
                                  "account_id": scope.account_id, "target_ref": scope.target_ref,

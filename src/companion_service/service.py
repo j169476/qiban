@@ -54,6 +54,9 @@ class Service:
         self.supervisor = None
         self.plan_usage = None
         self.plan_task = None
+        from .platform_setup import PlatformSetup
+
+        self.setup = PlatformSetup(self)
 
     def host_status(self):
         desktop = getattr(self.host, "desktop", None)
@@ -154,6 +157,7 @@ class Service:
         except Exception:
             self.storage_unavailable = True
         self.shutdown.set()
+        await self.setup.close()
         await self.platform_runs.close()
         self.wakeup.set()
         for task in (self.task, self.monitor, self.receiver):
@@ -447,11 +451,15 @@ class Service:
                 desktop.adopt()
             self.control_verifier(thread)
             self._pause("explicit_service_resume")
+            self.store.set_state("host-lifecycle", {"restart_required": True, "stopped_at": time.time()})
+            if self.supervisor:
+                self.supervisor.ensure_ready()
             self.store.set_state("host-lifecycle", {"restart_required": False, "resumed_at": time.time()})
             return {"service_ready": True, "role_started": False, "host": self.host_status()}
         self.control_verifier(thread)  # Official host checks project and archive state.
         if operation == "management_open":
-            with self.store.db() as db:
+            # Serialize rebinding with notification reservation across processes.
+            with self.store.lock, self.store.db() as db:
                 row = db.execute("SELECT mode FROM sessions WHERE thread=?", (thread,)).fetchone()
                 if row and row["mode"] != "admin":
                     raise AssistantError("mode_conflict", "此聊天已绑定为角色控制入口")
@@ -526,7 +534,17 @@ class Service:
         actor = ActorRef("codex-control", thread)
         request = self.admin.authority.issue(actor=actor, conversation="management", audience="private",
                                              recipients=(actor,), purpose="management", administrator=True)
-        if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set"}:
+        if operation in {"platform_setup_status", "platform_setup_run"}:
+            if (arguments.get("action") == "save" and isinstance(arguments.get("settings"), dict)
+                    and "token" in arguments["settings"]):
+                require_token = arguments["settings"]["token"]
+                if require_token:
+                    raise AssistantError("web_management_required", "QQ Token 请仅在本机管理网页填写")
+            return self.setup.operation(request, operation, arguments)
+        if operation in {"model_catalog", "model_settings_get", "model_settings_set"}:
+            return self.model_operation(request, operation, arguments)
+        if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set",
+                         "reply_import_preview", "reply_import_confirm"}:
             from .reply_management import ReplyManagement
 
             return ReplyManagement(self).operation(request, operation, arguments)
@@ -544,6 +562,25 @@ class Service:
             self._pause("password_reset")
             return {"ticket": self.sessions.reset_ticket()}
         raise AssistantError("web_entry_required", "角色内容已移至本机网页，此工具不能读取角色资料")
+
+    def model_operation(self, request, operation, arguments):
+        from companion_codex.selection import ModelSelection, require
+
+        self.admin.authority.require(request, administrator=True)
+        require(isinstance(arguments, dict))
+        selection = ModelSelection(self.store, self.host)
+        if operation == "model_settings_get":
+            require(not arguments)
+            return selection.snapshot()
+        if operation == "model_catalog":
+            require(not arguments)
+            require(self.host_status()["available"], "host_stopped", "宿主已停止，当前无法刷新模型目录")
+            return selection.catalog()
+        require(operation == "model_settings_set" and set(arguments) == {
+            "scope", "model", "effort", "expected_version"})
+        if arguments["model"] is not None:
+            require(self.host_status()["available"], "host_stopped", "宿主已停止，当前无法核验新模型")
+        return selection.update(**arguments, actor=request.actor, audit=self.admin.repository.audit)
 
     def manage_platform(self, platform, action, expected_generation, arguments):
         """Called only after web administrator authentication, never with a caller-selected thread."""

@@ -9,6 +9,7 @@ from filelock import FileLock, Timeout
 
 from companion_codex.host import CodexHost
 from companion_codex.model import CodexModel
+from companion_codex.selection import ModelSelection
 from companion_core.errors import AssistantError
 
 from .config import open_store, urls
@@ -39,8 +40,11 @@ async def serve(project):
         wechat = configured_module(store, project, config["id"])
         qq = configured_qq(store, project)
         adapters = [connector] + ([wechat] if wechat is not None else []) + ([qq] if qq is not None else [])
-        service = Service(store, CodexModel(), host, adapters=adapters, bridge_secret=secret,
-                          platform_models={p: CodexModel(model="gpt-6.1-sol") for p in ("qq", "wechat")})
+        selection = ModelSelection(store, host)
+        service = Service(store, CodexModel(selection=lambda: selection.resolve("local")), host,
+                          adapters=adapters, bridge_secret=secret,
+                          platform_models={p: CodexModel(selection=lambda p=p: selection.resolve(p))
+                                           for p in ("bilibili", "qq", "wechat")})
         service.installation_id = config["id"]
         service.plan_usage = PlanUsage(CodexHost(Path(project)))
         from .config import secrets_for

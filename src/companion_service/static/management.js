@@ -4,12 +4,32 @@
   const resetTicket=location.hash.startsWith('#reset=')?location.hash.slice(7):'';
   if(resetTicket){history.replaceState(null,'','/');const form=document.createElement('form');form.className='card';const title=document.createElement('h2');title.textContent='重设本机网页密码';const label=document.createElement('label');label.textContent='新密码';const input=document.createElement('input');input.type='password';input.minLength=12;input.maxLength=256;input.required=true;input.autocomplete='new-password';const button=document.createElement('button');button.type='submit';button.textContent='设置新密码并退出所有会话';label.append(input);form.append(title,label,button);$('main').prepend(form);form.addEventListener('submit',async e=>{e.preventDefault();button.disabled=true;try{await api('/password-reset',{ticket:resetTicket,password:input.value});location.reload();}catch(err){notice(err.message);button.disabled=false;}});}
   if(document.body.dataset.authenticated!=="true")return;
-  async function replyAuthorizations(){
-    const data=await operate('reply_authorization_list',{});
+  let replyRequest=0,replyOffset=0,replyNext=null,replySelection=null;
+  function clearReplyResults(){
+    replyRequest++;replySelection=null;replyOffset=0;replyNext=null;
+    $('#reply-authorizations').replaceChildren();$('#reply-pagination').hidden=true;
+    $('#reply-result-summary').textContent='输入完整号码或 ID 后检索，或查看该平台已授权对象。';
+  }
+  async function replyAuthorizations(offset=0){
+    if(!replySelection)return;
+    const request=++replyRequest,selection={...replySelection};
+    $('#reply-authorizations').replaceChildren();$('#reply-pagination').hidden=true;
+    $('#reply-result-summary').textContent='正在查找…';
+    let data;
+    try{data=await operate('reply_authorization_list',{...selection,offset,limit:20});}
+    catch(error){if(request===replyRequest)$('#reply-result-summary').textContent='读取失败，请重试。';throw error;}
+    if(request!==replyRequest)return;
+    replyOffset=data.offset??offset;replyNext=data.next_offset??null;
     const platforms={wechat:'微信',qq:'QQ'};
     $('#reply-platforms').textContent=Object.entries(data.platforms).map(([key,value])=>`${platforms[key]||key}：${value.available?'连接器已接入':'连接器未接入，暂不可新增授权'}${value.discovery_failed?'；部分身份核验失败，请检查连接器':''}`).join('；');
     const list=$('#reply-authorizations');list.replaceChildren();
-    if(!data.items.length){const empty=document.createElement('p');empty.textContent='暂无已核验会话。完成连接器身份绑定后可在此读取，不会自动授予回复权限。';list.append(empty);}
+    const total=data.total??data.items.length;
+    $('#reply-result-summary').textContent=`${selection.view==='authorized'?'已授权对象':'检索结果'}：共 ${total} 项。检索不会授予回复权限。`;
+    $('#reply-pagination').hidden=total===0;
+    $('#reply-previous').disabled=replyOffset===0;$('#reply-next').disabled=replyNext===null;
+    $('#reply-previous').hidden=replyOffset===0;$('#reply-next').hidden=replyNext===null;
+    $('#reply-page-label').textContent=total?`${replyOffset+1}–${replyOffset+data.items.length} / ${total}`:'';
+    if(!data.items.length){const empty=document.createElement('p');empty.className='soft-empty';empty.textContent=selection.view==='authorized'?'该平台暂无已授权对象。': '没有找到匹配的已核验会话。请检查平台和完整 ID；尚未核验的对象需先完成连接器配置或导入核验。';list.append(empty);}
     for(const item of data.items){
       const card=document.createElement('article');card.className='task-item';
       const title=document.createElement('h3');title.textContent=`${platforms[item.scope.platform]} · ${item.label} · ${item.enabled?'已授权':'未授权'}`;
@@ -19,16 +39,31 @@
       if(item.verified_target||item.enabled){
         const button=document.createElement('button');button.className='secondary';button.textContent=item.enabled?'撤销回复授权':'授权回复此会话';
         button.addEventListener('click',async()=>{button.disabled=true;try{
+          if(request!==replyRequest)return;
+          if(!confirm(`${item.enabled?'撤销':'允许'} ${platforms[item.scope.platform]} ${item.scope.kind==='group'?'群聊':'私聊'} ${item.scope.target_id} 的回复授权？\n机器人账号：${item.account_label}\n变更会暂停对应平台，之后需明确启动。`))return;
           const result=await operate('reply_authorization_set',{scope_id:item.id,enabled:!item.enabled,expected_version:item.version});
           notice((item.enabled?'已撤销回复授权。':'已保存回复授权。')+(result.platform_paused?'对应平台已暂停，需在平台控制聊天重新启动。':'本次操作没有启动角色。'));
-          await replyAuthorizations();
+          if(request===replyRequest)await replyAuthorizations(replyOffset>0&&data.items.length===1&&selection.view==='authorized'?replyOffset-20:replyOffset);
         }catch(error){notice(error.message+'；请重新读取会话与回复授权。');}finally{button.disabled=false;}});
         card.append(button);
       }
       list.append(card);
     }
   }
-  bind('#load-reply-authorizations',replyAuthorizations);
+  bind('#reply-search-form',async()=>{
+    const query=$('#reply-search-query').value.trim();
+    if(!query){clearReplyResults();notice('请输入完整号码或内部 ID。');return;}
+    replySelection={platform:$('#reply-search-platform').value,query,view:'search'};
+    await replyAuthorizations();
+  },'submit');
+  bind('#load-reply-authorizations',async()=>{
+    replySelection={platform:$('#reply-search-platform').value,query:'',view:'authorized'};
+    await replyAuthorizations();
+  });
+  bind('#reply-previous',()=>replyOffset>0?replyAuthorizations(Math.max(0,replyOffset-20)):null);
+  bind('#reply-next',()=>replyNext!==null?replyAuthorizations(replyNext):null);
+  bind('#reply-search-platform',clearReplyResults,'change');
+  bind('#reply-search-query',clearReplyResults,'input');
   async function replyPolicies(){
     const data=await operate('reply_policy_list',{}),list=$('#reply-policies');list.replaceChildren();
     const labels={private_daily_replies:'每日私聊成功回复上限',group_session_replies:'每次群聊参与回复上限',group_session_decisions:'每次群聊参与判断上限',group_session_minutes:'每次群聊参与最长分钟数'};

@@ -18,7 +18,7 @@ PROFILES = (
      "timestamp": 0x6AD083C8, "image_size": 0xC34F000,
      "account_rvas": (0xBB92FA0, 0x8F514E8, 0x469A0, 0x8FD1468, 0x3855C0)},
 )
-EXPORTS = {"XlnOpen", "XlnPrepare", "XlnCommit", "XlnCancel", "XlnStatus", "XlnClose"}
+EXPORTS = {"XlnOpen", "XlnBindTarget", "XlnPrepare", "XlnCommit", "XlnCancel", "XlnStatus", "XlnClose"}
 HERE = Path(__file__).resolve().parent
 
 

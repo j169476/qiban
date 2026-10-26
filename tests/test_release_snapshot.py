@@ -1,10 +1,12 @@
 """Release privacy checks exercise actual new stores and exported archives."""
 import importlib.util
 import json
+import tomllib
 import zipfile
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
 
 from bili_assistant.storage import Store as BiliStore
 from companion_core.storage import Store as CoreStore
@@ -44,6 +46,10 @@ def test_export_excludes_history_local_state_and_personal_material(tmp_path):
     for name in (".git/config", ".dev/private.txt", "bili-assistant-data/persona.yaml",
                  "companion-service-data/secrets.json", "assets/avatars/owner.png",
                  "docs/evidence/real-chat.json", "docs/personas/private.yaml",
+                 "docs/V8.2-manual-results.csv", "docs/V8.2-evidence-20261026/real-chat.json",
+                 "docs/V8.2-bug-diagnosis-20261026.txt", "docs/V8.2-browser-test-report-20261026.txt",
+                 "docs/V8.2-repair-progress-20261027.md",
+                 "docs/V8.2-development.md", "docs/V0_9_DEVELOPMENT.md",
                  "plugins/qiban/runtime.json", "src/pkg/__pycache__/private.pyc"):
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +93,24 @@ def test_repository_is_exportable_with_empty_defaults():
     names = {item["path"] for item in report["manifest"]}
     assert "tests_core/fixtures/retrieval/cases.json" in names
     assert "src/companion_wechat/native/LICENSE.helper" in names
+    assert not any(name.startswith(release.PRIVATE_PREFIXES) for name in names)
+
+
+@pytest.mark.parametrize("connector", ["companion-qq", "companion-wechat"])
+def test_connector_dependencies_accept_the_shipped_core(connector):
+    core = tomllib.loads((ROOT / "packages/companion-core/pyproject.toml").read_text(encoding="utf-8"))
+    package = tomllib.loads((ROOT / "packages" / connector / "pyproject.toml").read_text(encoding="utf-8"))
+    requirements = [Requirement(item) for item in package["project"]["dependencies"]]
+    core_requirements = [item for item in requirements if item.name == "local-companion-core"]
+    assert len(core_requirements) == 1
+    assert core["project"]["version"] in core_requirements[0].specifier
+
+
+def test_unreviewed_csv_outside_local_acceptance_evidence_is_still_rejected(tmp_path):
+    root = synthetic_source(tmp_path)
+    (root / 'docs/unreviewed.csv').write_text('private synthetic content', encoding='utf-8')
+    with pytest.raises(release.ReleaseError, match='Unreviewed source file'):
+        release.audit(root)
 
 
 def test_browser_license_copies_match_release_originals():

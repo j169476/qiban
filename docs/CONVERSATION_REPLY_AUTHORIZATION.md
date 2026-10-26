@@ -13,11 +13,19 @@
 
 ## 管理接口
 
+网页先选择 QQ 或微信，再输入完整号码或内部 ID 检索，不会一次展开所有候选对象。结果卡片显示机器人账号、会话类型和目标 ID；点击授权或撤销后再次确认。检索与翻页本身不修改权限。“查看该平台已授权对象”每页显示 20 项，暂时无法核验的已有授权仍可撤销。B站保持原来的管理规则，不纳入这里。
+
+检索只查询连接器已经核验的目标，不会添加好友、连接平台或启动角色。微信使用连接器提供的内部 username，不能将昵称或微信号直接当作该内部 ID。尚未核验的对象需先配置或导入核验。
+
 ```text
 reply_authorization_list {}
+reply_authorization_list {"platform":"qq","query":"10002","view":"search","offset":0,"limit":20}
+reply_authorization_list {"platform":"wechat","view":"authorized","offset":0,"limit":20}
 reply_authorization_set {"scope_id":"列表返回的id","enabled":true,"expected_version":null}
 reply_policy_list {}
 ```
+
+`search` 要求平台及非空完整目标 ID，按大小写敏感的内部 ID 精确匹配；`authorized` 只返回已有授权。默认 `all` 兼容原调用，仍为分页返回。每页默认 20 项，最多 50 项；返回 `total` 和 `next_offset`，后者为 `null` 表示末页。分页限制不是可授权人数上限。
 
 新增授权使用列表返回的版本（首次可为 `null`）；修改时必须带上最新版本，冲突后重新读取。不要自行拼接 `scope_id`。网页操作受登录、Origin 和 CSRF 校验；后台管理聊天使用真实宿主身份。角色聊天和平台消息不能调用授权写入入口。
 

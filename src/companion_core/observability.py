@@ -23,8 +23,9 @@ def label(value, default="unknown"):
 
 
 class Observation:
-    def __init__(self, store, stage, kind):
+    def __init__(self, store, stage, kind, generation=None):
         self.store, self.stage, self.kind = store, label(stage), label(kind)
+        self.generation = generation
         self.started = datetime.now(timezone.utc)
         self.id = f"{self.started.isoformat()}-{uuid.uuid4().hex}"
         self.monotonic = time.monotonic()
@@ -62,6 +63,10 @@ class Observation:
         code = label(error.code) if isinstance(error, AssistantError) else "cancelled" if status == "cancelled" else None
         if error is not None and code is None:
             code = "unexpected_error"
+        if error is not None and not isinstance(error, asyncio.CancelledError):
+            from .diagnostics import record_exception
+
+            record_exception(self.store, error, stage=self.stage, generation=self.generation, observation_id=self.id)
         elapsed = max(0, round((time.monotonic() - self.monotonic) * 1000))
         from .reply_trace import point
 
@@ -74,8 +79,8 @@ class Observation:
 
 
 @contextmanager
-def measure(store, stage, kind="stage"):
-    observation = Observation(store, stage, kind)
+def measure(store, stage, kind="stage", *, generation=None):
+    observation = Observation(store, stage, kind, generation)
     token = _stage.set(observation.stage)
     error = None
     try:
@@ -124,6 +129,12 @@ def report(store, days=1, limit=50):
             for key in TOKENS:
                 if not group["token_known_calls"][key]:
                     group["known_tokens"][key] = None
+    from .diagnostics import KEY
+
+    diagnostics = {item.get("observation_id"): item for item in store.state(KEY, [])}
+    for item in latest:
+        if item["id"] in diagnostics:
+            item["diagnostic"] = diagnostics[item["id"]]
     return {"since": since, "days": days, "retention_days": 90, "groups": list(groups.values()),
             "recent": latest, "write_failures_this_process": getattr(store, "_observation_write_failures", 0),
             "money_cost": None, "running_may_be_interrupted": True,

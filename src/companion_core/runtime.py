@@ -3,7 +3,7 @@ import json
 import uuid
 from contextlib import AsyncExitStack, nullcontext
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
 from jsonschema import validate
@@ -44,11 +44,14 @@ class Companion(RelationshipUpdates):
     def run(self, generation=None, check_host=True):
         return {**self.guard(generation), "account": self.store.read("manifest")["data"]["account_uid"]}
 
-    def start(self, *, read_only=False):
+    def start(self, *, read_only=False, reply_test=None):
         self.host.require_active()
         if not self.store.validate_critical()["ok"]:
             raise AssistantError("critical_state_invalid", "核心配置无效")
         accounts = sorted([a.platform, a.account] for a in self.platforms.all())
+        from .reply_test import validate
+
+        reply_test = validate(reply_test, accounts, read_only=read_only)
         with self.store.lock:
             for adapter in self.platforms.all():
                 if hasattr(adapter, "validate_start"):
@@ -56,7 +59,7 @@ class Companion(RelationshipUpdates):
             old = self.store.state(self.run_key)
             if old and old["status"] == "active":
                 if (old["owner"] == self.host.identity() and old["accounts"] == accounts
-                        and old["read_only"] == read_only
+                        and old["read_only"] == read_only and old.get("reply_test") == reply_test
                         and not (self.store.runtime / ("core-stop-" + old["generation"])).exists()):
                     return old
                 self.stop("replaced", generation=old["generation"])
@@ -64,6 +67,10 @@ class Companion(RelationshipUpdates):
                      and old["accounts"] == accounts else self.clock().isoformat())
             run = {"owner": self.host.identity(), "generation": uuid.uuid4().hex, "status": "active",
                    "accounts": accounts, "read_only": read_only, "started_at": self.clock().isoformat(), "pending_since": since}
+            if reply_test is not None:
+                run["reply_test"] = reply_test
+                run["pending_since"] = run["started_at"]
+                run["deadline_at"] = (self.clock() + timedelta(minutes=10)).isoformat()
             self.store.set_state(self.run_key, run)
             return run
 
@@ -192,9 +199,11 @@ class Companion(RelationshipUpdates):
             # Commit every event before advancing the cursor; delivery is replay safe.
             await self._poll_adapter(adapter, run)
         # Durable inbox also supplies events collected before a crash/consumer interruption.
-        return events.pending(self.store, run["accounts"], run["pending_since"], limit=100,
+        from .reply_test import allows
+
+        return [event for event in events.pending(self.store, run["accounts"], run["pending_since"], limit=100,
                               owner=run["owner"], now=self.clock().isoformat(),
-                              config_token=delivery.config_token(self.store))
+                              config_token=delivery.config_token(self.store)) if allows(run, event)]
 
     async def _identity_review(self, event):
         from .governance import enabled
@@ -330,6 +339,9 @@ class Companion(RelationshipUpdates):
 
     async def _handle(self, event, run):
         from .governance import enabled, resource_id
+        from .reply_test import require_event
+
+        require_event(run, event)
 
         if [event.platform, event.account] not in run["accounts"]:
             raise AssistantError("connector_scope", "该账号不属于当前运行")
@@ -552,6 +564,9 @@ class Companion(RelationshipUpdates):
 
     async def dispatch(self, event, proposal, *, context_guard=None, retry_unsent=False, disclosure=None):
         run = self.guard()
+        from .reply_test import require_event
+
+        require_event(run, event)
         if [event.platform, event.account] not in run["accounts"]:
             raise AssistantError("connector_scope", "该账号不属于当前运行")
         adapter = self.platforms.get(event.platform, event.account)

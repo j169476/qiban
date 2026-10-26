@@ -92,6 +92,8 @@ class ActionExecution:
                             raise AssistantError("policy_changed", "策略已改变")
                         if self.store.read("manifest")["data"]["account_uid"] != run["account"]:
                             raise AssistantError("account_changed", "账号已改变")
+                        if hasattr(self, "validate_dispatch"):
+                            self.validate_dispatch(run, action, payload)
                     except AssistantError:
                         raise AssistantError("before_send_cancelled", "实际派发前运行或策略已变化") from None
 

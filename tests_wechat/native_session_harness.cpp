@@ -6,6 +6,8 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <set>
+#include <string>
 
 static uint64_t now_tick = 1000, fake_born = 42;
 static bool minimized = true, alive = true, identity = true;
@@ -83,6 +85,21 @@ int main() {
     strcpy_s(r.target, "123@chatroom"); strcpy_s(r.text, "synthetic text");
     expect(XlnPrepare(&r) == 0 && claim(r, copy));
     alive = false; expect(!guard(copy)); alive = true;
+    expect(XlnClose(&r) == 0);
+    r = configuration(); expect(XlnOpen(&r) == 0);
+    for (const char* target : {"wxid_second", "456@chatroom", "789@chatroom"}) {
+        strcpy_s(r.target, target); expect(XlnBindTarget(&r) == 0);
+    }
+    Request forged = r; forged.session[0] = 'b'; expect(XlnBindTarget(&forged) != 0);
+    strcpy_s(r.target, "wxid_second"); strcpy_s(r.text, "synthetic multi-target");
+    r.sequence = 1; r.deadline = now_tick + 10000;
+    expect(XlnPrepare(&r) == 0 && claim(r, copy) && guard(copy));
+    Request late = configuration(); strcpy_s(late.target, "wxid_late"); expect(XlnBindTarget(&late) != 0);
+    expect(XlnClose(&r) == 0);
+    r = configuration(); expect(XlnOpen(&r) == 0);
+    r.sequence = 1; r.deadline = now_tick + 10000;
+    strcpy_s(r.target, "wxid_second"); strcpy_s(r.text, "synthetic");
+    expect(XlnPrepare(&r) != 0);  // Prior session's extra targets never survive reopening.
     expect(XlnClose(&r) == 0);
     r = configuration(); error_code = 99; expect(XlnOpen(&r) == ERROR_BUSY);
     printf("native_session_checks:%d\n", checks);

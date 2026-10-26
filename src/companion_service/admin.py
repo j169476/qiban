@@ -204,6 +204,10 @@ class Management:
 
     def operation(self, request, operation, args):
         self.require(request)
+        if operation in {"platform_setup_status", "platform_setup_run"}:
+            return self.service.setup.operation(request, operation, args)
+        if operation in {"model_catalog", "model_settings_get", "model_settings_set"}:
+            return self.service.model_operation(request, operation, args)
         if operation == "open_codex":
             if args:
                 raise AssistantError("invalid_operation", "打开 Codex 不接受额外参数")
@@ -233,7 +237,8 @@ class Management:
                 result = self.service.tasks._save(args["id"], {**state, "status": "cancelled", "error": "admin_cancelled"})
                 self.admin.repository.audit(request.actor, "task_cancel", args["id"])
                 return result
-        if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set"}:
+        if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set",
+                         "reply_import_preview", "reply_import_confirm"}:
             from .reply_management import ReplyManagement
 
             return ReplyManagement(self.service).operation(request, operation, args)

@@ -3,7 +3,7 @@ const $ = (s) => document.querySelector(s), csrf = $('meta[name="csrf-token"]').
 const notice = (t) => { $("#notice").textContent = t; };
 async function api(path, body) {
   const response = await fetch(path, body === undefined ? {} : {method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify(body)});
-  const value = await response.json(); if (!response.ok) {if(response.status===401){$("#messages")?.replaceChildren();$("#task-list")?.replaceChildren();if($("#task-fields"))$("#task-fields").disabled=true;if($("#message button[type=submit]"))$("#message button[type=submit]").disabled=true;}throw new Error(value.message || value.error || "操作失败");} return value;
+  const value = await response.json(); if (!response.ok) {if(response.status===401){$("#messages")?.replaceChildren();$("#task-list")?.replaceChildren();if($("#task-fields"))$("#task-fields").disabled=true;if($("#message button[type=submit]"))$("#message button[type=submit]").disabled=true;window.qibanSessionExpired?.();}const error=new Error(value.message || value.error || "操作失败");error.httpStatus=response.status;throw error;} return value;
 }
 function bind(selector, callback, event="click") {
   const el=$(selector); if (el) el.addEventListener(event,async e=>{e.preventDefault();el.disabled=true;try{await callback(e);}catch(err){notice(err.message);}finally{el.disabled=false;}});
@@ -15,7 +15,7 @@ bind("#login",async()=>{await api("/login",{password:$('#login input').value});l
 bind("#logout",async()=>{await api("/logout",{});location.reload();});
 let selected=null,next=null;
 async function refresh(){
-  let state;try{state=await api("/status");}catch(error){window.qibanConnectionLost?.();throw error;}$("#status").textContent=state.status==="active"?(state.busy?"正在思考":"已启动"):"已暂停";$("#status").classList.toggle("active",state.status==="active");
+  let state;try{state=await api("/status");}catch(error){if(error.httpStatus!==401)window.qibanConnectionLost?.();throw error;}$("#status").textContent=state.status==="active"?(state.busy?"正在思考":"已启动"):"已暂停";$("#status").classList.toggle("active",state.status==="active");
   window.renderQibanState?.(state);
   if(kind!=="role"){
     const backup=state.backup||{};

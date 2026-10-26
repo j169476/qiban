@@ -49,6 +49,40 @@ def test_nested_stages_inherit_and_restore_with_safe_failure_code(store):
     assert result["recent"][0]["error_code"] == "model_timeout"
 
 
+def test_unexpected_error_preserves_only_bounded_source_metadata(store):
+    from companion_core.contracts import Event
+    from companion_core.diagnostics import KEY
+
+    with pytest.raises(KeyError):
+        with measure(store, "selection_context", generation="synthetic-generation"):
+            Event.from_dict({"text": "private-message-sentinel", "cookie": "credential-sentinel"})
+    result = report(store)
+    row = result['recent'][0]
+    detail = row['diagnostic']
+    assert row['error_code'] == 'unexpected_error'
+    assert detail['type'] == 'KeyError' and detail['stage'] == 'selection_context'
+    assert detail['generation'] == 'synthetic-generation'
+    assert detail['frames'][-1]['file'] == 'companion_core/contracts.py'
+    assert detail['frames'][-1]['function'] == 'from_dict' and detail['frames'][-1]['line'] > 0
+    assert all(s not in json.dumps(result) for s in ('private-message-sentinel', 'credential-sentinel', str(store.root)))
+    for _ in range(55):
+        with pytest.raises(ValueError):
+            with measure(store, 'synthetic'):
+                raise ValueError('private-message-sentinel credential-sentinel')
+    assert len(store.state(KEY)) == 50
+
+
+def test_diagnostic_write_failure_does_not_replace_original_exception(store, monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise OSError('private failure detail')
+
+    monkeypatch.setattr(store, 'set_state', unavailable)
+    with pytest.raises(KeyError):
+        with measure(store, 'synthetic'):
+            raise KeyError('original')
+    assert store._observation_write_failures == 1
+
+
 def test_unknown_usage_does_not_masquerade_as_zero_and_limit_does_not_limit_totals(store):
     with measure(store, "reaction", "model"):
         pass

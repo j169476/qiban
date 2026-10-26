@@ -195,4 +195,4 @@ def test_static_abi_and_built_exports():
     path = Path(__file__).resolve().parents[1] / ".dev/wechat/native-module-build/xln_native_module.dll"
     if not path.exists():
         pytest.skip("optional local native build absent")
-    assert set(validate_build(path)) == {"XlnOpen", "XlnPrepare", "XlnCommit", "XlnCancel", "XlnStatus", "XlnClose"}
+    assert set(validate_build(path)) == {"XlnOpen", "XlnBindTarget", "XlnPrepare", "XlnCommit", "XlnCancel", "XlnStatus", "XlnClose"}

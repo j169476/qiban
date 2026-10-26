@@ -355,7 +355,7 @@ async def test_interrupted_save_is_reported_uncertain_without_replay(env):
 @pytest.mark.skipif(os.name != "nt" or not shutil.which("node"), reason="Windows/Node browser bridge integration")
 @pytest.mark.parametrize("scenario", [
     "success", "reordered", "wrong_origin", "navigated", "wrong_account", "missing_device",
-    "changed_session", "conflicting_cookies",
+    "changed_session", "conflicting_cookies", "stale_runtime", "wrong_store", "wrong_project",
 ])
 def test_packaged_js_bridge_with_isolated_runtime(env, tmp_path, scenario):
     project = Path(__file__).resolve().parents[1]
@@ -364,9 +364,15 @@ def test_packaged_js_bridge_with_isolated_runtime(env, tmp_path, scenario):
     shutil.copyfile(project / "plugins/qiban/scripts/browser-login.mjs",
                     plugin / "scripts/browser-login.mjs")
     (plugin / "runtime.json").write_text(json.dumps({
-        "python": sys.executable, "project": str(project), "data": str(env.store.root),
+        "python": sys.executable, "project": str(project),
+        "data": str(tmp_path / 'stale-data') if scenario == 'stale_runtime' else str(env.store.root),
     }), encoding="utf-8")
     ticket = login.prepare(env.admin)
+    assert ticket['handoff']['data'] == str(env.store.root.resolve())
+    if scenario == 'wrong_store':
+        ticket['handoff']['data'] = str(tmp_path / 'wrong-data')
+    elif scenario == 'wrong_project':
+        ticket['handoff']['project_id'] = 'different-project'
     ticket_file = tmp_path / "public-ticket.json"
     ticket_file.write_text(json.dumps(ticket), encoding="utf-8")
     result = subprocess.run([
@@ -374,12 +380,12 @@ def test_packaged_js_bridge_with_isolated_runtime(env, tmp_path, scenario):
         str(plugin / "scripts/browser-login.mjs"), str(ticket_file), scenario,
     ], capture_output=True, text=True, encoding="utf-8", timeout=30)
     assert all(v not in result.stdout + result.stderr for k, v in FIELDS.items() if k != "dedeuserid")
-    if scenario in ("success", "reordered"):
+    if scenario in ("success", "reordered", "stale_runtime"):
         assert result.returncode == 0
         assert json.loads(result.stdout)["status"] == "staged"
         assert transport.ticket_path(env.store.root, ticket["ticket_id"], ".sealed").is_file()
     else:
         assert result.returncode == 2
         assert not transport.ticket_path(env.store.root, ticket["ticket_id"], ".sealed").exists()
-        if scenario == "wrong_origin":
+        if scenario in ("wrong_origin", "wrong_store", "wrong_project"):
             assert json.loads(result.stdout)["cookieReads"] == 0

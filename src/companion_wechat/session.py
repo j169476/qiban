@@ -25,6 +25,23 @@ class RuntimeSession(RoleSession):
         binding = record["bindings"][conversation]
         return ReplyScope("wechat", record["identity"], binding["kind"], binding["target_ref"])
 
+    def _bindings(self, db=None):
+        receiver = self.receiver
+        require(receiver is not None and receiver.bindings is not None and receiver.connector is not None,
+                "wechat_role_not_ready")
+        registry = receiver.bindings
+        state = self.store.state(registry.key, None, db)
+        require(isinstance(state, dict) and state.get("identity") == registry.identity, "wechat_role_scope")
+        values = state.get("conversations")
+        require(isinstance(values, dict) and values, "wechat_role_scope")
+        expected = {alias: asdict(registry.get(alias, db=db)) for alias in values}
+        require(all(v["enabled"] and v["kind"] in {"private", "group"} for v in expected.values()), "wechat_role_scope")
+        owner_key = "wechat-db-owner:" + stable_key("identity", registry.identity)
+        require(self.store.state(owner_key, None, db) == self.account, "wechat_receiver_owner_conflict")
+        connection = receiver.connection()
+        require(connection.ready and connection.account_identity == registry.identity, "wechat_disconnected")
+        return expected, connection
+
     def _permission_current(self, admission, db=None):
         scope, version = admission.get("reply_scope"), admission.get("reply_version")
         return ("ticket" in admission and isinstance(scope, dict) and isinstance(version, str)
@@ -60,13 +77,15 @@ class RuntimeSession(RoleSession):
     def _candidate(self, event, record):
         if not isinstance(event, Event) or (event.platform, event.account) != ("wechat", self.account):
             return False
-        if event.conversation not in ({"owner_main", "family"} if self.family else {"owner_main"}):
+        if event.conversation not in record["bindings"]:
             return False
         binding = record["bindings"][event.conversation]
+        if binding["kind"] == "group" and not self.family:
+            return False
         if self.permissions.version(self.reply_scope(record, event.conversation)) is None:
             return False
         if (event.visibility == "private" and event.actor !=
-                ActorRef("wechat", record["bindings"]["owner_main"]["peer_ref"], self.account)):
+                ActorRef("wechat", binding["peer_ref"], self.account)):
             return False
         if event.actor.scope != self.account:
             return False

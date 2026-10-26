@@ -179,10 +179,33 @@ def status(engine):
         "inbox": engine.store.state(f"inbox:{generation}"),
         "heartbeat_age_seconds": round(age(heartbeat), 1) if heartbeat else None,
         "recovery": "explicit_start_only", "faults": faults(engine.store),
+        "notifications": notification_status(engine.store),
         "credential": engine.store.state(
             f"credential-health:{engine.store.read('manifest')['data']['account_uid']}"
         ),
     }
+
+
+def notification_destination(store, *, db=None):
+    """One current management binding; legacy config overrides never route alerts."""
+    if db is None:
+        with store.db() as connection:
+            return notification_destination(store, db=connection)
+    missing = object()
+    destination = store.state("service-admin-thread", missing, db=db)
+    if destination is missing:
+        if store.state("web-owner", db=db):
+            return None  # An initialized service must bind its own manager.
+        destination = store.state("management_thread", db=db)  # Standalone legacy engine.
+    if not isinstance(destination, str) or not destination:
+        return None
+    bound = db.execute("SELECT mode FROM sessions WHERE thread=?", (destination,)).fetchone()
+    return destination if bound and bound["mode"] == "admin" else None
+
+
+def notification_status(store):
+    return {"mode": store.read("companion")["data"].get("failure_notifications", "off"),
+            "routing": "current_management", "destination": notification_destination(store)}
 
 
 def deliver_faults(engine):
@@ -199,18 +222,15 @@ def deliver_faults(engine):
         return []
     delivered = []
     try:
-        setting_record = store.read("companion")
-        settings = setting_record["data"]
-        if settings.get("failure_notifications", "off") != "admin_once":
-            return []
-        destination = settings.get("management_thread_id") or store.state("management_thread")
-        with store.db() as db:
-            bound = db.execute("SELECT mode FROM sessions WHERE thread=?", (destination,)).fetchone()
-        if not bound or bound["mode"] != "admin":
-            return []
         for fault in reversed(faults(store, limit=100)):
-            if fault["notification"] != "queued" or destination == fault["owner"]:
+            if fault["notification"] != "queued":
                 continue
+            setting_record = store.read("companion")
+            if setting_record["data"].get("failure_notifications", "off") != "admin_once":
+                break
+            destination = notification_destination(store)
+            if destination is None:
+                break
             try:
                 # This does not resume, unarchive, start a turn or change configuration.
                 engine.host.notification_ready(destination)
@@ -219,17 +239,19 @@ def deliver_faults(engine):
             with store.lock, store.db() as db:
                 if store.read("companion")["version"] != setting_record["version"]:
                     continue
-                if not settings.get("management_thread_id") and store.state("management_thread", db=db) != destination:
+                if notification_destination(store, db=db) != destination:
                     continue
                 current = store.state(f"fault:{fault['id']}", db=db)
-                if current["notification"] != "queued":
+                if not current or current["notification"] != "queued":
                     continue
+                # This reservation fixes the destination for this one attempt.
+                # Rebinding affects queued faults, never replays an in-flight one.
                 current.update(notification="dispatching", destination=destination, attempted_at=utcnow())
                 store.set_state(f"fault:{fault['id']}", current, db)
             state_note = ("备份会按退避计划重试，角色运行状态没有因此改变。\n" if fault["code"] == "backup_failed" else
                           "角色已暂停，记忆和学习进度保存在本地。修复后仍需用户在角色聊天显式启动。\n")
             text = (
-                f"栖伴 B站模块故障通知 [{fault['id']}]\n{FAULT_TEXT[fault['code']]}\n"
+                f"栖伴故障通知 [{fault['id']}]\n{FAULT_TEXT[fault['code']]}\n"
                 + state_note +
                 "这是用户授权的单次管理提醒。请简短向用户呈现故障；不执行修复、不启动角色、"
                 "不向任何其他聊天发送消息。普通重试无需提醒。"

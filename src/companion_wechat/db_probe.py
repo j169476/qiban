@@ -46,7 +46,8 @@ def local_path(value):
 
 
 def validate_config(config):
-    fields = {"account_dirs", "private_hint", "group_hint"}
+    fields = {"account_dirs", "target_hints"} if isinstance(config, dict) and "target_hints" in config else {
+        "account_dirs", "private_hint", "group_hint"}
     if (not isinstance(config, dict) or not fields <= set(config)
             or set(config) - fields - {"client_pid"}):
         raise ProbeError("configuration_invalid")
@@ -58,11 +59,40 @@ def validate_config(config):
     paths = [local_path(p) for p in dirs]
     if len(set(paths)) != len(paths) or any(not p.is_dir() for p in paths):
         raise ProbeError("configuration_invalid")
-    for key in ("private_hint", "group_hint"):
-        value = config[key]
+    hints = config.get("target_hints")
+    if hints is not None:
+        if not isinstance(hints, list) or not hints:
+            raise ProbeError("configuration_invalid")
+        for item in hints:
+            if (not isinstance(item, dict) or set(item) != {"kind", "hint"}
+                    or item["kind"] not in ("private", "group")):
+                raise ProbeError("configuration_invalid")
+        values = [item["hint"] for item in hints]
+    else:
+        values = [config[key] for key in ("private_hint", "group_hint")]
+    for value in values:
         if not isinstance(value, str) or not 1 <= len(value) <= 128 or "\x00" in value:
             raise ProbeError("configuration_invalid")
     return paths
+
+
+def resolve_config_targets(connection, config):
+    if "target_hints" not in config:
+        return resolve_targets(connection, config["private_hint"], config["group_hint"])
+    targets = {}
+    for item in config["target_hints"]:
+        hint, kind = item["hint"], item["kind"]
+        # Explicit account IDs/WeChat aliases only; group names are not unique identities.
+        rows = connection.execute("SELECT DISTINCT username COLLATE BINARY FROM contact "
+            "WHERE username=? COLLATE BINARY OR alias=? COLLATE BINARY LIMIT 3", (hint, hint)).fetchall()
+        if len(rows) != 1 or not isinstance(rows[0][0], str):
+            raise ProbeError("target_missing_or_ambiguous")
+        username = rows[0][0]
+        if (kind == "group") != username.endswith("@chatroom"):
+            raise ProbeError("target_kind_mismatch")
+        alias = "target_" + hashlib.sha256(username.encode()).hexdigest()[:32]
+        targets[alias] = Target(alias, username)
+    return list(targets.values())
 
 
 def safe_db_path(account, relative):

@@ -279,7 +279,7 @@ async def test_permit_expiring_during_grant_transaction_emits_no_grant(env, monk
 
     monkeypatch.setattr(env.store, "set_state", delayed_commit)
     result = await env.sender.commit(await prepared(env), guard=lambda: None)
-    assert result.status == "cancelled" and result.error == "wechat_permit_invalid"
+    assert result.status == "cancelled" and result.error == "wechat_permit_expired"
     assert not env.operator.grants
 
 

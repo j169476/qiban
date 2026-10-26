@@ -26,7 +26,11 @@ class CoreBoundEngine(Engine):
             raise AssistantError("legacy_runtime_active", "请先暂停 B站旧调度，再显式启动统一核心")
         with self.store.db() as db:
             session = db.execute("SELECT mode FROM sessions WHERE thread=?", (self.identity(),)).fetchone()
-        if session and session["mode"] != "role":
+        managed = (session and session["mode"] == "admin"
+                   and self.core.run_key == "core-run:bilibili"
+                   and getattr(self.host, "management_owner", None) == self.identity()
+                   and self.identity() == self.store.state("service-admin-thread"))
+        if session and session["mode"] != "role" and not managed:
             raise AssistantError("mode_denied", "管理聊天不能接管角色运行")
 
     def validate_run(self, run):
@@ -67,6 +71,32 @@ class CoreBoundEngine(Engine):
             return
         with self.store.db() as db:
             self._cancel_pending(db, generation)
+
+    def _eligibility(self, db, run, action, payload, policy):
+        result = super()._eligibility(db, run, action, payload, policy)
+        from companion_core.reply_test import require_action
+
+        require_action(self.store, run, action, payload, db, reserve=True)
+        return result
+
+    def validate_dispatch(self, run, action, payload):
+        if not run.get("reply_test"):
+            return
+        from companion_core.reply_test import require_action
+
+        with self.store.db() as db:
+            require_action(self.store, run, action, payload, db)
+
+    async def execute(self, action_id, *, guard=None):
+        run = self.core.guard()
+        try:
+            return await super().execute(action_id, guard=guard)
+        finally:
+            if run.get("reply_test"):
+                from companion_core.reply_test import attempt_key
+
+                if self.store.state(attempt_key(run)) == {"action_id": action_id}:
+                    self.core.stop("reply_test_complete", generation=run["generation"])
 
     def core_event_eligible(self, event):
         from companion_core import delivery, events

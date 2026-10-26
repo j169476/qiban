@@ -89,8 +89,8 @@ def validate_report(report):
 
 def load_json(path):
     with path.open(encoding="utf-8-sig") as stream:
-        raw = stream.read(16001)
-    if len(raw) > 16000:
+        raw = stream.read(1048577)
+    if len(raw) > 1048576:
         raise ProbeError("configuration_invalid")
     return json.loads(raw)
 
@@ -102,9 +102,12 @@ def load_config(locations, targets):
         raise ProbeError("configuration_invalid")
     if intent.get("automatic_sending_enabled") is not False:
         raise ProbeError("configuration_invalid")
-    config = {"account_dirs": roots["account_dirs"],
-              "private_hint": intent["private"]["wechat_id_hint"],
-              "group_hint": intent["group"]["window_title_hint"]}
+    config = {"account_dirs": roots["account_dirs"]}
+    if "targets" in intent:
+        config["target_hints"] = intent["targets"]
+    else:
+        config.update(private_hint=intent["private"]["wechat_id_hint"],
+                      group_hint=intent["group"]["window_title_hint"])
     if "client_pid" in roots:
         config["client_pid"] = roots["client_pid"]
     validate_config(config)

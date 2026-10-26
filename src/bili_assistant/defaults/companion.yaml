@@ -44,6 +44,7 @@ comment_context_pages: 3
 comment_context_chars: 12000
 # Enable admin_once only after the user authorizes management notifications.
 failure_notifications: "off"
+# Legacy compatibility only; alerts always follow the current management binding.
 management_thread_id: ""
 credential_auto_refresh: true
 credential_check_hours: 6

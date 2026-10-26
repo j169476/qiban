@@ -101,6 +101,44 @@ async def test_continuous_ordinary_messages_identical_bubbles_and_group_optin(pg
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('group', [False, True])
+async def test_continuous_slow_guards_do_not_expire_unsent_permission(pg_store, monkeypatch, group):
+    env = await compose(pg_store, family=group)
+    now, issued = [0.0], []
+    original_check, original_issue = env.session.check_request, env.sender.permits.issue
+
+    def slow_check(*args, **kwargs):
+        now[0] += 1.0
+        return original_check(*args, **kwargs)
+
+    def issue(*args, **kwargs):
+        issued.append(now[0])
+        return original_issue(*args, **kwargs)
+
+    env.sender.permits.clock = lambda: now[0]
+    monkeypatch.setattr(env.session, 'check_request', slow_check)
+    monkeypatch.setattr(env.sender.permits, 'issue', issue)
+    try:
+        env.core.start()
+        first = row(1, group=group)
+        if group:
+            first['trigger'] = 'mention'
+        enqueue(env, first, row(2, group=group))
+        incoming = await env.adapter.collect_once()
+        while incoming:
+            for event in incoming:
+                result = await env.core.handle(event)
+                assert result['action']['status'] == 'succeeded', result
+            incoming = env.adapter.admitted_pending()
+        assert len(env.driver.sent) == 2 and len(issued) == 2
+        assert issued[0] > 2 and issued[1] - issued[0] > 2
+        assert env.sender.permits.lifetime_seconds == 2.0
+    finally:
+        env.core.stop()
+        await env.adapter.close()
+
+
+@pytest.mark.asyncio
 async def test_restart_resumes_unsent_admission_and_cursor_without_resending_completed(pg_store):
     env = await compose(pg_store)
     env.core.start()

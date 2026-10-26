@@ -213,11 +213,35 @@ def test_client_exit_requires_reconnect_instead_of_reading_cached_old_session(la
             session.read(checkpoint)
 
 
-def test_even_one_slot_each_is_required_for_fairness(lab):
+def test_smaller_pages_rotate_sources_without_starvation(lab):
     with lab.session() as session:
         checkpoint = session.snapshot()["checkpoint"]
-        with pytest.raises(ds.SourceError, match="source_configuration_invalid"):
-            session.read(checkpoint, limit=1)
+        lab.insert(1)
+        lab.insert(1, target=GROUP, sender=3)
+        first = session.read(checkpoint, limit=1)
+        second = session.read(first["next_checkpoint"], limit=1)
+        assert len(first["rows"]) == len(second["rows"]) == 1
+        assert {first["rows"][0]["target_ref"], second["rows"][0]["target_ref"]} == {OWNER, GROUP}
+
+
+def test_more_than_one_page_of_targets_has_durable_fair_progress(lab):
+    extras = [Target(f"target_{i}", f"{10000+i}@chatroom") for i in range(105)]
+    lab.targets.extend(extras)
+    lab.add_shard("message_1.db")
+    with lab.session() as session:
+        snapshot = session.snapshot()
+        assert len(snapshot["enrollment"]["targets"]) == 107
+        for target in extras:
+            lab.insert(1, name="message_1.db", target=target.username, sender=3)
+        first = session.read(snapshot["checkpoint"])
+        # Replaying an unacknowledged page is deterministic, including its rotation pointer.
+        assert session.read(snapshot["checkpoint"]) == first
+        checkpoint = first["next_checkpoint"]
+    with lab.session(snapshot["enrollment"], checkpoint) as resumed:
+        second = resumed.read(checkpoint)
+        identifiers = [r["target_ref"] for r in first["rows"] + second["rows"]]
+        assert set(identifiers) == {t.username for t in extras}
+        assert len(identifiers) == len(set(identifiers))
 
 
 def test_self_rows_are_explicitly_identified_and_private_stranger_blocks(lab):

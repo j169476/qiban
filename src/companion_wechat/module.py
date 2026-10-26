@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -46,9 +47,37 @@ def load_options(project):
 
 class ReconnectingTransport:
     """Every source open resolves the enrolled account again, ignoring stale PIDs."""
-    def __init__(self, python, *, select=None, worker=None):
+    def __init__(self, python, *, select=None, worker=None, check=None, clock=time.monotonic):
         self.worker = worker or SubprocessTransport(python=python)
         self.select = select or self._select
+        self.check, self.clock = check or self._check_client, clock
+        self.identity = self.account = None
+        self.next_check = 0
+
+    @staticmethod
+    def _check_client(account, identity):
+        from .db_windows import READ_ACCESS
+        from .native.protocol import ProbeFailure
+        from .native.windows import Windows
+
+        windows = Windows()
+        pid, born = identity
+        handle = None
+        try:
+            handle = windows.api.open(pid, READ_ACCESS)
+            if windows.born(handle) != born:
+                raise WorkerError("process_closed")
+            core = windows.modules(pid).get("weixin.dll")
+            if core is None or windows.account(handle, core[0]) != account:
+                raise WorkerError("client_identity_changed")
+        except ProbeFailure as exc:
+            raise WorkerError("client_not_running" if str(exc) in {"account_not_logged_in", "account_unavailable"}
+                              else "process_closed") from None
+        except OSError:
+            raise WorkerError("process_access_denied") from None
+        finally:
+            if handle is not None:
+                windows.api.close(handle)
 
     @staticmethod
     def _select(account):
@@ -68,8 +97,15 @@ class ReconnectingTransport:
         if command == "open":
             enrollment = arguments.get("enrollment")
             require(isinstance(enrollment, dict), "wechat_module_enrollment_required")
-            pid, _born = await asyncio.to_thread(self.select, enrollment["self_username"])
+            self.account = enrollment["self_username"]
+            self.identity = await asyncio.to_thread(self.select, self.account)
+            pid, _born = self.identity
             arguments["config"] = {**arguments["config"], "client_pid": pid}
+            self.next_check = self.clock() + 5
+        elif command == "read" and self.clock() >= self.next_check:
+            require(self.identity is not None, "wechat_module_enrollment_required")
+            await asyncio.to_thread(self.check, self.account, self.identity)
+            self.next_check = self.clock() + 5
         return await self.worker.request(command, **arguments)
 
     async def close(self):
@@ -146,10 +182,10 @@ class WeChatModule:
         if pointer is None:
             return ()
         enrollment = validate_enrollment(pointer["enrollment"])
-        return tuple(ReplyTarget(ReplyScope("wechat", enrollment["account_id"], kind,
-            enrollment["targets"][alias]["username"]), label, enrollment["self_username"],
+        return tuple(ReplyTarget(ReplyScope("wechat", enrollment["account_id"], target["kind"],
+            target["username"]), target["username"], enrollment["self_username"],
             "私聊直接回应；群聊由真实@或引用唤起，已核验成员可在参与阶段交流")
-            for alias, kind, label in (("owner_main", "private", "大号私聊"), ("family", "group", "家庭群")))
+            for target in enrollment["targets"].values())
 
     def _compose(self):
         from .native.bridge import NativeBridge, validate_build
@@ -164,7 +200,7 @@ class WeChatModule:
         require(pointer is not None, "wechat_module_enrollment_required")
         receiver._initialize(pointer)  # Encrypted metadata only. pump_once opens the source lazily.
         enrollment = receiver._saved["enrollment"]
-        targets = {alias: enrollment["targets"][alias]["username"] for alias in ("owner_main", "family")}
+        targets = {alias: target["username"] for alias, target in enrollment["targets"].items()}
         session = RuntimeSession(self.store, self.account, family=True)
         permits = PermitAuthority(secrets.token_bytes(32))
         driver = NativeDriver(lambda: NativeBridge(options["native_dll"], enrollment["self_username"], targets),

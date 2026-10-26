@@ -125,6 +125,87 @@ def deny():
     raise AssistantError("core_before_send_cancelled", "synthetic stop")
 
 
+@pytest.mark.asyncio
+async def test_prepared_commit_issues_only_after_queue_and_slow_guards(env, monkeypatch):
+    ticket = await env.sender.prepare(env.request)
+    issued = []
+    original = env.permits.issue
+
+    def issue(prepared, request):
+        issued.append(env.now[0])
+        return original(prepared, request)
+
+    def slow_guard():
+        env.now[0] += 3
+
+    monkeypatch.setattr(env.permits, "issue", issue)
+    await env.sender._commit_lock.acquire()
+    task = asyncio.create_task(env.sender.commit_prepared(ticket, guard=slow_guard))
+    await asyncio.sleep(0)
+    env.now[0] += 10
+    assert issued == [] and env.driver.sent == []
+    env.sender._commit_lock.release()
+    result = await task
+    assert result.status == "succeeded" and issued == [119.0]
+    assert env.permits.lifetime_seconds == 2 and len(env.driver.sent) == 1
+    assert await env.sender.commit_prepared(ticket, guard=deny) == result
+    again = restarted(env)
+    assert await again.commit_prepared(ticket, guard=deny) == result
+    assert len(env.driver.sent) == 1 and not again.driver.sent
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fault", ["digest", "revoked", "last-guard", "target", "account"])
+async def test_prepared_commit_cannot_bypass_final_authority(env, fault, monkeypatch):
+    ticket = await env.sender.prepare(env.request)
+    checks = 0
+
+    def guard():
+        nonlocal checks
+        checks += 1
+        env.now[0] += 3
+        if fault == "last-guard" and checks == 3:
+            deny()
+
+    if fault == "digest":
+        ticket = replace(ticket, request_digest="different")
+    elif fault == "revoked":
+        env.sender.revoke_generation(env.request.generation)
+    elif fault == "target":
+        env.driver.proof = replace(env.driver.proof, target_token="changed")
+    elif fault == "account":
+        monkeypatch.setattr(env.receiver, "connection", lambda: Connection("different", "durable-inbox-epoch", True))
+    result = await env.sender.commit_prepared(ticket, guard=guard)
+    assert result.status == "cancelled" and env.driver.sent == []
+
+
+@pytest.mark.asyncio
+async def test_prepared_commit_never_accepts_expired_signed_permit(env):
+    permit = await prepare(env)
+    env.now[0] += 10
+    assert (await env.sender.commit_prepared(permit, guard=lambda: None)).status == "cancelled"
+    assert (await env.sender.commit(permit, guard=lambda: None)).status == "cancelled"
+    assert not env.driver.sent
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fault,code', [('expired', 'wechat_permit_expired'),
+    ('digest', 'wechat_permit_request_mismatch'), ('signature', 'wechat_permit_signature_invalid'),
+    ('clock', 'wechat_permit_clock_invalid')])
+async def test_permit_failures_have_distinct_safe_codes(env, fault, code):
+    permit = await prepare(env)
+    if fault == 'expired':
+        env.now[0] += 3
+    elif fault == 'digest':
+        permit = replace(permit, request_digest='different')
+    elif fault == 'signature':
+        permit = replace(permit, signature='0' * 64)
+    else:
+        env.now[0] -= 3
+    result = await env.sender.commit(permit, guard=lambda: None)
+    assert result.error == code and result.status == 'cancelled' and not env.driver.sent
+
+
 def test_unconfigured_preflight_is_pure_and_fails_closed(env):
     sender = LiveSenderGateway(env.store, env.receiver, env.permits, None, env.session)
     assert sender.driver is None and sender.available is False

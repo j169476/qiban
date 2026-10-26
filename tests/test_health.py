@@ -81,6 +81,59 @@ def test_faults_once_admin_only_and_no_notice_for_ordinary_stops(role, admin):
     assert deliver_faults(admin) == []
 
 
+def test_stale_explicit_destination_cannot_override_current_binding(role, admin):
+    sent = enable_alerts(admin)
+    with admin.store.db() as db:
+        db.execute("INSERT INTO sessions VALUES (?,?)", ("old-admin", "admin"))
+    doc = admin.store.read("companion")
+    admin.config_patch("companion", {"management_thread_id": "old-admin"}, doc["version"])
+    generation = role.run()["generation"]
+    fail(role, "login_required", generation)
+    assert deliver_faults(admin) == [generation]
+    assert [item[0] for item in sent] == ["admin"]
+
+
+def test_fault_owner_is_current_admin_still_receives_once(role, admin):
+    sent = enable_alerts(admin)
+    generation = role.run()["generation"]
+    fault = fail(role, "login_required", generation)
+    admin.store.set_state("fault:" + generation, {**fault, "owner": "admin"})
+    assert deliver_faults(admin) == [generation]
+    assert deliver_faults(admin) == [] and len(sent) == 1
+
+
+def test_rebinding_during_host_check_leaves_fault_for_new_admin(role, admin):
+    sent = enable_alerts(admin)
+    generation = role.run()["generation"]
+    fail(role, "login_required", generation)
+
+    def rebind(_):
+        with admin.store.lock, admin.store.db() as db:
+            db.execute("INSERT INTO sessions VALUES (?,?) ON CONFLICT DO NOTHING", ("new-admin", "admin"))
+            admin.store.set_state("management_thread", "new-admin", db)
+
+    admin.host.notification_ready = rebind
+    assert deliver_faults(admin) == [] and not sent
+    assert faults(admin.store)[0]["notification"] == "queued"
+    admin.host.notification_ready = lambda tid: admin.host.require_active(tid)
+    assert deliver_faults(admin) == [generation]
+    assert [item[0] for item in sent] == ["new-admin"]
+
+
+def test_admin_role_revoked_during_host_check_cannot_receive(role, admin):
+    sent = enable_alerts(admin)
+    generation = role.run()["generation"]
+    fail(role, "login_required", generation)
+
+    def revoke(_):
+        with admin.store.db() as db:
+            db.execute("UPDATE sessions SET mode='role' WHERE thread='admin'")
+
+    admin.host.notification_ready = revoke
+    assert deliver_faults(admin) == [] and not sent
+    assert faults(admin.store)[0]["notification"] == "queued"
+
+
 def test_archived_or_unbound_destination_stays_queued_and_ambiguous_send_never_retries(role, admin):
     sent = enable_alerts(admin)
     generation = role.run()["generation"]
@@ -88,11 +141,9 @@ def test_archived_or_unbound_destination_stays_queued_and_ambiguous_send_never_r
     admin.host.states["admin"] = True
     assert deliver_faults(admin) == [] and not sent
     admin.host.states["admin"] = False
-    doc = admin.store.read("companion")
-    admin.config_patch("companion", {"management_thread_id": "role"}, doc["version"])
+    admin.store.set_state("management_thread", "role")
     assert deliver_faults(admin) == []
-    doc = admin.store.read("companion")
-    admin.config_patch("companion", {"management_thread_id": "admin"}, doc["version"])
+    admin.store.set_state("management_thread", "admin")
 
     def lost_response(*args):
         sent.append(args)

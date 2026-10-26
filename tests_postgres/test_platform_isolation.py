@@ -58,6 +58,21 @@ def test_three_distinct_commands_do_not_start_local_or_each_other(pg_store):
     assert service.platform_runs.status("qq")["status"] == "active"
 
 
+@pytest.mark.parametrize("platform", ["qq", "wechat"])
+def test_active_runtime_reports_connector_disconnect_and_recovery(pg_store, platform):
+    service = prepare(pg_store)
+    call(service, "synthetic-owner", platform + "_start")
+    adapter = service.platform_runs.cores[platform].platforms.all()[0]
+    connection = {"state": "retrying", "code": "client_not_running"}
+    adapter.runtime_status = lambda: {"state": "running", "receiver": connection} if platform == "wechat" else connection
+    state = service.platform_runs.status(platform)
+    assert state["status"] == "active" and state["connection"] == connection
+    connection.update(state="connected", code="")
+    recovered = service.platform_runs.status(platform)
+    assert recovered["connection"]["state"] == "connected"
+    assert recovered["generation"] == state["generation"]
+
+
 @pytest.mark.asyncio
 async def test_archive_pauses_only_owned_platform_and_reopen_does_not_resume(pg_store):
     service = prepare(pg_store)
@@ -191,3 +206,30 @@ async def test_public_events_cannot_fill_the_private_reply_batch(pg_store):
     core.poll, core.handle, core.cycle = poll, handle, no_cycle
     await asyncio.wait_for(service.platform_runs.work("qq"), 5)
     assert handled == [private]
+
+
+@pytest.mark.asyncio
+async def test_scheduler_failure_records_stage_generation_without_secret(pg_store):
+    import json
+
+    from companion_core.diagnostics import KEY
+
+    service = prepare(pg_store)
+    service.platform_hours = lambda: True
+    call(service, "qq-owner", "qq_start")
+    run = service.platform_runs.status("qq")
+
+    async def poll():
+        service.shutdown.set()
+        raise ValueError("private-body-and-credentials")
+
+    service.platform_runs.cores["qq"].poll = poll
+    await asyncio.wait_for(service.platform_runs.work("qq"), 5)
+    item = pg_store.state(KEY)[-1]
+    assert item['type'] == 'ValueError' and item['stage'] == 'inbox' and item['platform'] == 'qq'
+    assert item['generation'] == run['generation']
+    assert 'private-body-and-credentials' not in json.dumps(item)
+    assert service.platform_runs.status('qq')['status'] == 'paused'
+    with pg_store.db() as db:
+        row = db.execute('SELECT value FROM state WHERE key=?', (KEY,)).fetchone()
+    assert row[0].startswith('enc1:')

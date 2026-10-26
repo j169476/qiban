@@ -13,6 +13,7 @@ from companion_wechat.db_windows import READ_ACCESS, _ModuleEntry, _WindowsAPI
 
 from .protocol import (
     PROFILES,
+    ProbeFailure,
     fingerprint,
     personal,
     require,
@@ -94,9 +95,11 @@ class Windows:
         require(len(matches) == 1, "unsupported_memory_core")
         global_rva, app_table, app_getter, context_table, identity_getter = matches[0]["account_rvas"]
         app = ptr(base + global_rva)
+        require(app != 0, "account_not_logged_in")
         require(ptr(app) == base + app_table and ptr(base + app_table + 0x60) == base + app_getter,
                 "account_unavailable")
         context = ptr(app + 0x68)
+        require(context != 0, "account_not_logged_in")
         require(ptr(context) == base + context_table and ptr(base + context_table + 0x18) == base + identity_getter and
                 read(base + identity_getter, 5) == b"\x48\x8d\x41\x48\xc3", "account_unavailable")
         address = context + 0x48
@@ -122,7 +125,13 @@ class Windows:
             handle = self.api.open(pid, READ_ACCESS)
             try:
                 require(self.api.identity(pid, handle).version == profile["version"], "unsupported_client")
-                if self.account(handle, core[0]) == expected:
+                try:
+                    account = self.account(handle, core[0])
+                except ProbeFailure as exc:
+                    if str(exc) == "account_not_logged_in":
+                        continue
+                    raise
+                if account == expected:
                     matches.append((pid, self.born(handle)))
             finally:
                 self.api.close(handle)

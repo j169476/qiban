@@ -132,9 +132,13 @@ class NativeBridge(RemoteCalls):
             self.w.api.close(controller)
         self.request = Request(size=c.sizeof(Request), pid=self.pid, born=self.born, controller=os.getpid(),
                                controller_born=born, window=self.hwnd, session=secrets.token_hex(16).encode("ascii"),
-                               account=self.source.encode("ascii"), owner=self.targets["owner_main"].encode("ascii"),
-                               family=self.targets.get("family", "").encode("ascii"))
+                               account=self.source.encode("ascii"))
         self._invoke("XlnOpen", self.request, timeout=10000)
+        for target in sorted(set(self.targets.values())):
+            require(isinstance(target, str) and 0 < len(target.encode("ascii")) < 128, "native_target_unbound")
+            binding = Request.from_buffer_copy(self.request)
+            binding.target = target.encode("ascii")
+            self._invoke("XlnBindTarget", binding)
         return self
 
     @property

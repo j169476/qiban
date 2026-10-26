@@ -73,8 +73,7 @@ class ReplyAuthorizations:
 
     def records(self):
         with self.store.db() as db:
-            rows = db.execute("SELECT key FROM state WHERE key LIKE ? ORDER BY key LIMIT 1001", (PREFIX + "%",)).fetchall()
-            require(len(rows) <= 1000, "reply_authorization_capacity")
+            rows = db.execute("SELECT key FROM state WHERE key LIKE ? ORDER BY key", (PREFIX + "%",))
             result = []
             for row in rows:
                 value = self.store.state(row["key"], None, db)
@@ -105,8 +104,6 @@ class ReplyAuthorizations:
         require(previous["version"] == expected_version, "edit_conflict")
         if previous["version"] is not None and previous["enabled"] == enabled:
             return previous
-        count = db.execute("SELECT COUNT(*) FROM state WHERE key LIKE ?", (PREFIX + "%",)).fetchone()[0]
-        require(previous["version"] is not None or count < 1000, "reply_authorization_capacity")
         now, version = self.clock(), secrets.token_hex(16)
         result = {"id": scope.id, "scope": asdict(scope), "enabled": enabled, "version": version,
                   "updated_at": now, "updated_by": actor}

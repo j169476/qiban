@@ -11,20 +11,21 @@ class Element {
   replaceChildren(...children) { this.children = children; }
   addEventListener(event, callback) { this.listeners[event] = callback; }
 }
-function page({kind='admin', authenticated=true, listing, policies, fail=false}={}) {
+function page({kind='admin', authenticated=true, listing, policies, fail=false, confirmed=true}={}) {
   const nodes = new Map(), handlers = new Map(), calls = [], notices = [];
-  const context = {kind, location: {hash:''}, document: {
+  const context = {kind, confirm:()=>confirmed, location: {hash:''}, document: {
     body: {dataset: {authenticated: String(authenticated)}}, createElement: () => new Element(),
   }, $: selector => {if(!nodes.has(selector))nodes.set(selector,new Element()); return nodes.get(selector);},
     bind: (selector, callback) => handlers.set(selector, callback), notice: text => notices.push(text),
     operate: async (operation, args) => {
       calls.push({operation, args});
-      if(operation==='reply_authorization_list')return listing;
+      if(operation==='reply_authorization_list')return typeof listing==='function'?listing(args):listing;
       if(operation==='reply_policy_list')return policies;
       if(fail)throw new Error('edit_conflict');
       return {platform_paused:true};
     }};
   vm.runInNewContext(script, context);
+  context.$('#reply-search-platform').value='qq';context.$('#reply-search-query').value='';
   return {nodes, handlers, calls, notices};
 }
 const item = {id:'stable-scope', version:'current-revision', enabled:false, verified_target:true,
@@ -63,6 +64,32 @@ test('stale writes are not retried, revoke uses false, vanished targets cannot b
 test('role and unauthenticated pages do not bind management actions', () => {
   assert.equal(page({kind:'role'}).handlers.size,0);
   assert.equal(page({authenticated:false}).handlers.size,0);
+});
+
+test('search requires full ID and selected platform; pagination sends a bounded request', async()=>{
+  const p=page({listing:{...listing,total:42,offset:0,next_offset:20}});
+  await p.handlers.get('#reply-search-form')();assert.equal(p.calls.length,0);
+  p.nodes.get('#reply-search-query').value=' 10002 ';
+  await p.handlers.get('#reply-search-form')();
+  assert.deepEqual(JSON.parse(JSON.stringify(p.calls[0].args)),{platform:'qq',query:'10002',view:'search',offset:0,limit:20});
+  assert.equal(p.nodes.get('#reply-next').disabled,false);
+  await p.handlers.get('#reply-next')();assert.equal(p.calls[1].args.offset,20);
+  p.handlers.get('#reply-search-platform')();
+  assert.equal(p.nodes.get('#reply-authorizations').children.length,0);
+  assert.equal(p.nodes.get('#reply-pagination').hidden,true);
+});
+
+test('cancelling explicit confirmation never changes authorization', async()=>{
+  const p=page({listing,confirmed:false});await p.handlers.get('#load-reply-authorizations')();
+  await p.nodes.get('#reply-authorizations').children[0].children.at(-1).listeners.click();
+  assert.equal(p.calls.length,1);
+});
+
+test('changing platform invalidates an in-flight search', async()=>{
+  let finish;const p=page({listing:()=>new Promise(resolve=>{finish=resolve;})});
+  const pending=p.handlers.get('#load-reply-authorizations')();
+  p.handlers.get('#reply-search-platform')();finish(listing);await pending;
+  assert.equal(p.nodes.get('#reply-authorizations').children.length,0);
 });
 
 test('participation editor uses stable account and CAS and displays distinct private counters', async () => {

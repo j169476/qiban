@@ -27,7 +27,7 @@ def validate(value):
     result = {**value, "account": qq_id(value["account"]), "http": local_url(value["http"], "http"),
               "ws": local_url(value["ws"], "ws")}
     for field in ("private_targets", "groups"):
-        require(isinstance(value[field], list) and len(value[field]) <= 100, "qq_configuration")
+        require(isinstance(value[field], list), "qq_configuration")
         result[field] = [qq_id(v) for v in value[field]]
         require(len(set(result[field])) == len(result[field]), "qq_configuration")
     require(result["account"] not in result["private_targets"], "qq_configuration")
@@ -38,7 +38,7 @@ def load(project):
     path = Path(project) / ".dev/qq/module.json"
     if not path.exists():
         return None
-    require(path.stat().st_size < 16000, "qq_configuration")
+    require(path.stat().st_size < 1048576, "qq_configuration")
     return validate(json.loads(path.read_text(encoding="utf-8")))
 
 

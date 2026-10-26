@@ -1,0 +1,14 @@
+<section class="card">
+  <p class="eyebrow">A MIND FOR EVERY MOMENT</p><h2>模型与思考方式</h2>
+  <p>设置栖伴的默认模型，也可以给各个平台单独选择。保存后从下一次模型请求生效，正在处理的请求继续使用原型号。</p>
+  <div class="actions"><button id="model-load" class="secondary">读取当前设置</button><button id="model-refresh" class="secondary">刷新可选模型</button></div>
+  <p id="model-state" role="status">尚未读取。这里的设置不会修改 Codex 管理聊天或其他项目的模型。</p>
+  <div id="model-effective" class="quota-grid"></div>
+  <form id="model-settings-form" class="reply-search-form" hidden>
+    <label>作用范围<select id="model-scope"><option value="global">全局默认</option><option value="local">本机会客室</option><option value="bilibili">B站</option><option value="qq">QQ</option><option value="wechat">微信</option></select></label>
+    <label class="reply-search-identity">模型<select id="model-choice"></select></label>
+    <label>推理档位<select id="model-effort"></select></label>
+    <button type="submit">保存模型选择</button>
+  </form>
+  <p class="task-hint">可选项来自当前宿主。目录可用不保证每次调用成功；账号权限或服务异常会明确报错，不会静默换用其他模型。清除分平台覆盖后继承全局默认；清除全局设置后跟随 Codex 配置。</p>
+</section>

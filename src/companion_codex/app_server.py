@@ -309,7 +309,14 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
     async with AsyncExitStack() as cleanup:
         cleanup.callback(phase, "cycle")
         cleanup.callback(lambda: observation.tokens(evidence.usage))
-        job = IsolatedJob(work, native=native, settings=model_settings())
+        settings = model_settings()
+        if model is not None:
+            settings["model"] = model
+            # A selected model must not inherit an unrelated global effort.
+            settings.pop("model_reasoning_effort", None)
+        if reasoning_effort is not None:
+            settings["model_reasoning_effort"] = reasoning_effort
+        job = IsolatedJob(work, native=native, settings=settings)
         cleanup.push_async_callback(asyncio.to_thread, job.close)
         supplied_images = copy_inputs(job, images)
         client = await RpcProcess.open(job.command(), cwd=job.work, env=job.environment(), guard=guard,

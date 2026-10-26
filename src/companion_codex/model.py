@@ -132,8 +132,8 @@ def unlink_worker_file(path):
 
 
 class CodexModel:
-    def __init__(self, command_factory=None, terminator=None, *, reasoning_effort=None, model=None):
-        if (reasoning_effort not in (None, "low", "medium", "high", "xhigh")
+    def __init__(self, command_factory=None, terminator=None, *, reasoning_effort=None, model=None, selection=None):
+        if (reasoning_effort not in (None, "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
                 or reasoning_effort is not None and command_factory is not None):
             raise AssistantError("model_config", "推理档位仅支持隔离模型入口")
         self.reasoning_effort = reasoning_effort
@@ -142,6 +142,9 @@ class CodexModel:
                 or command_factory is not None):
             raise AssistantError("model_config", "单次模型覆盖无效")
         self.model = model
+        if selection is not None and (not callable(selection) or command_factory is not None):
+            raise AssistantError("model_config", "动态模型选择仅支持隔离模型入口")
+        self.selection = selection
         self.isolated = command_factory is None
         self.command_factory = command_factory or worker_command
         self.terminator = terminator or terminate_tree
@@ -149,12 +152,19 @@ class CodexModel:
     async def generate(self, instructions, context, output_schema, images=(), *, native=None,
                        store, policy, guard, phase=lambda value: None):
         with measure(store, current_stage(), kind="model") as observation:
+            # Snapshot before awaiting: a settings edit never changes this request mid-flight.
+            selected = self.selection() if self.selection is not None else {
+                "model": self.model, "effort": self.reasoning_effort}
+            from companion_core.reply_trace import point
+
+            point("model_selection", requested_model=selected["model"], effort=selected["effort"],
+                  settings_version=selected.get("version"), source=selected.get("source"))
             if self.isolated:
                 from .app_server import generate
 
                 return await generate(instructions, context, output_schema, images, native=native,
                                       store=store, policy=policy, guard=guard, phase=phase,
-                                      observation=observation, reasoning_effort=self.reasoning_effort, model=self.model)
+                                      observation=observation, reasoning_effort=selected["effort"], model=selected["model"])
             return await self._generate(instructions, context, output_schema, images, native=native,
                                         store=store, policy=policy, guard=guard, phase=phase,
                                         observation=observation)

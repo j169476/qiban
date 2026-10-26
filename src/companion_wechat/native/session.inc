@@ -16,6 +16,14 @@ static SRWLOCK lock = SRWLOCK_INIT;
 static volatile LONG stage = 0, error_code = 0, completed = 0;
 static volatile LONG tasks = 0, completions = 0, callbacks = 0, configured = 0;
 static uint64_t sequence = 0;
+static std::set<std::string> additional_targets;
+
+// Access only while holding the session lock. Bindings are frozen before sending.
+static bool target_allowed(const char* target) {
+    return strnlen_s(target, 128) < 128 && target[0] &&
+        (!strcmp(target, authorized.owner) || (authorized.family[0] && !strcmp(target, authorized.family)) ||
+         additional_targets.find(target) != additional_targets.end());
+}
 
 static bool idle() { return !tasks && !completions && !callbacks; }
 static bool process_matches(HANDLE handle, uint64_t expected) {
@@ -61,7 +69,7 @@ static bool guard(const Request& r) {
     AcquireSRWLockShared(&lock);
     bool valid = same_session(r) && r.sequence == sequence && stage == 1 && !error_code &&
         GetTickCount64() <= r.deadline &&
-        (!strcmp(r.target, authorized.owner) || (authorized.family[0] && !strcmp(r.target, authorized.family)));
+        target_allowed(r.target);
     ReleaseSRWLockShared(&lock);
     return valid && identity_guard(r);
 }
@@ -83,7 +91,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI XlnOpen(void* parameter) {
     if (!parameter) return ERROR_INVALID_PARAMETER;
     const auto& r = *static_cast<Request*>(parameter);
     if (r.size != sizeof(Request) || !token(r.session) || !personal_id(r.account) ||
-        !personal_id(r.owner) || !strcmp(r.owner, r.account) || (r.family[0] && !group_id(r.family)) ||
+        (r.owner[0] && (!personal_id(r.owner) || !strcmp(r.owner, r.account))) || (r.family[0] && !group_id(r.family)) ||
         r.controller == r.pid || r.reserved || r.sequence || r.target[0] || r.text[0]) return ERROR_INVALID_PARAMETER;
     AcquireSRWLockExclusive(&lock);
     DWORD code = ERROR_BUSY;
@@ -97,10 +105,26 @@ extern "C" __declspec(dllexport) DWORD WINAPI XlnOpen(void* parameter) {
             else if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
                     reinterpret_cast<LPCWSTR>(&XlnOpen), &pinned)) code = ERROR_DLL_INIT_FAILED;
             else {
+                additional_targets.clear();
                 authorized = r; SecureZeroMemory(&prepared, sizeof(prepared)); sequence = 0;
                 stage = completed = 0; configured = 1; code = 0;
             }
         }
+    }
+    ReleaseSRWLockExclusive(&lock);
+    return code;
+}
+
+extern "C" __declspec(dllexport) DWORD WINAPI XlnBindTarget(void* parameter) {
+    if (!parameter) return ERROR_INVALID_PARAMETER;
+    const auto& r = *static_cast<Request*>(parameter);
+    if (strnlen_s(r.target, 128) >= 128 || (!personal_id(r.target) && !group_id(r.target)) ||
+        !strcmp(r.target, r.account) || r.sequence || r.text[0]) return ERROR_INVALID_PARAMETER;
+    AcquireSRWLockExclusive(&lock);
+    DWORD code = ERROR_ACCESS_DENIED;
+    if (same_session(r) && idle() && !error_code && !sequence && !prepared.size && stage == 0 && identity_guard(r)) {
+        try { additional_targets.insert(r.target); code = 0; }
+        catch (...) { code = ERROR_NOT_ENOUGH_MEMORY; }
     }
     ReleaseSRWLockExclusive(&lock);
     return code;
@@ -118,7 +142,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI XlnPrepare(void* parameter) {
     DWORD code = ERROR_ACCESS_DENIED;
     if (same_session(r) && idle() && !error_code && stage != 1 && r.sequence == sequence + 1 &&
         r.sequence && r.deadline >= GetTickCount64() && r.deadline <= GetTickCount64() + 15000 &&
-        (!strcmp(r.target, authorized.owner) || (authorized.family[0] && !strcmp(r.target, authorized.family))) &&
+        target_allowed(r.target) &&
         identity_guard(r)) {
         prepared = r; sequence = r.sequence; stage = 0; completed = 0; code = 0;
     }
@@ -143,6 +167,7 @@ extern "C" __declspec(dllexport) DWORD WINAPI XlnClose(void* parameter) {
     bool valid = same_session(r);
     if (valid) {
         configured = 0; SecureZeroMemory(&prepared, sizeof(prepared));
+        additional_targets.clear();
         SecureZeroMemory(&authorized, sizeof(authorized));
     }
     ReleaseSRWLockExclusive(&lock);

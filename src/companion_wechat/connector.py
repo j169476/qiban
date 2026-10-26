@@ -140,14 +140,19 @@ class WeChatConnector:
                 # account, connection and generation again immediately before send.
                 guard()
                 require(self._request(event, text) == request, "wechat_send_context_changed")
-                permit = self.permits.issue(prepared, request)
 
                 def final_guard():
                     guard()
                     require(self._request(event, text) == request, "wechat_send_context_changed")
 
                 submitted = True
-                result = await asyncio.wait_for(self.sender.commit(permit, guard=final_guard), commit_timeout)
+                from .live_sender import LiveSenderGateway
+
+                if isinstance(self.sender, LiveSenderGateway):
+                    commit = self.sender.commit_prepared(prepared, guard=final_guard)
+                else:
+                    commit = self.sender.commit(self.permits.issue(prepared, request), guard=final_guard)
+                result = await asyncio.wait_for(commit, commit_timeout)
                 require(isinstance(result, ActionResult), "wechat_invalid_result")
                 return result
             except asyncio.CancelledError:

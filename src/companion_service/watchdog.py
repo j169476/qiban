@@ -135,6 +135,26 @@ class Supervisor:
         return {"healthy": healthy, "at": heartbeat.get("at") if heartbeat.get("instance") == self.instance else None,
                 "separate_process": True}
 
+    def ensure_ready(self, *, timeout=10):
+        """Explicit recovery replaces only our child and waits for its own heartbeat."""
+        if self.status()["healthy"]:
+            return
+        self.close()
+        self.instance, self.process, self.closed = secrets.token_hex(16), None, False
+        try:
+            self.start()
+            deadline = time.monotonic() + timeout
+            while True:
+                if self.status()["healthy"]:
+                    return
+                if self.process.poll() is not None or time.monotonic() >= deadline:
+                    break
+                time.sleep(.1)
+        except OSError:
+            pass
+        self.close()
+        raise AssistantError("supervisor_lost", "独立监护未能恢复，平台保持暂停；请检查服务后重试")
+
     def close(self):
         self.closed = True
         self.pulse()

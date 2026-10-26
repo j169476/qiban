@@ -16,11 +16,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .db_probe import make_sources, page_one, resolve_targets, safe_db_path, validate_config
+from .db_probe import make_sources, page_one, resolve_config_targets, safe_db_path, validate_config
 from .db_text import short_text
 from .db_triggers import message as triggered_message
 
-_ALIASES = {"owner_main": "private", "family": "group"}
 _HEX = re.compile(r"[0-9a-f]{64}")
 _SHARD = re.compile(r"message/message_[0-9]+\.db")
 _CODES = {
@@ -63,27 +62,34 @@ def validate_enrollment(value):
             or value["account_id"] != "wechat-db:" + hashlib.sha256(value["self_username"].encode()).hexdigest()):
         raise SourceError("source_enrollment_invalid")
     targets = value["targets"]
-    if not isinstance(targets, dict) or set(targets) != set(_ALIASES):
+    if not isinstance(targets, dict) or not targets:
         raise SourceError("source_enrollment_invalid")
-    for alias, kind in _ALIASES.items():
-        target = targets[alias]
-        if (not isinstance(target, dict) or set(target) != {"kind", "username"} or target["kind"] != kind
+    identities = set()
+    for alias, target in targets.items():
+        if (not isinstance(alias, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", alias)
+                or not isinstance(target, dict) or set(target) != {"kind", "username"}
+                or target["kind"] not in ("private", "group")
+                or alias in {"owner_main", "family"} and target["kind"] != {"owner_main": "private", "family": "group"}[alias]
                 or not _username(target["username"]) or target["username"] == value["self_username"]
-                or (kind == "group") != target["username"].endswith("@chatroom")):
+                or (target["kind"] == "group") != target["username"].endswith("@chatroom")
+                or target["username"] in identities):
             raise SourceError("source_enrollment_invalid")
+        identities.add(target["username"])
     return _copy(value)
 
 
 def validate_checkpoint(value, enrollment):
-    if (not isinstance(value, dict) or set(value) != {"schema_version", "epoch", "sources"}
+    if (not isinstance(value, dict) or set(value) - {"schema_version", "epoch", "sources", "next_source"}
+            or not {"schema_version", "epoch", "sources"} <= set(value)
             or type(value["schema_version"]) is not int or value["schema_version"] != 1
             or value["epoch"] != enrollment["epoch"] or not isinstance(value["sources"], dict)
-            or not 1 <= len(value["sources"]) <= 32):
+            or not value["sources"]
+            or value.get("next_source") is not None and value["next_source"] not in value["sources"]):
         raise SourceError("source_checkpoint_invalid")
     for key, item in value["sources"].items():
         if (not isinstance(item, dict) or set(item) != {"shard", "target_ref", "salt", "anchor"}
                 or not isinstance(item["shard"], str) or not _SHARD.fullmatch(item["shard"])
-                or not isinstance(item["target_ref"], str) or item["target_ref"] not in _ALIASES
+                or not isinstance(item["target_ref"], str) or item["target_ref"] not in enrollment["targets"]
                 or key != item["shard"] + "|" + item["target_ref"]
                 or not isinstance(item["salt"], str) or not _HEX.fullmatch(item["salt"])):
             raise SourceError("source_checkpoint_invalid")
@@ -173,10 +179,10 @@ def _native_prepare(config, enrollment):
                 # Refuse before opening message shards or acquiring their keys.
                 raise SourceError("source_identity_changed")
             if enrollment is None:
-                targets = resolve_targets(connection, config["private_hint"], config["group_hint"])
+                targets = resolve_config_targets(connection, config)
             else:
                 targets = []
-                for alias in _ALIASES:
+                for alias in enrollment["targets"]:
                     username = enrollment["targets"][alias]["username"]
                     rows = connection.execute(
                         "SELECT DISTINCT username COLLATE BINARY FROM contact "
@@ -193,7 +199,7 @@ def _native_prepare(config, enrollment):
         for i, path in enumerate(files):
             connection = stack.enter_context(open_readonly(path, keys.key(f"shard_{i}")))
             sources.extend(make_sources(connection, path, targets))
-        if any(not any(s.target.alias == alias for s in sources) for alias in _ALIASES):
+        if any(not any(s.target.alias == target.alias for s in sources) for target in targets):
             raise SourceError("source_identity_changed")
         yield Prepared(client, account, own, targets, sources, tuple(path.name for path in files))
 
@@ -236,7 +242,8 @@ class SourceSession:
             self._prepared = prepared
             directory_id = hashlib.sha256(prepared.account.name.encode()).hexdigest()
             account_id = "wechat-db:" + hashlib.sha256(prepared.self_username.encode()).hexdigest()
-            targets = {t.alias: {"kind": _ALIASES[t.alias], "username": t.username} for t in prepared.targets}
+            targets = {t.alias: {"kind": "group" if t.username.endswith("@chatroom") else "private",
+                                 "username": t.username} for t in prepared.targets}
             if self._enrollment is None:
                 self._enrollment = validate_enrollment({
                     "schema_version": 1, "epoch": uuid.uuid4().hex, "account_id": account_id,
@@ -254,7 +261,7 @@ class SourceSession:
                     raise SourceError("source_identity_changed")
             for source in prepared.sources:
                 relative = source.path.relative_to(prepared.account / "db_storage").as_posix()
-                if not _SHARD.fullmatch(relative) or source.target.alias not in _ALIASES:
+                if not _SHARD.fullmatch(relative) or source.target.alias not in targets:
                     raise SourceError("source_identity_changed")
                 key = relative + "|" + source.target.alias
                 if key in self._sources:
@@ -319,9 +326,8 @@ class SourceSession:
 
     def read(self, checkpoint, *, limit=100):
         self._require_open()
-        # At least one slot per source guarantees a busy private chat cannot
-        # indefinitely starve the family conversation (or another shard).
-        if type(limit) is not int or not len(self._sources) <= limit <= 100:
+        # Rotate source pages so large directories cannot starve later chats.
+        if type(limit) is not int or not 1 <= limit <= 100:
             raise SourceError("source_configuration_invalid")
         if self._state(self._prepared.client.pid).get("window_count", 0) == 0:
             raise SourceError("client_not_running")
@@ -339,9 +345,15 @@ class SourceSession:
                     raise SourceError("source_checkpoint_invalid")
                 checkpoint["sources"][key] = _copy(initial)
         rows, blocked, skipped = [], [], 0
-        row_quota = limit // len(self._sources)
-        scan_quota = min(100, 512 // len(self._sources))
-        for key, source in self._sources.items():
+        keys = sorted(self._sources)
+        start = keys.index(checkpoint["next_source"]) if checkpoint.get("next_source") in keys else 0
+        selected = (keys[start:] + keys[:start])[:limit]
+        if len(keys) > limit:
+            checkpoint["next_source"] = keys[(start + len(selected)) % len(keys)]
+        row_quota = max(1, limit // len(selected))
+        scan_quota = min(100, max(1, 512 // len(selected)))
+        for key in selected:
+            source = self._sources[key]
             source_rows = 0
             item = checkpoint["sources"][key]
             if (item["shard"] != self._checkpoint["sources"][key]["shard"]
@@ -387,7 +399,8 @@ class SourceSession:
                     history = created < self._enrollment["since"]
                     decoded = short_text(content) if not history else None
                     alias = source.target.alias
-                    if alias == "family" and decoded is not None and decoded.startswith(sender + ":\n"):
+                    target_kind = self._enrollment["targets"][alias]["kind"]
+                    if target_kind == "group" and decoded is not None and decoded.startswith(sender + ":\n"):
                         decoded = decoded[len(sender) + 2:]
 
                     def own_reference(identifier):
@@ -406,22 +419,22 @@ class SourceSession:
                     anchor = {"local_id": local_id, "server_id": server_id, "create_time": created}
                     if text is None or history:
                         skipped += 1
-                    elif (alias == "owner_main" and sender not in
+                    elif (target_kind == "private" and sender not in
                           {self._enrollment["self_username"], source.target.username}):
                         blocked.append({"source": key, "reason": "private_sender_mismatch"})
                         break
                     else:
-                        if alias == "family" and text.startswith(sender + ":\n"):
+                        if target_kind == "group" and text.startswith(sender + ":\n"):
                             text = text[len(sender) + 2:]
                         try:
                             occurred = datetime.fromtimestamp(created, timezone.utc).isoformat()
                         except (ValueError, OverflowError, OSError):
                             raise SourceError("source_schema_unsupported") from None
-                        rows.append({"target_ref": source.target.username, "kind": _ALIASES[alias],
+                        rows.append({"target_ref": source.target.username, "kind": target_kind,
                                      "server_id": str(server_id),
                                      "sender_ref": sender, "text": text, "occurred_at": occurred,
                                      "direction": "self" if sender == self._enrollment["self_username"] else "incoming",
-                                     "trigger": "direct" if alias == "owner_main" else trigger, "time_basis": "server"})
+                                     "trigger": "direct" if target_kind == "private" else trigger, "time_basis": "server"})
                         source_rows += 1
                     item["anchor"] = anchor
                     after = local_id

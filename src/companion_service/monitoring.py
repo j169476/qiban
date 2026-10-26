@@ -1,6 +1,7 @@
 """Administrative runtime metadata, separate from conversation contents."""
 import time
 
+from bili_assistant.health import notification_status
 from companion_core import action_budget, budget
 from companion_core.observability import TOKENS, report
 
@@ -32,7 +33,8 @@ def snapshot(service, *, days=1):
     plan = service.plan_usage.snapshot() if service.plan_usage else {
         "status": "unavailable", "updated_at": None, "stale": True, "buckets": [], "scope": "account"}
     return {"updated_at": time.time(), "timezone": policy["timezone"], "quotas": quotas,
-            "coding_plan": plan, "tokens": tokens, "model_calls": sum(g["calls"] for g in models),
+            "coding_plan": plan, "notifications": notification_status(service.store),
+            "tokens": tokens, "model_calls": sum(g["calls"] for g in models),
             "token_known_calls": {key: sum(g["token_known_calls"][key] for g in models) for key in TOKENS},
             "days": days, "since": observed["since"], "recent": observed["recent"], "tasks": tasks,
             "notes": observed["notes"], "write_failures": observed["write_failures_this_process"]}

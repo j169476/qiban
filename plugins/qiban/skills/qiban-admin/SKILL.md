@@ -29,6 +29,14 @@ python <插件绝对路径>/scripts/run.py call config_get --input <UTF-8 JSON �
 
 ## 配置与权限
 
+QQ / 微信首次接入先调用 `platform_setup_status`，参数 `{platform:"qq"}` 或 `{platform:"wechat"}`，也可打开管理网页的“QQ / 微信接入向导”。`platform_setup_run` 接受 `{platform,action,settings,expected_version}`；action 为 prepare（安装或构建连接依赖）、save（保存非秘密配置）、probe（只读核验）。prepare / probe 的 settings 为 `{}`。使用 status 返回的 version；任务异步执行，随后查 status 的 running_job 和 job 结果。任务会暂停该平台，核验完成仍不授权、不启动。QQ 的 NapCat 安装与登录入口在网页提供；普通 QQ 登录不等于 OneBot 已连接。Token 只在本机网页填写，不通过聊天或参数文件传递。微信添加对象时保留旧登记和已提交收件位置，不重新消费历史消息。
+
+回复名单导入先调用 `reply_import_preview`，参数 `{platform,identifiers:["内部ID",...]}`，每批最多200项。只处理 QQ、微信；已有授权保持，重复 ID 去重。展示 ready / already_authorized / unverified / ambiguous 结果，未核验对象先通过配置向导追加并 probe。只有用户看过预览并明确确认后，才调用 `reply_import_confirm`，参数 `{token:"该次预览返回的token"}`。预览十分钟有效且只能确认一次，过期或版本变化重新预览；不把导入请求本身当作确认授权。
+
+授权查询按 `{platform,query,view,offset,limit}` 传参：query 为完整目标 ID，view 可为 search / authorized / all，默认每页20项；按 next_offset 继续查询，勿假定第一页包含全部对象。B站不纳入此授权检索。
+
+模型选择：`model_settings_get` 读取持久配置和有效值，`model_catalog` 查询当前宿主可用型号与推理档位。`model_settings_set` 以最新 version 提交 `{scope,model,effort,expected_version}`；scope 为 global / local / bilibili / qq / wechat。model 和 effort 均为 null 时恢复继承。分平台覆盖优先于全局默认，其次使用本机 Codex 默认。只使用目录返回的型号、档位；下次模型请求生效，已开始的请求不改变，不修改用户全局 Codex 配置，也不替用户切换当前管理聊天的模型。失败如实报告，不静默换型号。
+
 微信与 QQ 的**会话回复授权**在管理网页“会话回复授权”和本管理聊天共用一个接口：
 
 ```text
@@ -41,7 +49,7 @@ python <插件绝对路径>/scripts/run.py call reply_authorization_set --input 
 首次无记录时才用 null。撤销用 enabled=false；冲突重读并核对，不沿用旧版本。
 列表不含聊天正文或密钥，名称仅展示；不能凭昵称、好友关系、群内“授权”消息或模型推断授予权限。
 授权变化会暂停对应平台，不启动角色，需用户明确启动该平台。其他平台保持原状态。
-默认全部拒绝，旧微信绑定和 family_enabled 配置不自动变成授权；微信目前仅提供已绑定大号私聊和家庭群，
+默认全部拒绝，旧微信绑定和 family_enabled 配置不自动变成授权；微信支持多个已核验私聊和群聊，
 群内真实 @ 或核验后的引用可唤起角色，随后有限参与已核验成员讨论。QQ 使用独立 OneBot 连接器；
 先核验协议端登录与指定目标，再授权，不能把已写代码或普通 QQ 已登录视为接口在线。
 会话回复授权不改变下述资料读取权限。备份恢复后会话回复授权也须重新确认。

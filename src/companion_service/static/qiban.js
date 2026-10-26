@@ -37,6 +37,12 @@
     document.querySelectorAll("[data-go]").forEach(button=>button.addEventListener("click",()=>window.qibanNavigate(button.dataset.go)));
   }
   let platformSignature="", reportData=null, loading=false;
+  window.qibanSessionExpired=()=>{
+    const banner=$("#host-banner");if(!banner)return;banner.hidden=false;banner.classList.remove("disconnected");
+    text("#host-banner-title","管理页登录已过期");text("#host-banner-message","请刷新页面并重新登录。登录过期不会停止后台平台，也不表示本机服务已断开。");
+    text("#status","请重新登录");$("#status")?.classList.remove("active");
+    document.querySelectorAll("[data-runtime-start]").forEach(button=>button.disabled=true);platformSignature="";
+  };
   window.qibanConnectionLost=()=>{
     const banner=$("#host-banner");if(!banner)return;banner.hidden=false;banner.classList.add("disconnected");
     text("#host-banner-title","暂时无法连接本机服务");text("#host-banner-message","本机服务已断开，暂时无法确认宿主与任务状态，也无法保存配置。退出 Codex 可能同时结束后台；重新打开 Codex 后，请在管理聊天或命令行明确重启服务。");
@@ -54,14 +60,18 @@
     text("#host-detail",stopped?"等待明确重启服务":"Codex 宿主在线 · 本机服务可用");
     if(stopped){text("#status","等待重启");$("#status")?.classList.remove("active");}
   }
+  const disconnected=row=>row.status==="active"&&row.connection&&row.connection.state!=="connected";
+  function runtimeLabel(row){return !row.available?"未接入":disconnected(row)?(row.connection.state==="blocked"?"连接受阻":"等待重连"):row.status==="active"?(row.busy?"处理中":"运行中"):"已暂停";}
+  function runtimeDescription(row){return !row.available?"完成连接器配置后，即可在这里管理。":disconnected(row)?"平台连接尚未恢复，请检查客户端登录与连接器。"+(row.connection.code?"（"+row.connection.code+"）":""):reasons[row.reason]||(row.status==="active"?"陪伴正在继续。":"等待你的下一次启动。");}
   function runtimeCards(state) {
     const list=[{platform:"local",available:true,...state},...(state.platforms||[])];
-    const signature=JSON.stringify(list.map(p=>[p.platform,p.available,p.status,p.reason,p.owner,p.generation,p.busy,state.host]));
+    const signature=JSON.stringify(list.map(p=>[p.platform,p.available,p.status,p.reason,p.owner,p.generation,p.busy,p.connection,state.host]));
     if(signature===platformSignature)return;platformSignature=signature;
     const grid=$("#platform-grid");if(!grid)return;
     // Keep edited options through background refreshes; never replace controls
     // while a user is focusing them.
     if(grid.contains(document.activeElement)){
+      for(const row of list){const card=grid.querySelector(`[data-platform="${row.platform}"]`);if(!card)continue;const badge=card.querySelector('.badge');badge.textContent=runtimeLabel(row);badge.classList.toggle('active',row.status==='active'&&!disconnected(row));card.querySelector('.platform-description').textContent=runtimeDescription(row);card.querySelector('[data-runtime-start]').disabled=!row.available||row.status==='active'||state.host?.available===false||state.host?.restart_required===true;card.querySelector('[data-runtime-stop]').disabled=row.status!=='active';}
       if(state.host?.available===false||state.host?.restart_required)grid.querySelectorAll("[data-runtime-start]").forEach(button=>button.disabled=true);
       platformSignature="";return;
     }
@@ -70,14 +80,16 @@
     for(const row of list){
       const card=element("article","platform-card"),head=element("div","section-heading"),title=element("h3"),mark=element("span","platform-mark");card.dataset.platform=row.platform;
       mark.append(icon(row.platform==="local"?"cup":"platform"));title.append(mark,document.createTextNode(names[row.platform]));
-      const badge=element("span","badge"+(row.status==="active"?" active":""),!row.available?"未接入":row.status==="active"?(row.busy?"处理中":"运行中"):"已暂停");head.append(title,badge);
-      card.append(head,element("p","",!row.available?"完成连接器配置后，即可在这里管理。":reasons[row.reason]||(row.status==="active"?"陪伴正在继续。":"等待你的下一次启动。")));
+      const badge=element("span","badge"+(row.status==="active"&&!disconnected(row)?" active":""),runtimeLabel(row));head.append(title,badge);
+      card.append(head,element("p","platform-description",runtimeDescription(row)));
       card.append(element("p","owner",row.owner?"归属聊天 · "+row.owner:"网页启动后归属已绑定的管理聊天"));
+      if(row.reply_test&&row.status==='active')card.append(element('p','task-hint',`限定私信验收：${row.reply_test.account_uid} → ${row.reply_test.target_uid}；仅新私信，最多一次外发尝试。`));
+      if(row.reason==='reply_test_complete')card.append(element('p','task-hint','本次限定私信验收已结束，请在任务记录核对发送结果。'));
       const options=element("div","platform-options"),durationLabel=element("label","","本次时长（分钟，留空不限）"),duration=element("input"),readLabel=element("label"),readOnly=element("input");
       duration.type="number";duration.min="1";duration.max="1440";duration.placeholder="不限";duration.value=saved.get(row.platform)?.duration||"";durationLabel.append(duration);
       readOnly.type="checkbox";readOnly.checked=saved.get(row.platform)?.readonly||false;readLabel.append(readOnly,document.createTextNode("只读运行"));options.append(durationLabel,readLabel);
       const actions=element("div","actions"),start=element("button"),stop=element("button","secondary");
-      start.type=stop.type="button";start.dataset.runtimeStart="true";start.append(icon("play"),document.createTextNode("启动"));stop.append(icon("pause"),document.createTextNode("暂停"));
+      start.type=stop.type="button";start.dataset.runtimeStart="true";stop.dataset.runtimeStop="true";start.append(icon("play"),document.createTextNode("启动"));stop.append(icon("pause"),document.createTextNode("暂停"));
       const unavailable=!row.available||state.host?.available===false||state.host?.restart_required;
       start.disabled=unavailable||row.status==="active";stop.disabled=row.status!=="active";duration.disabled=readOnly.disabled=row.status==="active";
       for(const [button,action] of [[start,"start"],[stop,"stop"]])button.addEventListener("click",async()=>{
@@ -92,11 +104,12 @@
     }
   }
   function activity(state){
-    const list=[{platform:"local",...state},...(state.platforms||[])],active=list.filter(x=>x.status==="active"),busy=active.filter(x=>x.busy);
+    const list=[{platform:"local",...state},...(state.platforms||[])],active=list.filter(x=>x.status==="active"),offline=active.filter(disconnected),busy=active.filter(x=>x.busy&&!disconnected(x));
     text("#metric-platforms",active.length+" / 4");text("#metric-replies",format(state.quotas?.local?.remaining));
     text("#metric-replies-note","已用 "+format(state.quotas?.local?.used)+" / 上限 "+format(state.quotas?.local?.limit));
     const box=$("#activity-summary");if(!box)return;
     if(busy.length){box.replaceChildren(icon("spark"),element("h3","",busy.map(x=>names[x.platform]).join("、")+"正在处理任务"),element("p","","执行状态会自动更新，关闭此页面不会中断任务。"));}
+    else if(offline.length){box.replaceChildren(icon("moon"),element("h3","","部分平台等待恢复连接"),element("p","",offline.map(x=>names[x.platform]).join("、")+"尚未连接，恢复后继续接收消息。"));}
     else if(active.length){box.replaceChildren(icon("cup"),element("h3","","陪伴已就绪"),element("p","",active.map(x=>names[x.platform]).join("、")+"正在等待下一次交流。"));}
     else empty(box,"休息一下，也很好",state.host?.restart_required?"请从管理聊天或命令行重启服务。":"所有平台已暂停。准备好了，再开启陪伴。");
   }
@@ -147,6 +160,21 @@
     }catch(error){text("#reply-usage","平台私聊用量暂不可用："+error.message);}
   }
   if(admin){
+    let testStarting=false;
+    bind('#bili-test-form',async()=>{
+      if(testStarting)return;
+      const form=$('#bili-test-form');if(!form.reportValidity())return;
+      testStarting=true;$('#bili-test-start').disabled=true;
+      try{
+        const state=await api('/status'),row=state.platforms?.find(p=>p.platform==='bilibili');
+        if(!row?.available)throw new Error('B站连接器尚未就绪');
+        if(row.status==='active')throw new Error('请先暂停B站，再启动限定私信验收');
+        await operate('platform_control',{platform:'bilibili',action:'start',expected_generation:row.generation??null,
+          options:{duration_minutes:Number($('#bili-test-duration').value),reply_test:{
+            account_uid:$('#bili-test-account').value.trim(),target_uid:$('#bili-test-target').value.trim()}}});
+        notice('限定私信验收已启动：请由指定对象发送新的编号消息。');await refresh();
+      }finally{testStarting=false;$('#bili-test-start').disabled=false;}
+    },'submit');
     bind("#open-codex",async()=>{await operate("open_codex",{});notice("已请求打开 Codex。请在管理聊天选择 @qiban，明确发出所需指令。");});
     bind("#copy-qiban",async()=>{await navigator.clipboard.writeText("$qiban 打开栖伴管理页，查看运行状态和额度。");notice("管理指令已复制，请在 Codex 聊天中粘贴。");});
     bind("#monitor-refresh",async()=>{await refreshMonitor();await replyUsage();});bind("#tasks-refresh",refreshMonitor);bind("#monitor-days",refreshMonitor,"change");

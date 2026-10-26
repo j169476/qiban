@@ -249,6 +249,20 @@ class LiveSenderGateway:
     async def commit(self, permit, *, guard):
         if not isinstance(permit, SendPermit):
             return ActionResult("cancelled", error="wechat_permit_invalid")
+        return await self._commit(permit, guard=guard, prepared=False)
+
+    async def commit_prepared(self, ticket, *, guard):
+        """Trusted in-process path: authorize only at the synchronous boundary.
+
+        A prepared ticket binds an existing local request; it is not a permit.
+        All guards and the durable claim still precede a new two-second permit.
+        Externally supplied permits use commit and can never be renewed here.
+        """
+        if not isinstance(ticket, PreparedSend):
+            return ActionResult("cancelled", error="wechat_prepared_mismatch")
+        return await self._commit(ticket, guard=guard, prepared=True)
+
+    async def _commit(self, permit, *, guard, prepared):
         async with self._commit_lock:
             try:
                 old = self._ticket_result(permit)
@@ -262,14 +276,18 @@ class LiveSenderGateway:
             request, proof = pending
             claimed = submitted = False
             try:
-                self.permits.verify(permit, request)
+                if prepared:
+                    require(permit.request_digest == request.fingerprint, "wechat_prepared_mismatch")
+                else:
+                    self.permits.verify(permit, request)
                 previous = self.store.state(self._action_key(request))
                 if previous is not None:
                     return self._finish(request, permit, self._historical(previous, request.fingerprint), claimed=False)
                 self._check(request)
                 guard()
                 self._inspect(request, proof)
-                self.permits.verify(permit, request)
+                if not prepared:
+                    self.permits.verify(permit, request)
                 old = self._claim(request, proof, permit)
                 if old is not None:
                     return self._finish(request, permit, old, claimed=False)
@@ -286,7 +304,8 @@ class LiveSenderGateway:
                 with submission_guard(request) if submission_guard else nullcontext():
                     guard()
                     self._check(request)
-                    self.permits.verify(permit, request)
+                    authorization = self.permits.issue(permit, request) if prepared else permit
+                    self.permits.verify(authorization, request)
                     submitted = True
                     outcome = self._outcome(_sync(self.driver.submit_once(request, proof)))
                 confirm = getattr(self.driver, "confirm", None)

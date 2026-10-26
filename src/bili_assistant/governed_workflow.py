@@ -38,10 +38,13 @@ def definition(original, core):
             await core.handle(item)
 
     async def prepare(state):
-        await flow.prepare(state)
+        result = await flow.prepare(state)
+        if result in (Flow.STOP, Flow.FINALIZE):
+            return result
         state["fresh"] = [{key: value for key, value in item.items() if key != "relationship_context"}
                           for item in state["fresh"] if item["kind"] != "dm_reply"]
         workspace.readable = workspace.repository.readable_resources(workspace.access, workspace.request)
+        return result
 
     stages = []
     for stage in flow.definition().stages:

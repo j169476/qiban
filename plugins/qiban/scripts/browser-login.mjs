@@ -2,6 +2,7 @@
 // Secrets stay in JS/process memory, then in user-bound Windows ciphertext.
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 const origin = "https://www.bilibili.com";
 const fields = { SESSDATA: "sessdata", bili_jct: "bili_jct", DedeUserID: "dedeuserid",
@@ -35,6 +36,21 @@ export async function stageBrowserLogin(tab, ticket) {
     throw new Error("请先在管理聊天发起一个有效的浏览器登录任务");
   }
   checkOrigin(await tab.url());
+  const runtime = JSON.parse(await readFile(new URL("../runtime.json", import.meta.url), "utf8"));
+  // New service tickets identify their own store. A stale plugin default must
+  // never redirect credentials to a different service instance.
+  const handoff = ticket.handoff;
+  if (handoff && (handoff.version !== 1 || typeof handoff.data !== "string" || !path.isAbsolute(handoff.data))) {
+    throw new Error("登录任务交接目录无效，请重新发起");
+  }
+  const data = handoff ? handoff.data : runtime.data;
+  try {
+    const saved = JSON.parse(await readFile(path.join(data, "runtime", "browser-login", ticket.ticket_id + ".json"), "utf8"));
+    if (["ticket_id", "status", "expected_uid", "expires_at"].some(key => saved[key] !== ticket[key])
+        || (handoff && saved.project_id !== handoff.project_id)) throw new Error();
+  } catch {
+    throw new Error("登录任务与交接目录不一致，请从当前管理服务重新发起；尚未读取凭证");
+  }
   const cdp = await tab.capabilities.get("cdp");
   const cookies = selectedCookies(await cdp.send("Network.getCookies", { urls: [origin + "/"] }));
   const refreshed = await cdp.send("Runtime.evaluate", {
@@ -55,10 +71,9 @@ export async function stageBrowserLogin(tab, ticket) {
   for (const field of ["sessdata", "bili_jct", "dedeuserid", "buvid3", "buvid4"]) {
     if (!values[field]) throw new Error("网页登录凭证缺少必要字段，请完成登录后重试");
   }
-  const runtime = JSON.parse(await readFile(new URL("../runtime.json", import.meta.url), "utf8"));
   return await new Promise((resolve, reject) => {
     const child = spawn(runtime.python, [
-      "-m", "bili_assistant.browser_login_transport", "--data", runtime.data, "--ticket", ticket.ticket_id,
+      "-m", "bili_assistant.browser_login_transport", "--data", data, "--ticket", ticket.ticket_id,
     ], { cwd: runtime.project, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], timeout: 20000 });
     let output = "";
     child.stdout.setEncoding("utf8");

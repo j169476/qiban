@@ -12,6 +12,22 @@ from .storage import utcnow
 TEXT = {"type": "string"}
 DOC = {"type": "object"}
 TOOLS = {
+    "platform_setup_status": ("管理端查看QQ/微信首次配置与核验状态，不连接账号或启动角色。", obj({"platform": {"enum": ["qq", "wechat"]}})),
+    "platform_setup_run": ("管理端启动QQ/微信配置任务：save保存非敏感配置，prepare准备依赖，probe只读核验。会暂停对应平台但不授权或发送。Token仅在网页填写。", obj({
+        "platform": {"enum": ["qq", "wechat"]}, "action": {"enum": ["save", "prepare", "probe"]},
+        "settings": DOC, "expected_version": TEXT})),
+    "reply_import_preview": ("管理端预览QQ/微信回复对象追加导入；仅核验，不授权。展示结果后必须等待用户明确确认。每批最多200项，可分批追加。", obj({
+        "platform": {"enum": ["qq", "wechat"]},
+        "identifiers": {"type": "array", "minItems": 1, "maxItems": 200, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+        "account_identity": {"type": "string", "minLength": 1, "maxLength": 256}}, ["platform", "identifiers"])),
+    "reply_import_confirm": ("仅在用户确认导入预览后调用。使用预览token追加合并授权；过期或版本冲突重新预览，保留其他已有授权。", obj({"token": TEXT})),
+    "model_catalog": ("管理端查询宿主当前可选模型及推理档位，不启动角色。", obj({})),
+    "model_settings_get": ("管理端读取栖伴全局默认、分平台覆盖和当前有效模型，不修改Codex全局配置。", obj({})),
+    "model_settings_set": ("管理端明确选择栖伴模型，从下一次模型请求生效。先查目录与配置；model为null清除覆盖，effort为null使用模型默认档位。", obj({
+        "scope": {"enum": ["global", "local", "bilibili", "qq", "wechat"]},
+        "model": {"type": ["string", "null"], "maxLength": 100},
+        "effort": {"type": ["string", "null"], "maxLength": 30},
+        "expected_version": {"type": ["string", "null"]}})),
     "service_resume": ("管理聊天显式重启宿主连接；平台保持暂停，由用户选择启动。", obj({})),
     "runtime_monitor": ("管理端读取 Qiban 上限与用量、Codex coding plan 额度、已观测 token 和任务元数据。", obj({
         "days": {"type": "integer", "minimum": 1, "maximum": 30}}, [])),
@@ -24,7 +40,11 @@ TOOLS = {
             "group_session_decisions": {"type": "integer", "minimum": 1, "maximum": 1000},
             "group_session_minutes": {"type": "integer", "minimum": 1, "maximum": 120}}},
         "expected_version": {"type": ["string", "null"]}})),
-    "reply_authorization_list": ("已绑定管理聊天读取微信/QQ的已核验会话及回复授权；不读取聊天内容、不启动角色。", obj({})),
+    "reply_authorization_list": ("管理聊天分页检索QQ/微信回复授权；search须选平台并输入完整目标ID，authorized仅列已授权。返回next_offset用于翻页，不授予权限。", obj({
+        "platform": {"enum": ["qq", "wechat"]}, "query": {"type": "string", "maxLength": 256},
+        "view": {"enum": ["all", "search", "authorized"]},
+        "offset": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50}}, [])),
     "reply_authorization_set": ("管理端按明确指令授权或撤销会话回复；先读取列表取得ID和版本。变更暂停对应平台。", obj({
         "scope_id": TEXT, "enabled": {"type": "boolean"}, "expected_version": {"type": ["string", "null"]},
     })),
@@ -293,7 +313,8 @@ for _platform in ("bili", "wechat", "qq"):
 async def call(engine, name, arguments):
     if getattr(engine.store, "backend", None) == "postgres":
         raise AssistantError("service_entry_required", "数据库资料由本机服务接管，禁止旧入口直接加载角色上下文")
-    if name in {"assistant_stop_all", "reply_authorization_list", "reply_authorization_set",
+    if name in {"platform_setup_status", "platform_setup_run", "reply_import_preview", "reply_import_confirm", "model_catalog", "model_settings_get", "model_settings_set",
+                "assistant_stop_all", "reply_authorization_list", "reply_authorization_set",
                 "reply_policy_list", "reply_policy_set"} or name in {
             p + "_" + a for p in ("bili", "wechat", "qq") for a in ("start", "stop", "pause", "status")}:
         raise AssistantError("service_entry_required", "平台独立启停需要本机服务入口")

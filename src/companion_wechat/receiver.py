@@ -95,9 +95,11 @@ class DatabaseGateway:
         require(self._saved["enrollment"] == enrollment, "wechat_account_mismatch")
         self.bindings = BindingRegistry(self.store, self.account, identity)
         targets = enrollment["targets"]
-        owner = targets["owner_main"]["username"]
-        expected = [ConversationBinding("owner_main", owner, "private", owner),
-                    ConversationBinding("family", targets["family"]["username"], "group", members={owner: owner})]
+        owner = targets.get("owner_main", {}).get("username")
+        peers = {owner: owner} if owner else {}
+        expected = [ConversationBinding(alias, t["username"], t["kind"],
+                    t["username"] if t["kind"] == "private" else "",
+                    members=peers if t["kind"] == "group" else {}) for alias, t in targets.items()]
         for binding in expected:
             try:
                 current = self.bindings.get(binding.key)

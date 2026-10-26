@@ -84,7 +84,7 @@ async def run_cycle(store, workflows, *, guard, remaining_model_calls, phase=Non
                         continue
                     if phase:
                         phase(stage.name, platform=workflow.platform)
-                    with measure(store, stage.name):
+                    with measure(store, stage.name, generation=run["generation"]):
                         value = stage.callback(workflow.data)
                         if inspect.isawaitable(value):
                             value = await value

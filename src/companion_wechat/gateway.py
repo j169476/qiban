@@ -32,11 +32,15 @@ class PermitAuthority:
                           self._signature(prepared.ticket, request.fingerprint, deadline))
 
     def verify(self, permit, request):
-        require(isinstance(permit, SendPermit)
-                and permit.request_digest == request.fingerprint
-                and self.clock() <= permit.expires_at <= self.clock() + self.lifetime_seconds
-                and hmac.compare_digest(permit.signature, self._signature(
-                    permit.ticket, permit.request_digest, permit.expires_at)), "wechat_permit_invalid")
+        require(isinstance(permit, SendPermit), "wechat_permit_invalid")
+        require(permit.request_digest == request.fingerprint, "wechat_permit_request_mismatch")
+        require(type(permit.expires_at) in (int, float) and math.isfinite(permit.expires_at)
+                and isinstance(permit.signature, str), "wechat_permit_invalid")
+        require(hmac.compare_digest(permit.signature, self._signature(
+            permit.ticket, permit.request_digest, permit.expires_at)), "wechat_permit_signature_invalid")
+        now = self.clock()
+        require(now <= permit.expires_at, "wechat_permit_expired")
+        require(permit.expires_at <= now + self.lifetime_seconds, "wechat_permit_clock_invalid")
 
 
 class Gateway(Protocol):

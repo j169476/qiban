@@ -31,7 +31,7 @@ class Worker:
 def env():
     worker = Worker()
     bindings = SimpleNamespace(get=lambda key: SimpleNamespace(
-        enabled=True, revision=1, target_ref="synthetic-owner"))
+        key="owner_main", enabled=True, revision=1, target_ref="synthetic-owner"))
     receiver = SimpleNamespace(_closed=False, _worker=worker, _lock=asyncio.Lock(), bindings=bindings,
                                connection=lambda: Connection("synthetic-self", "synthetic-inbox-epoch"))
 

@@ -395,7 +395,9 @@
       },
       "management_thread_id": {
         "type": "string",
-        "pattern": "^[A-Za-z0-9_-]{0,100}$"
+        "pattern": "^[A-Za-z0-9_-]{0,100}$",
+        "deprecated": true,
+        "description": "历史兼容字段，不再选择通知目标；故障通知跟随当前管理绑定。"
       },
       "credential_auto_refresh": {
         "type": "boolean"

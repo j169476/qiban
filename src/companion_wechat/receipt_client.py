@@ -33,9 +33,9 @@ class DatabaseReceiptClient:
         connection = receiver.connection()
         require((connection.account_identity, connection.epoch) == (request.account_identity, request.epoch),
                 "wechat_account_mismatch")
-        require(request.conversation in {"owner_main", "family"}, "wechat_target_unbound")
         binding = receiver.bindings.get(request.conversation)
-        require(binding.enabled and binding.target_ref == request.target_ref and binding.revision == request.revision,
+        require(binding.key == request.conversation and binding.enabled
+                and binding.target_ref == request.target_ref and binding.revision == request.revision,
                 "wechat_binding_changed")
         return receiver._worker
 

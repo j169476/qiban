@@ -24,10 +24,11 @@ def _require_paused(store):
         raise AssistantError("login_requires_pause", "请先暂停角色再更新凭证；登录完成后不会自动恢复")
 
 
-def _view(ticket):
+def _view(ticket, store):
     return {k: ticket[k] for k in (
         "ticket_id", "status", "expected_uid", "expires_at", "created_at", "result", "error",
-    ) if k in ticket} | {"login_url": transport.ORIGIN + "/"}
+    ) if k in ticket} | {"login_url": transport.ORIGIN + "/", "handoff": {
+        "version": 1, "data": str(store.root.resolve()), "project_id": ticket["project_id"]}}
 
 
 def _end(store, ticket, status, error=None):
@@ -81,7 +82,7 @@ def prepare(engine):
                 if (previous["owner"] == engine.identity() and not transport.expired(previous, engine.clock())
                         and previous["manifest_version"] == manifest["version"]
                         and previous["run_version"] == _run_version(store)):
-                    return _view(previous)
+                    return _view(previous, store)
                 _end(store, previous, "superseded")
             elif previous["status"] == "saving":
                 # Interrupted keyring writes need an explicit new task, not an automatic replay.
@@ -97,13 +98,13 @@ def prepare(engine):
         store.set_state("browser-login:current", ticket["ticket_id"])
         store.audit("credentials", {"event": "browser_login_prepared", "ticket_id": ticket["ticket_id"],
                                     "actor": engine.identity(), "uid": uid})
-        return _view(ticket)
+        return _view(ticket, store)
 
 
 def status(engine, ticket_id=None):
     with engine.store.lock:
         ticket = _owned(engine, ticket_id)
-        return _view(ticket) if ticket else {"status": "not_started"}
+        return _view(ticket, engine.store) if ticket else {"status": "not_started"}
 
 
 def cancel(engine, ticket_id):
@@ -111,7 +112,7 @@ def cancel(engine, ticket_id):
         ticket = _owned(engine, ticket_id)
         if ticket["status"] in transport.PENDING:
             _end(engine.store, ticket, "cancelled")
-        return _view(ticket)
+        return _view(ticket, engine.store)
 
 
 def _check_current(engine, ticket):
@@ -169,7 +170,7 @@ async def finish(engine, ticket_id):
     with store.lock:
         ticket = _owned(engine, ticket_id)
         if ticket["status"] in transport.TERMINAL or ticket["status"] == "saving":
-            return _view(ticket)  # Repeated completion never repeats a keyring write.
+            return _view(ticket, store)  # Repeated completion never repeats a keyring write.
         if ticket["status"] != "staged":
             raise AssistantError("login_not_staged", "尚未取得浏览器凭证，或另一进程正在验证；请查看登录状态")
         try:
@@ -186,7 +187,7 @@ async def finish(engine, ticket_id):
             with store.lock:
                 current = _owned(engine, ticket_id)
                 if current["status"] != "verifying":
-                    return _view(current)
+                    return _view(current, store)
                 _check_current(engine, ticket)
             path = transport.ticket_path(store.root, ticket_id, ".sealed")
             if path.stat().st_size > transport.MAX_INPUT * 2:
@@ -206,7 +207,7 @@ async def finish(engine, ticket_id):
             with store.lock:
                 current = _owned(engine, ticket_id)
                 if current["status"] != "verifying":
-                    return _view(current)  # Cancel/expiry/supersession during validation revokes the write.
+                    return _view(current, store)  # Cancel/expiry/supersession during validation revokes the write.
                 _check_current(engine, ticket)
                 current.update(status="saving")
                 transport.write_ticket(store.root, current)
@@ -224,7 +225,7 @@ async def finish(engine, ticket_id):
                 _end(store, current, "succeeded")
                 store.audit("credentials", {"event": "browser_login_completed", "ticket_id": ticket_id,
                                             "actor": engine.identity(), **result})
-                return _view(current)
+                return _view(current, store)
     except BaseException as exc:
         # No raw exception (SDK/keyring/JSON) is allowed into task metadata or tool output.
         code = exc.code if isinstance(exc, AssistantError) else "browser_login_failed"

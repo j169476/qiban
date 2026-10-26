@@ -126,6 +126,13 @@ class BilibiliConnector:
     def workflow(self, core):
         from companion_core.governance import enabled
 
+        if core.guard().get("reply_test"):
+            from companion_core.orchestration import Workflow
+
+            # The service's normal poll/handle path owns this bounded private reply.
+            # Do not run autonomous exploration, public actions or action recovery.
+            return Workflow("bilibili", self.account, ())
+
         if enabled(core.store):
             from .governed_workflow import definition
 
@@ -165,6 +172,9 @@ class BilibiliConnector:
         text = {"type": "string", "minLength": 1, "maxLength": 1000}
         video = {"type": "string", "pattern": "^BV[A-Za-z0-9]{10}$"}
         result = [Capability("message.reply", "回复本次实际收到的私信或评论", obj({"text": text}))]
+        core = getattr(self.engine, "core", None)
+        if core and core.store.state(core.run_key, {}).get("reply_test"):
+            return result
         for kind in ("like", "favorite", "coin", "comment"):
             fields = {"bvid": video}
             if kind == "coin":

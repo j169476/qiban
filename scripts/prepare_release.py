@@ -19,7 +19,7 @@ import yaml
 
 REVIEWED_ASSETS = {
     "src/companion_service/static/white-dragon-tea.png": "d0a92800b16bcc0d2048c1f9efe54a619270047f3ed91d96fd380da11fc5ca98",
-    "src/companion_service/static/icons.svg": "0bd1166c93d3183933eb4b88c0a64ffcf9bbcd6682bb61244b220327977842ae"
+    "src/companion_service/static/icons.svg": "76a6440f6721b32452f10265d08a0ba6c3113178ec583c0ddfa355793247a20c"
 }
 
 ROOT_FILES = {
@@ -31,7 +31,8 @@ SOURCE_DIRS = {"src", "tests", "tests_core", "tests_postgres", "tests_wechat", "
 EXTENSIONS = {".py", ".pyi", ".json", ".yaml", ".yml", ".toml", ".md", ".txt", ".sql",
               ".js", ".mjs", ".html", ".css", ".cmd", ".ps1", ".cpp", ".h", ".inc", ".helper"}
 SKIP_DIRS = {".git", ".dev", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "build", "dist"}
-PRIVATE_PREFIXES = ("docs/evidence/", "docs/personas/", "assets/avatars/")
+PRIVATE_PREFIXES = ("docs/evidence/", "docs/personas/", "assets/avatars/",
+                    "docs/V8.2-", "docs/V0_9_DEVELOPMENT.md")
 SKIP_FILES = {"runtime.json", "local-settings.json"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".log", ".db", ".sqlite", ".sqlite3", ".pem", ".key",
                  ".ccbackup", ".cckey", ".zip", ".whl"}
@@ -86,7 +87,8 @@ def source_paths(root):
                 path = parent / child
                 relative = path.relative_to(root).as_posix()
                 lower = child.lower()
-                if (child in SKIP_FILES or path.suffix.lower() in SKIP_SUFFIXES or lower.startswith(".env")
+                if (relative.startswith(PRIVATE_PREFIXES) or child in SKIP_FILES
+                        or path.suffix.lower() in SKIP_SUFFIXES or lower.startswith(".env")
                         or (lower.endswith(".json") and ("cookies" in lower or "credentials" in lower))):
                     continue
                 if linked(path) or (path.suffix.lower() not in EXTENSIONS and child != "LICENSE" and relative not in REVIEWED_ASSETS):

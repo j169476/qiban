@@ -1,0 +1,27 @@
+<section class="card">
+  <p class="eyebrow">CONVERSATION REPLIES</p>
+  <h2>会话回复授权</h2>
+  <p>选择 QQ 或微信，输入对象的完整号码或内部 ID。先找到，再决定是否允许栖伴回复。</p>
+  <form id="reply-search-form" class="reply-search-form">
+    <label>平台<select id="reply-search-platform"><option value="qq">QQ</option><option value="wechat">微信</option></select></label>
+    <label class="reply-search-identity">号码 / UID<input id="reply-search-query" type="text" maxlength="256" placeholder="QQ 号或群号；微信完整内部 ID" autocomplete="off" spellcheck="false" aria-describedby="reply-search-help"></label>
+    <button type="submit"><svg class="icon" aria-hidden="true"><use href="/static/icons.svg#search"></use></svg> 检索对象</button>
+  </form>
+  <p id="reply-search-help" class="task-hint">按完整 ID 精确检索已核验的会话，不按昵称猜测身份，也不会自动添加好友或授予权限。微信使用连接器核验的内部 ID（例如 wxid_… 或 …@chatroom）。</p>
+  <div class="actions"><button id="load-reply-authorizations" class="secondary">查看该平台已授权对象</button></div>
+  <p class="task-hint">授权绑定平台、机器人账号、会话类型与内部 ID。变更会暂停对应平台，之后需明确启动；其他平台保持原状态。此处不授予私人资料读取权限，已交给客户端发送的消息无法撤回。</p>
+  <p id="reply-platforms" class="task-hint" aria-live="polite"></p>
+  <p id="reply-result-summary" role="status">输入号码查找对象，或查看已有授权。</p>
+  <div id="reply-authorizations"><p class="soft-empty">把每一次回应，交给你来决定。</p></div>
+  <nav id="reply-pagination" class="actions" aria-label="回复授权分页" hidden>
+    <button id="reply-previous" class="quiet" type="button" disabled>上一页</button>
+    <span id="reply-page-label"></span>
+    <button id="reply-next" class="quiet" type="button" disabled>下一页</button>
+  </nav>
+  <details class="reply-import"><summary>批量追加回复对象</summary>
+    <p>使用上方选择的平台，每行输入一个完整 ID。重复项会去重，已有授权会保留；先预览再确认。每批最多 200 项，可以分批追加。</p>
+    <form id="reply-import-form"><label>待导入对象<textarea id="reply-import-identifiers" rows="5" maxlength="52000" required placeholder="每行一个号码或内部 ID"></textarea></label><button type="submit" class="secondary">核验并预览</button></form>
+    <p id="reply-import-summary" role="status"></p><div id="reply-import-preview"></div>
+    <button id="reply-import-confirm" type="button" hidden>确认追加授权</button>
+  </details>
+</section>

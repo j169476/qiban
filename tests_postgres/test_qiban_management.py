@@ -70,6 +70,33 @@ def test_desktop_loss_latches_stop_and_only_explicit_admin_resume_unlocks(servic
     assert not service.status()["host"]["restart_required"]
 
 
+@pytest.mark.parametrize("fails", [False, True])
+def test_explicit_resume_requires_recovered_monitor_without_starting_roles(service, fails):
+    service.control("synthetic-bridge-secret", "admin", "management_open", {})
+    service.control("synthetic-bridge-secret", "control", "assistant_start", {})
+    service.store.set_state("model-budget:synthetic", {"used": 62, "sources": {}})
+    calls = []
+
+    def recover():
+        calls.append(True)
+        assert service.status()["status"] == "paused"
+        assert service.host_status()["restart_required"]
+        if fails:
+            raise AssistantError("supervisor_lost", "synthetic monitor failure")
+
+    service.supervisor = SimpleNamespace(ensure_ready=recover, status=lambda: {"healthy": not fails})
+    if fails:
+        with pytest.raises(AssistantError, match="synthetic monitor failure"):
+            service.control("synthetic-bridge-secret", "admin", "service_resume", {})
+    else:
+        result = service.control("synthetic-bridge-secret", "admin", "service_resume", {})
+        assert result["service_ready"] and not result["role_started"]
+    assert calls == [True]
+    assert service.status()["status"] == "paused"
+    assert service.host_status()["restart_required"] is fails
+    assert service.store.state("model-budget:synthetic")["used"] == 62
+
+
 def test_task_cancel_is_versioned_and_does_not_requeue(service):
     service.store.set_state("explicit-task:synthetic", {"status": "running", "phase": "research", "revision": "r1"})
     admin = client(service, "admin")

@@ -9,6 +9,8 @@
 #include <iterator>
 #include <functional>
 #include <memory>
+#include <set>
+#include <string>
 #include "core_version.h"
 
 struct SharedMessage { void* object; void* control; };

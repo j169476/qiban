@@ -6,6 +6,7 @@ import pytest
 
 from companion_wechat.module import ReconnectingTransport, WeChatModule, configured_module, load_options
 from companion_wechat.module_cli import main
+from companion_wechat.receiver_transport import WorkerError
 from tests_wechat.test_receiver import Worker, snapshot
 
 
@@ -29,6 +30,64 @@ async def test_each_reconnect_uses_enrolled_identity_and_fresh_pid():
     assert config == {"client_pid": 999}
     await transport.close()
     assert worker.closed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["client_not_running", "client_identity_changed", "process_closed"])
+async def test_read_rechecks_login_without_changing_checkpoint(code):
+    now, checked = [0], []
+    worker = Worker([{}, {}])
+
+    def check(account, identity):
+        checked.append((account, identity))
+        raise WorkerError(code)
+
+    transport = ReconnectingTransport("unused", select=lambda _: (101, 501), worker=worker,
+                                      check=check, clock=lambda: now[0])
+    previous = snapshot()
+    await transport.request("open", config={"client_pid": 999}, **previous)
+    await transport.request("read", checkpoint=previous["checkpoint"])
+    assert not checked
+    now[0] = 5
+    with pytest.raises(WorkerError) as caught:
+        await transport.request("read", checkpoint=previous["checkpoint"])
+    assert caught.value.code == code
+    assert checked == [(previous["enrollment"]["self_username"], (101, 501))]
+    assert [call[0] for call in worker.calls] == ["open", "read"]
+    assert worker.calls[1][1]["checkpoint"] == previous["checkpoint"]
+
+
+@pytest.mark.parametrize("fault,code", [("logout", "client_not_running"),
+    ("account", "client_identity_changed"), ("pid", "process_closed"), ("access", "process_access_denied"),
+    (None, None)])
+def test_fast_client_check_requires_same_login_and_process(monkeypatch, fault, code):
+    from types import SimpleNamespace
+
+    from companion_wechat.native.protocol import ProbeFailure
+
+    closed = []
+
+    def open_process(*args):
+        if fault == "access":
+            raise OSError("synthetic")
+        return "synthetic-handle"
+
+    def account(*args):
+        if fault == "logout":
+            raise ProbeFailure("account_not_logged_in")
+        return "other" if fault == "account" else "enrolled"
+
+    windows = SimpleNamespace(api=SimpleNamespace(open=open_process, close=closed.append),
+        born=lambda _: 502 if fault == "pid" else 501, modules=lambda _: {"weixin.dll": (100, "unused")},
+        account=account)
+    monkeypatch.setattr("companion_wechat.native.windows.Windows", lambda: windows)
+    if code:
+        with pytest.raises(WorkerError) as caught:
+            ReconnectingTransport._check_client("enrolled", (101, 501))
+        assert caught.value.code == code
+    else:
+        ReconnectingTransport._check_client("enrolled", (101, 501))
+    assert closed == ([] if fault == "access" else ["synthetic-handle"])
 
 
 def test_missing_module_is_not_registered_and_constructor_is_inert(tmp_path):

@@ -1,0 +1,29 @@
+<section class="card">
+  <p class="eyebrow">LET'S GET CONNECTED</p><h2>QQ / 微信接入向导</h2>
+  <p>先准备环境，再保存账号与对象，最后核验。完成配置不会自动授权回复或启动角色。</p>
+  <label>选择平台<select id="setup-platform"><option value="qq">QQ</option><option value="wechat">微信</option></select></label>
+  <div class="actions"><button id="setup-load" class="secondary">检查现有配置</button><button id="setup-prepare" class="secondary" disabled>准备连接依赖</button></div>
+  <p id="setup-status" role="status">选择平台后，先检查现有配置。</p>
+  <p id="setup-instructions" class="task-hint"></p>
+  <div id="setup-qq-guide" class="actions"><a href="https://napneko.github.io/guide/boot/Shell" target="_blank" rel="noopener noreferrer">NapCat 官方安装与登录向导 ↗</a><a href="http://127.0.0.1:6099/webui" target="_blank" rel="noopener noreferrer">打开本机 NapCat 登录页 ↗</a></div>
+  <form id="setup-form" hidden>
+    <div id="setup-qq-fields" class="quota-fields">
+      <label>机器人 QQ 号<input id="setup-qq-account" inputmode="numeric" maxlength="20"></label>
+      <label>HTTP 地址<input id="setup-qq-http" value="http://127.0.0.1:3000"></label>
+      <label>正向 WebSocket 地址<input id="setup-qq-ws" value="ws://127.0.0.1:3001"></label>
+      <label>OneBot Token<input id="setup-qq-token" type="password" maxlength="512" autocomplete="new-password" placeholder="已保存时留空保留"></label>
+      <label>追加私聊 QQ 号<textarea id="setup-qq-private" rows="3" placeholder="每行一个 QQ 号"></textarea></label>
+      <label>追加群号<textarea id="setup-qq-groups" rows="3" placeholder="每行一个群号"></textarea></label>
+    </div>
+    <div id="setup-wechat-fields" hidden>
+      <label>微信账号数据目录<textarea id="setup-wechat-dirs" rows="2" placeholder="填写含 db_storage 的账号目录，每行一个候选路径"></textarea></label>
+      <p id="setup-wechat-existing" class="task-hint"></p>
+      <p class="task-hint">下方仅填写新增对象；留空保留已有登记。昵称和群名不能用作新增对象的身份。</p>
+      <div class="quota-fields"><label>追加私聊内部 ID / 微信号<textarea id="setup-wechat-private" rows="3" placeholder="每行一个"></textarea></label><label>追加群内部 ID<textarea id="setup-wechat-groups" rows="3" placeholder="例如 123456789@chatroom，每行一个"></textarea></label></div>
+      <p class="task-hint">准备依赖会检查并复用可用的 Python 环境和原生桥接，仅在缺失或校验失败时安装或构建。需要构建时须安装 C++ Build Tools。不支持的客户端版本不会自动降级。首次核验需账号和目标会话可被本机数据库确认。</p>
+    </div>
+    <button type="submit">保存并保持暂停</button>
+  </form>
+  <div class="actions"><button id="setup-probe" disabled>核验登录账号与对象</button><button class="quiet" data-go="platforms">完成后管理回复授权</button></div>
+  <p class="task-hint">配置任务会暂停对应平台。核验失败时查看状态原因，修正后重试；成功后再到上方检索或批量预览授权。</p>
+</section>
