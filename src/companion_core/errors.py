@@ -6,4 +6,7 @@ class AssistantError(Exception):
         super().__init__(message)
 
     def as_dict(self):
-        return {"error": self.code, "message": str(self)}
+        value = {"error": self.code, "message": str(self)}
+        if hasattr(self, "diagnostics"):
+            value["diagnostics"] = self.diagnostics
+        return value

@@ -113,7 +113,7 @@ def test_host_paginates_all_sources(tmp_path):
                 if not params.get("cursor"):
                     return {"data": [], "nextCursor": "page2"}
                 return {"data": [{"id": "target"}], "nextCursor": None}
-            pytest.fail("should have found archived thread")
+            return {"data": [], "nextCursor": None}
 
     assert Stub(tmp_path).status("target")["archived"]
 

@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 from companion_core.errors import AssistantError
+from companion_core.operation_context import stage
 from companion_core.storage import atomic_write
 
 VAULT = "companion-local-service"
@@ -73,13 +74,17 @@ def open_store(project):
         raise AssistantError("service_missing", "尚未配置本机服务")
     from .managed_postgres import ensure
 
-    ensure(config)
-    secret = secrets_for(config)
-    store = PostgresStore(config["data"], {**config["database"], "password": secret["database_password"]},
-                          secret["key"], profile())
-    if not store.validate_critical()["ok"]:
-        store.database.close()
-        raise AssistantError("service_invalid", "服务资料校验未通过，保持暂停")
+    with stage("database_start"):
+        ensure(config)
+    with stage("credential_store"):
+        secret = secrets_for(config)
+    with stage("database_connect"):
+        store = PostgresStore(config["data"], {**config["database"], "password": secret["database_password"]},
+                              secret["key"], profile())
+    with stage("data_validation"):
+        if not store.validate_critical()["ok"]:
+            store.database.close()
+            raise AssistantError("service_invalid", "服务资料校验未通过，保持暂停")
     return config, store, secret["bridge_secret"]
 
 

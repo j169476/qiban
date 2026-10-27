@@ -5,9 +5,10 @@ import os
 import subprocess
 from pathlib import Path
 
-from filelock import FileLock
+from filelock import FileLock, Timeout
 
 from companion_core.errors import AssistantError
+from companion_core.operation_context import bounded, remaining, stage
 
 
 def command(root, *arguments, timeout=45):
@@ -23,6 +24,11 @@ def command(root, *arguments, timeout=45):
             return process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             process.terminate()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=3)
             raise AssistantError("database_timeout", "数据库进程未在限定时间内就绪") from None
 
 
@@ -34,8 +40,14 @@ def ensure(config):
     expected = Path(os.environ.get("LOCALAPPDATA", "")) / "Companion" / config["id"]
     if path != expected.resolve():
         raise AssistantError("database_runtime", "托管数据库不属于当前安装")
-    with FileLock(str(path / "postgres-start.lock"), timeout=45):
-        if command(path, "status") == 0:
-            return
-        if command(path, "-l", str(path / "database.log"), "-w", "start") != 0:
-            raise AssistantError("database_unavailable", "本机数据库未能启动，角色保持暂停")
+    try:
+        with bounded(50, "database_timeout"), stage("database_lock"), FileLock(str(path / "postgres-start.lock"), timeout=remaining(5)):
+            with stage("database_status"):
+                if command(path, "status", timeout=remaining(5)) == 0:
+                    return
+            with stage("database_recovery"):
+                # PostgreSQL performs WAL recovery itself; never delete a live PID file.
+                if command(path, "-l", str(path / "database.log"), "-w", "-t", "40", "start", timeout=remaining(43)) != 0:
+                    raise AssistantError("database_unavailable", "本机数据库未能启动，请查看数据库恢复阶段诊断")
+    except Timeout:
+        raise AssistantError("database_start_busy", "数据库正在由另一启动请求恢复，请稍后查询状态") from None

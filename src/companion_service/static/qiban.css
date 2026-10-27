@@ -82,6 +82,7 @@
 .quota-dialog::backdrop {background:#33294466}
 .quota-dialog label {display:flex;flex-direction:column;gap:.4rem;margin:.8rem 0}
 .quota-dialog input {width:100%;box-sizing:border-box}
+#setup fieldset {border:0;padding:0;margin:0;min-width:0}
 .form-error {color:#8b3045}
 
 /* Shared hierarchy: system fonts only; no remotely loaded or bundled fonts. */

@@ -14,6 +14,7 @@ from starlette.routing import Route
 from starlette.staticfiles import StaticFiles
 
 from companion_core.errors import AssistantError
+from companion_core.operation_context import Trace, stage
 
 from .admin import Management
 from .security import LocalBoundary
@@ -71,6 +72,8 @@ def create_app(service, *, kind, origin, counterpart):
         if kind != "admin":
             raise AssistantError("access_denied", "请从管理入口初始化")
         args = await data(request)
+        if request.url.path == "/setup/validate":
+            return result(await run_in_threadpool(service.sessions.validate_setup_ticket, args.get("ticket")))
         return result(await run_in_threadpool(service.sessions.configure, args.get("ticket"), args.get("password")))
 
     async def manual(request):
@@ -204,7 +207,8 @@ def create_app(service, *, kind, origin, counterpart):
         header = request.headers.get("authorization", "")
         if not header.startswith("Bearer ") or request.headers.get("origin"):
             raise AssistantError("bridge_denied", "控制入口需要独立本机凭据")
-        value = await service.control_async(header[7:], args["thread"], args["operation"], args.get("arguments", {}))
+        with Trace("service_control").activate(), stage("control_operation"):
+            value = await service.control_async(header[7:], args["thread"], args["operation"], args.get("arguments", {}))
         return result(value)
 
     async def recovery(request):
@@ -233,7 +237,7 @@ def create_app(service, *, kind, origin, counterpart):
               Route("/logout", logout, methods=["POST"]), Route("/status", status),
               Route("/messages", messages, methods=["GET", "POST"])]
     if kind == "admin":
-        routes += [Route("/healthz", health), Route("/records", records), Route("/actors", actors), Route("/operate", operate, methods=["POST"]),
+        routes += [Route("/setup/validate", setup, methods=["POST"]), Route("/healthz", health), Route("/records", records), Route("/actors", actors), Route("/operate", operate, methods=["POST"]),
                    Route("/password", password, methods=["POST"]), Route("/password-reset", password, methods=["POST"]),
                    Route("/recovery-key", recovery, methods=["POST"]),
                    Route("/export", export, methods=["POST"]), Route("/control", control, methods=["POST"])]
