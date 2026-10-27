@@ -7,12 +7,13 @@ import {createRequire} from 'node:module';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+const sourceRoot=process.env.QIBAN_UI_SOURCE_ROOT||root;
 const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.QIBAN_PLAYWRIGHT_MODULE||'playwright');
 const python=process.env.QIBAN_PYTHON||path.join(root,'.venv',process.platform==='win32'?'Scripts/python.exe':'bin/python');
 const output=process.env.QIBAN_UI_OUTPUT||path.join(root,'.dev/v09/browser');await mkdir(output,{recursive:true});
 const render=spawnSync(python,['-c',
-  'import json; from jinja2 import Environment, FileSystemLoader; e=Environment(loader=FileSystemLoader("src/companion_service/templates")); print(json.dumps({k:e.get_template("index.html").render(kind="role" if k=="role" else "admin", authenticated=k!="login", configured=True, csrf="synthetic", counterpart="http://qiban.test/role", nonce="synthetic", kinds=["persona","memories","policy","companion"]) for k in ("admin","role","login")}))'],{cwd:root,encoding:'utf8'});
+  'import json; from jinja2 import Environment, FileSystemLoader; e=Environment(loader=FileSystemLoader("src/companion_service/templates")); print(json.dumps({k:e.get_template("index.html").render(kind="role" if k=="role" else "admin", authenticated=k!="login", configured=True, csrf="synthetic", counterpart="http://qiban.test/role", nonce="synthetic", kinds=["persona","memories","policy","companion"]) for k in ("admin","role","login")}))'],{cwd:sourceRoot,encoding:'utf8'});
 assert.equal(render.status,0,render.stderr);const templates=JSON.parse(render.stdout);
 const state={"status":"active","busy":false,"reason":"running","generation":"synthetic-local","owner":"synthetic-manager","host":{"available":true,"status":"online","restart_required":false},"platforms":[{"platform":"bilibili","available":true,"status":"paused","reason":"explicit_start_required","generation":null},{"platform":"wechat","available":true,"status":"active","busy":false,"owner":"synthetic-manager","generation":"synthetic-wechat"},{"platform":"qq","available":false,"status":"paused"}],"quotas":{"model":{"used":42,"limit":200,"remaining":158},"local":{"used":12,"limit":100,"remaining":88}},"backup":{"last_saved_at":1792967000,"recovery_key_exported":true},"compression":{"status":"idle"}};
 const monitor={"updated_at":1792967200,"timezone":"Asia/Shanghai","quotas":[{"label":"模型调用","used":42,"limit":200,"remaining":158},{"label":"本机会客室回复","used":12,"limit":100,"remaining":88}],"coding_plan":{"status":"available","updated_at":1792967200,"stale":false,"buckets":[{"id":"codex","name":"Codex","windows":[{"name":"primary","used_percent":27,"remaining_percent":73,"window_minutes":300,"resets_at":1792980000},{"name":"secondary","used_percent":18,"remaining_percent":82,"window_minutes":10080,"resets_at":1793500000}]}]},"tokens":{"input_tokens":126400,"cached_input_tokens":82400,"output_tokens":18600,"reasoning_output_tokens":5200},"token_known_calls":{"input_tokens":42,"cached_input_tokens":42,"output_tokens":42,"reasoning_output_tokens":42},"model_calls":42,"days":1,"write_failures":0,"recent":[],"tasks":[]};
@@ -25,7 +26,7 @@ const modelSnapshot=()=>({...modelChoices,effective:Object.fromEntries(['global'
  const choice=modelChoices.overrides[scope]||modelChoices.global;
  return [scope,choice?{...choice,source:modelChoices.overrides[scope]?scope:'global'}:{model:'host-model',effort:'low',source:'codex_config'}];
 }))});
-const page=await browser.newPage({viewport:{width:1440,height:1050},reducedMotion:'reduce'});
+const page=await browser.newPage({viewport:{width:1440,height:1050},reducedMotion:'reduce',locale:'zh-CN'});
 page.on('pageerror',e=>errors.push(String(e)));
 await page.route('**/*',async route=>{
  const request=route.request(),url=new URL(request.url()),p=url.pathname;
@@ -58,7 +59,7 @@ await page.route('**/*',async route=>{
  else if(p==='/conversation')body=request.method()==='POST'?JSON.stringify({messages:[],removed:[],updates:[],next:null,newest:null}):'[]';
  else if(p.startsWith('/static/')){
   assert.match(p,new RegExp('^/static/[a-zA-Z0-9._-]+$'));
-  body=await readFile(path.join(root,'src/companion_service',p));
+  body=await readFile(path.join(sourceRoot,'src/companion_service',p));
   type=({'.css':'text/css','.js':'text/javascript','.svg':'image/svg+xml','.png':'image/png','.txt':'text/plain'})[path.extname(p)];
  }else {body=templates[mode];type='text/html';}
  await route.fulfill({status:200,body,contentType:type,headers:{'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'"}});
@@ -101,7 +102,7 @@ try{
  qq.connection={state:'connected',code:''};wechat.connection={state:'connected',code:''};await page.evaluate(()=>refresh());
  for(const width of [1440,390,320]){
   await page.setViewportSize({width,height:1050});await connectorLink.scrollIntoViewIfNeeded();
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,JSON.stringify({width,overflow:await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right})))}));
   assert.equal(await connectorLink.evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),true);
   await page.screenshot({path:path.join(output,`qq-connector-management-link-${width}.png`)});
  }

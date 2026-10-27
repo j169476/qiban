@@ -18,6 +18,16 @@ def current_stage():
     return _stage.get()
 
 
+@contextmanager
+def stage(value):
+    """Label a real model call without creating a second timing observation."""
+    token = _stage.set(value)
+    try:
+        yield
+    finally:
+        _stage.reset(token)
+
+
 def label(value, default="unknown"):
     return value if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_./:-]{1,100}", value) else default
 
@@ -66,6 +76,8 @@ class Observation:
         if error is not None and not isinstance(error, asyncio.CancelledError):
             from .diagnostics import record_exception
 
+            if isinstance(error, AssistantError) and not hasattr(error, "runtime_stage"):
+                error.runtime_stage = self.stage
             record_exception(self.store, error, stage=self.stage, generation=self.generation, observation_id=self.id)
         elapsed = max(0, round((time.monotonic() - self.monotonic) * 1000))
         from .reply_trace import point

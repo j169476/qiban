@@ -45,10 +45,14 @@ class PlatformRuns:
                     "reason", "running" if run.get("status") == "active" else
                     "explicit_start_required" if platform in self.cores else "platform_unavailable"),
                 "owner": run.get("owner"), "generation": run.get("generation"),
+                "owner_title": getattr(self.service.host, "chat_title", lambda _: None)(run.get("owner")),
                 "read_only": run.get("read_only", False), "deadline_at": run.get("deadline_at"),
                 "busy": platform in self.busy}
         if result["reason"] == "outside_active_hours":
             result["reason"] = "running" if result["status"] == "active" else "explicit_start_required"
+        fault = self.store.state("platform-fault-stage:" + platform, {})
+        if fault.get("code") == result["reason"] and fault.get("generation") == result["generation"]:
+            result["fault"] = fault
         if platform == "qq":
             from companion_qq.config import management_url
 
@@ -278,16 +282,11 @@ class PlatformRuns:
                                     for a in adapters), default=60)
                     next_poll = time.monotonic() + interval
                     private = incoming if custom_poll else [event for event in incoming if event.visibility == "private"]
-                    for event in private[:settings.get("inbox_batch_size", 3)]:
-                        if self.store.state(core.run_key, {}).get("status") != "active":
-                            break
-                        if await asyncio.to_thread(core.remaining_model_calls):
-                            try:
-                                stage = "reply"
-                                await core.handle(event)
-                            except AssistantError as exc:
-                                if exc.code not in {"reply_session_expired", "reply_quota_exhausted", "reply_not_authorized"}:
-                                    raise
+                    from companion_core.reply_batch import handle_batch
+
+                    stage = "reply"
+                    await handle_batch(core, private[:settings.get("inbox_batch_size", 3)],
+                                       concurrency=2 if custom_poll else 1)
                 if self.store.state(core.run_key, {}).get("status") != "active":
                     continue
                 if not custom_poll and not run.get("reply_test") and time.monotonic() >= next_cycle:
@@ -296,6 +295,11 @@ class PlatformRuns:
                     next_cycle = time.monotonic() + self.store.read("policy")["data"].get("cycle_minutes", 15) * 60
             except (AssistantError, TimeoutError) as exc:
                 code = exc.code if isinstance(exc, AssistantError) else "inbox_timeout"
+                if code.startswith("public_growth_"):
+                    from companion_core.observability import label
+
+                    self.store.set_state("platform-fault-stage:" + platform, {
+                        "code": code, "stage": label(getattr(exc, "runtime_stage", stage)), "generation": generation})
                 failures += 1
                 next_poll = time.monotonic() + min(900, 60 * 2 ** min(failures, 4))
                 if code not in delivery.TEMPORARY | {"cycle_busy"} and (

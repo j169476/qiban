@@ -15,7 +15,7 @@ from companion_core.errors import AssistantError
 from .bindings import BindingRegistry, ConversationBinding
 from .connector import WeChatConnector
 from .contracts import Connection, Observation, digest, identifier, require
-from .db_source import SourceError, validate_checkpoint, validate_enrollment
+from .db_source import SourceError, enrollment_identity, validate_checkpoint, validate_enrollment
 from .durable_inbox import DurableInbox
 from .receiver_transport import SubprocessTransport, WorkerError
 
@@ -36,7 +36,7 @@ def _snapshot(value):
 
 
 def _advance(before, after, *, opening=False):
-    require(before["enrollment"] == after["enrollment"], "wechat_account_mismatch")
+    require(enrollment_identity(before["enrollment"]) == enrollment_identity(after["enrollment"]), "wechat_account_mismatch")
     old, new = before["checkpoint"]["sources"], after["checkpoint"]["sources"]
     require(set(old) <= set(new), "wechat_source_regressed")
     for key, previous in old.items():
@@ -92,7 +92,7 @@ class DatabaseGateway:
                                      expected_checkpoint=None, checkpoint=pointer)
             self._saved = pointer
         self._saved = _snapshot(self._saved)
-        require(self._saved["enrollment"] == enrollment, "wechat_account_mismatch")
+        require(enrollment_identity(self._saved["enrollment"]) == enrollment_identity(enrollment), "wechat_account_mismatch")
         self.bindings = BindingRegistry(self.store, self.account, identity)
         targets = enrollment["targets"]
         owner = targets.get("owner_main", {}).get("username")
@@ -151,6 +151,8 @@ class DatabaseGateway:
             self.inbox.publish_batch([], checkpoint_key=self.source_key,
                                      expected_checkpoint=previous, checkpoint=snapshot)
             self._saved = snapshot
+        self.store.set_state("wechat-display-names:" + snapshot["enrollment"]["account_id"],
+                             snapshot["enrollment"].get("display_names", {}))
         self._reconnects += 1
         self._state, self._code = "connected", ""
         self._next_retry = 0.0

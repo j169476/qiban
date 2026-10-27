@@ -58,9 +58,9 @@ python <插件绝对路径>/scripts/run.py call reply_authorization_set --input 
 先读取账号稳定身份和 version，再提交 `{platform,account_identity,expected_version,changes}`。
 changes 可包含 private_daily_replies（0–10000，默认200）、group_session_replies（1–100，默认5）、
 group_session_decisions（1–1000，默认20）、group_session_minutes（1–120，默认10）。
-私聊无需 @；额度按平台机器人账号及 policy.timezone 的自然日计算，微信和 QQ、私聊和群聊分开。
+私聊无需 @；额度按平台、机器人账号、联系人独立计算，按 policy.timezone 的自然日重置。
 群聊从真实 @/引用开始，话题结束或任一上限到达即等待再次唤起；参与中的连续 @ 不延长额度。
-结果不确定的发送保留额度且不自动补发。改设置只暂停对应平台，不清零已用额度、不自动启动；
+结果不确定的发送保留额度且不自动补发。改额度立即生效，不清零已用量、不暂停或自动启动；
 冲突需重新读取版本。普通角色对话不能改这些设置。详情见项目 docs/QQ_MODULE.md。
 
 Codex 只开放 policy 和 companion 配置：config_get 读 version，再以最小 patch 和 expected_version 调用 config_patch；冲突时重读。参数文件可放项目 .dev/，不含凭据或私人记忆。
@@ -90,3 +90,7 @@ Codex 只开放 policy 和 companion 配置：config_get 读 version，再以最
 沿用已授权的 admin_once：一次运行最多一次故障通知，普通重试静默。收到运行故障通知 后简短说明故障与下一步，没有新指令不启动或向其他聊天发送消息。机器关机时不能即时通知。后台在线、收件正常、模型工作中和角色暂停按实际状态分别说明。
 
 管理问答不写角色经历或好感。不手改运行账本清额度、重复派发、恢复暂停或规避权限。安装与迁移错误保持暂停，不回退旧文件写入路径。
+
+对象卡片齿轮与管理聊天共用 `reply_policy_object_set` / `reply_policy_object_reset`，从 `reply_policy_list` 的 contacts/groups 读取 scope_id 与 version。
+单独调整提交 `{scope_id,expected_version,changes}`；恢复默认提交 `{scope_id,expected_version}`。群阶段沿用原开始时间，已结束阶段不自动恢复。
+网页顶部语言切换仅控制管理显示与用户手册，不限制模型。公开成长来源故障在系统设置预览恢复；不重新登录或改权限绕过来源检查。

@@ -12,7 +12,7 @@ import re
 import time
 import uuid
 from contextlib import ExitStack, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -52,7 +52,8 @@ def _integer(value, low=0):
 
 def validate_enrollment(value):
     fields = {"schema_version", "epoch", "account_id", "account_directory_id", "self_username", "targets", "since"}
-    if not isinstance(value, dict) or set(value) != fields or type(value["schema_version"]) is not int:
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {"display_names"}
+            or type(value["schema_version"]) is not int):
         raise SourceError("source_enrollment_invalid")
     if (value["schema_version"] != 1 or not isinstance(value["epoch"], str)
             or not re.fullmatch(r"[0-9a-f]{32}", value["epoch"])
@@ -75,6 +76,10 @@ def validate_enrollment(value):
                 or target["username"] in identities):
             raise SourceError("source_enrollment_invalid")
         identities.add(target["username"])
+    names = value.get("display_names", {})
+    if (not isinstance(names, dict) or set(names) - identities - {value["self_username"]}
+            or any(not isinstance(name, str) or len(name) > 200 for name in names.values())):
+        raise SourceError("source_enrollment_invalid")
     return _copy(value)
 
 
@@ -142,6 +147,7 @@ class Prepared:
     targets: list
     sources: list
     catalog: tuple
+    display_names: dict = field(default_factory=dict)
 
 
 @contextmanager
@@ -191,6 +197,18 @@ def _native_prepare(config, enrollment):
                     if len(rows) != 1 or rows[0][0] != username:
                         raise SourceError("source_identity_changed")
                     targets.append(Target(alias, username))
+            names = {}
+            columns = {r[1] for r in connection.execute("PRAGMA table_info(contact)")}
+            if {"remark", "nick_name"} <= columns:
+                identifiers = [own, *(target.username for target in targets)]
+                for offset in range(0, len(identifiers), 500):
+                    batch = identifiers[offset:offset + 500]
+                    rows = connection.execute("SELECT username,remark,nick_name FROM contact WHERE username COLLATE BINARY IN ("
+                                              + ",".join("?" for _ in batch) + ")", batch).fetchall()
+                    for username, remark, nickname in rows:
+                        name = remark or nickname or ""
+                        if isinstance(name, str):
+                            names[username] = name[:200]
         files = _list_shards(account)
         process = stack.enter_context(NativeProcess(client.pid))
         pages = {f"shard_{i}": page_one(path) for i, path in enumerate(files)}
@@ -201,7 +219,7 @@ def _native_prepare(config, enrollment):
             sources.extend(make_sources(connection, path, targets))
         if any(not any(s.target.alias == target.alias for s in sources) for target in targets):
             raise SourceError("source_identity_changed")
-        yield Prepared(client, account, own, targets, sources, tuple(path.name for path in files))
+        yield Prepared(client, account, own, targets, sources, tuple(path.name for path in files), names)
 
 
 def _anchor(row):
@@ -210,6 +228,11 @@ def _anchor(row):
     if len(row) != 3 or any(not _integer(value, 1) for value in row):
         raise SourceError("source_pending_at_enrollment")
     return dict(zip(("local_id", "server_id", "create_time"), row))
+
+
+def enrollment_identity(value):
+    """Display metadata is never part of account, cursor or send identity."""
+    return {key: item for key, item in validate_enrollment(value).items() if key != "display_names"}
 
 
 class SourceSession:
@@ -259,6 +282,10 @@ class SourceSession:
                         or self._enrollment["self_username"] != prepared.self_username
                         or self._enrollment["targets"] != targets):
                     raise SourceError("source_identity_changed")
+            if getattr(prepared, "display_names", None):
+                self._enrollment["display_names"] = dict(prepared.display_names)
+            else:
+                self._enrollment.pop("display_names", None)
             for source in prepared.sources:
                 relative = source.path.relative_to(prepared.account / "db_storage").as_posix()
                 if not _SHARD.fullmatch(relative) or source.target.alias not in targets:

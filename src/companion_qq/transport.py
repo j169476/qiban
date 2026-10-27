@@ -63,8 +63,12 @@ class OneBot:
             require(isinstance(member, dict) and qq_id(member.get("user_id")) == self.options["account"]
                     and qq_id(member.get("group_id")) == group, "qq_target_unverified")
         self.identity()
-        return {"account": self.options["account"], "account_label": str(identity.get("nickname", ""))[:100],
-                "private_targets": self.options["private_targets"], "groups": self.options["groups"]}
+        return {"account": self.options["account"], "account_label": str(identity.get("nickname") or "")[:100],
+                "private_targets": self.options["private_targets"], "groups": self.options["groups"],
+                "names": {"private": {qq_id(v["user_id"]): str(v.get("remark") or v.get("nickname") or "")[:200]
+                                       for v in friends if qq_id(v["user_id"]) in self.options["private_targets"]},
+                          "group": {qq_id(v["group_id"]): str(v.get("group_name") or "")[:200]
+                                    for v in groups if qq_id(v["group_id"]) in self.options["groups"]}}}
 
     async def connect(self):
         try:

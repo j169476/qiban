@@ -11,6 +11,14 @@ from .selection import contains, normalize
 CACHE_KEY = "algorithm-recall-cache:v1"
 
 
+def acknowledgment(query):
+    # Exact complete utterances only. Any additional subject, question or recall
+    # request retains semantic expansion. Normal memory/history retrieval remains.
+    value = query.strip().casefold().strip("。！!，,.~～ ")
+    return value in {"你好", "您好", "早上好", "早安", "晚安", "谢谢", "谢谢你", "好的", "收到",
+                     "hi", "hello", "thanks", "thank you", "good morning", "good night", "ok", "okay"}
+
+
 def valid_queries(value):
     return (isinstance(value, list) and 1 <= len(value) <= 5
             and all(isinstance(q, str) and 0 < len(q.strip()) <= 100 for q in value))
@@ -59,6 +67,8 @@ async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, g
         return finish("local", "empty_query")
     if not eligible:
         return finish("local", "small_library", aliases)
+    if acknowledgment(query):
+        return finish("local", "conversational_acknowledgment", aliases)
     key = hashlib.sha256(json.dumps({
         "query": query.strip(), "scope": scope, "uids": sorted(set(uids)), "policy": config,
         "configs": {k: v["version"] for k, v in configurations.items() if k != "companion"},

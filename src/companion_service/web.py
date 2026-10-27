@@ -73,6 +73,9 @@ def create_app(service, *, kind, origin, counterpart):
         args = await data(request)
         return result(await run_in_threadpool(service.sessions.configure, args.get("ticket"), args.get("password")))
 
+    async def manual(request):
+        return HTMLResponse(templates.get_template("manual.html").render())
+
     async def login(request):
         args = await data(request)
         token = await run_in_threadpool(service.sessions.login, args.get("password"), kind)
@@ -226,7 +229,7 @@ def create_app(service, *, kind, origin, counterpart):
     async def invalid(request, exc):
         return JSONResponse({"error": "invalid_request", "message": "请求字段无效"}, status_code=400)
 
-    routes = [Route("/", home), Route("/setup", setup, methods=["POST"]), Route("/login", login, methods=["POST"]),
+    routes = [Route("/", home), Route("/manual", manual), Route("/setup", setup, methods=["POST"]), Route("/login", login, methods=["POST"]),
               Route("/logout", logout, methods=["POST"]), Route("/status", status),
               Route("/messages", messages, methods=["GET", "POST"])]
     if kind == "admin":
