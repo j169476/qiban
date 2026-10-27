@@ -11,6 +11,7 @@ from companion_codex.host import CodexHost
 from companion_codex.model import CodexModel
 from companion_codex.selection import ModelSelection
 from companion_core.errors import AssistantError
+from companion_core.operation_context import Trace, detached_trace, safe_failure, stage
 
 from .config import open_store, urls
 from .service import Service
@@ -18,6 +19,15 @@ from .web import create_app
 
 
 async def serve(project):
+    from .config import metadata
+
+    config = metadata(project)
+    path = Path(config["data"]) / "runtime" / "service-startup.json" if config else None
+    with Trace("service_startup", path=path).activate(), stage("service_lifetime"):
+        await _serve(project)
+
+
+async def _serve(project):
     from bili_assistant.bilibili import Bilibili
     from bili_assistant.connector import BilibiliConnector
     from bili_assistant.engine import Engine
@@ -56,15 +66,17 @@ async def serve(project):
             create_app(service, kind=kind, origin=addresses[kind], counterpart=addresses["role" if kind == "admin" else "admin"]),
             host="127.0.0.1", port=port, access_log=False, server_header=False, log_level="error", limit_concurrency=32,
             timeout_keep_alive=5)) for kind, port in config["ports"].items()]
-        await service.open()
+        with stage("service_open"), detached_trace():
+            await service.open()
         try:
             from .watchdog import Supervisor
 
-            service.supervisor = Supervisor(service, project)
-            service.supervisor.start()
+            with stage("supervisor_start"):
+                service.supervisor = Supervisor(service, project)
+                service.supervisor.start()
             # One signal owner; secondary servers use Uvicorn's internal serving
             # routine so they cannot install competing process signal handlers.
-            with servers[0].capture_signals():
+            with servers[0].capture_signals(), detached_trace():
                 tasks = [asyncio.create_task(server._serve()) for server in servers]
                 await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 for server in servers:
@@ -137,11 +149,13 @@ def main():
         else:
             asyncio.run(serve(args.project))
     except (AssistantError, Timeout) as exc:
-        print(json.dumps({"error": exc.code if isinstance(exc, AssistantError) else "service_already_running"}))
+        print(json.dumps(exc.as_dict() if isinstance(exc, AssistantError) else {"error": "service_already_running"},
+                         ensure_ascii=False))
         raise SystemExit(2) from None
-    except Exception:
+    except Exception as exc:
         # Driver errors can contain connection credentials or private payloads.
-        print(json.dumps({"error": "service_internal_error", "message": "服务未完成，角色不会自动恢复"}, ensure_ascii=False))
+        print(json.dumps({"error": "service_internal_error", "message": "服务未完成，角色不会自动恢复",
+                          "diagnostics": safe_failure(exc)}, ensure_ascii=False))
         raise SystemExit(2) from None
 
 

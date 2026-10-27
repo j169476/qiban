@@ -610,12 +610,12 @@ window.QIBAN_EN = {
   "栖伴 Qiban · 把日常，过成喜欢的模样。": "Qiban · Make everyday life your own.",
   "页面刷新不会自动启动角色": "Refreshing this page does not start the character",
   "开发者 · YiNing和ta的小龙": "Developer · YiNing和ta的小龙",
-  "v0.9.3 测试版": "v0.9.3 beta",
+  "v0.9.4 测试版": "v0.9.4 beta",
   "关于与开源声明": "About and open-source notices",
   "关于栖伴": "About Qiban",
   "由": "An independently maintained local AI companion by",
   "YiNing和ta的小龙": "YiNing和ta的小龙",
-  "独立维护的本地 AI 伙伴。当前为 v0.9.3 测试版（0.9.3）；v1.0 正式版待人工长时运行与各功能验证完成后发布。": ". Currently v0.9.3 beta (0.9.3). Version 1.0 will follow manual long-running and functional verification.",
+  "独立维护的本地 AI 伙伴。当前为 v0.9.4 测试版（0.9.4）；v1.0 正式版待人工长时运行与各功能验证完成后发布。": ". Currently v0.9.4 beta (0.9.4). Version 1.0 will follow manual long-running and functional verification.",
   "开源许可": "Open-source license",
   "项目自有代码、随项目分发的白龙娘界面插画及 SVG 图标采用 MIT License，可依许可使用、修改和分发，须保留版权与许可声明。": "Project-owned code, the bundled white dragon illustration and SVG icons use the MIT License. Use, modification and distribution require preserving the copyright and license notices.",
   "第三方组件仍适用各自许可。微信原生桥接含自定义非商业许可内容，完整发行包不能仅按 MIT 解释。用户上传的图片、人物卡和聊天内容不在项目授权范围内。": "Third-party components retain their own licenses. The WeChat native bridge includes material under a custom noncommercial license, so the complete distribution is not solely MIT-licensed. Uploaded images, character cards and chat content are outside the project's license grant.",
@@ -711,4 +711,16 @@ Object.assign(window.QIBAN_EN, {
   "B 站互动": "Bilibili interactions",
   "QQ 发送": "QQ sends",
   "微信发送": "WeChat sends"
+});
+
+Object.assign(window.QIBAN_EN, {
+  "请先在管理聊天调用 service_setup，并打开返回的一次性初始化链接。": "Run service_setup in the management chat, then open its one-time setup link.",
+  "正在核验初始化链接…": "Checking the setup link…",
+  "初始化链接已核验，请设置本机管理密码。": "Setup link verified. Choose your local administrator password.",
+  "请先在管理聊天调用 service_setup，并打开返回的一次性初始化链接": "Run service_setup in the management chat, then open its one-time setup link.",
+  "尚未签发初始化凭据，请先在管理聊天调用 service_setup": "No setup credential has been issued. Run service_setup in the management chat.",
+  "初始化链接无效，请在管理聊天重新调用 service_setup": "This setup link is invalid. Request a new link with service_setup in the management chat.",
+  "初始化已完成，请返回首页登录；不要重复提交初始化表单": "Setup is already complete. Return to the home page and sign in.",
+  "初始化链接已过期，请在管理聊天重新调用 service_setup": "This setup link expired. Request a new link with service_setup in the management chat.",
+  "初始化链接已失效，请在管理聊天重新调用 service_setup": "This setup link is no longer valid. Request a new link with service_setup in the management chat."
 });

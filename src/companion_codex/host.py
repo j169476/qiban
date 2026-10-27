@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from companion_core.errors import AssistantError
+from companion_core.operation_context import bounded, checkpoint, locked, remaining, stage
 
 from . import __version__
 
@@ -98,26 +99,35 @@ class CodexHost:
                 json.dumps({"id": request_id, "method": method, "params": params}) + "\n"
             )
             self.process.stdin.flush()
-            deadline = time.monotonic() + 10
+            deadline = time.monotonic() + remaining(10)
             while time.monotonic() < deadline:
                 msg = self.messages.get(timeout=max(0.01, deadline - time.monotonic()))
                 if msg.get("id") == request_id:
                     if "error" in msg:
                         raise AssistantError("host_protocol_error", f"{method} 调用失败")
                     return msg["result"]
-        except (OSError, queue.Empty):
+        except queue.Empty:
+            self.close()
+            raise AssistantError("host_timeout", "宿主状态核验超时，请检查宿主后重试") from None
+        except OSError:
             self.close()
             raise AssistantError("host_unavailable", "无法核实宿主聊天状态，已阻止自主活动") from None
+        self.close()
         raise AssistantError("host_timeout", "宿主状态查询超时")
 
     def request(self, method, params):
-        with self.lock:
+        with locked(self.lock):
             self.connect()
             return self._request(method, params)
 
     def status(self, thread_id=None):
+        with bounded(15, "host_timeout"), stage("host_identity"):
+            return self._status(thread_id)
+
+    def _status(self, thread_id=None):
         tid = thread_id or self.identity()
         read = self.request("thread/read", {"threadId": tid, "includeTurns": False})
+        checkpoint()
         thread = read["thread"]
         if Path(thread["cwd"]).resolve() != self.project:
             raise AssistantError("wrong_project", "聊天所属项目与数据空间不匹配")
@@ -126,18 +136,24 @@ class CodexHost:
             self._chat_titles[tid] = title[:500]
         # Empty sourceKinds includes every source, including desktop/appServer/exec.
         # Both lists are paginated; absence from the first page is not evidence of archive.
-        for archived in (True, False):
+        for archived in (False, True):
             cursor = None
+            seen = set()
             while True:
+                checkpoint()
                 params = {"cwd": str(self.project), "archived": archived, "sourceKinds": [], "limit": 100}
                 if cursor:
                     params["cursor"] = cursor
                 page = self.request("thread/list", params)
+                checkpoint()
                 if any(item["id"] == tid for item in page["data"]):
                     return {"thread_id": tid, "archived": archived, "project": str(self.project)}
                 cursor = page.get("nextCursor")
                 if not cursor:
                     break
+                if cursor in seen or len(seen) >= 100:
+                    raise AssistantError("host_state_unknown", "宿主分页未能确认聊天状态，请检查宿主后重试")
+                seen.add(cursor)
         raise AssistantError("host_state_unknown", "宿主列表无法确认聊天状态")
 
     def chat_title(self, thread_id):
@@ -145,6 +161,10 @@ class CodexHost:
         return self._chat_titles.get(thread_id)
 
     def require_active(self, thread_id=None):
+        with bounded(15, "host_timeout"), locked(self.lock), stage("host_verification"):
+            return self._require_active(thread_id)
+
+    def _require_active(self, thread_id=None):
         if self.desktop is not None:
             self.desktop.require_online()
         target = thread_id or self.identity()

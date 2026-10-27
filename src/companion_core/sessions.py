@@ -35,16 +35,34 @@ class SessionService:
                                               "epoch": self.repository.epoch(), "consumed": False})
         return ticket
 
+    def _setup_state(self, ticket, db=None):
+        if ticket is None or ticket == "":
+            raise AssistantError("setup_ticket_missing", "请先在管理聊天调用 service_setup，并打开返回的一次性初始化链接")
+        setup = self.store.state("web-setup", {}, db)
+        if not setup:
+            raise AssistantError("setup_ticket_unissued", "尚未签发初始化凭据，请先在管理聊天调用 service_setup")
+        if not hmac.compare_digest(setup["hash"], token_hash(ticket)):
+            raise AssistantError("setup_ticket_invalid", "初始化链接无效，请在管理聊天重新调用 service_setup")
+        if setup["consumed"] or self.store.state("web-owner", db=db):
+            raise AssistantError("setup_ticket_used", "初始化已完成，请返回首页登录；不要重复提交初始化表单")
+        if setup["expires"] <= self.repository.clock():
+            raise AssistantError("setup_ticket_expired", "初始化链接已过期，请在管理聊天重新调用 service_setup")
+        if setup["epoch"] != self.repository.epoch():
+            raise AssistantError("setup_ticket_invalid", "初始化链接已失效，请在管理聊天重新调用 service_setup")
+        return setup
+
+    def validate_setup_ticket(self, ticket):
+        with self.store.lock, self.store.db() as db:
+            self._setup_state(ticket, db)
+        return {"valid": True, "role_started": False}
+
     def configure(self, ticket, password):
+        self.validate_setup_ticket(ticket)
         salt = secrets.token_hex(16)
         hashed = password_hash(password, salt)
         with self.store.lock, self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            setup = self.store.state("web-setup", {}, db)
-            if (self.store.state("web-owner", db=db) or not setup or setup["consumed"]
-                    or setup["expires"] <= self.repository.clock() or setup["epoch"] != self.repository.epoch()
-                    or not hmac.compare_digest(setup["hash"], token_hash(ticket))):
-                raise AssistantError("setup_denied", "初始化凭据无效或已使用")
+            setup = self._setup_state(ticket, db)
             actor = ActorRef("local", secrets.token_hex(16), self.store.read("manifest")["data"]["project_id"])
             from .seed_import import claim_local_owner
 

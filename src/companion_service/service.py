@@ -12,6 +12,7 @@ from companion_core.backup_maintenance import BackupMaintenance
 from companion_core.conversation_maintenance import ConversationMaintenance
 from companion_core.errors import AssistantError
 from companion_core.governance import AdminService
+from companion_core.operation_context import bounded, checkpoint, locked, stage
 from companion_core.runtime import Companion
 from companion_core.sessions import SessionService
 from companion_core.tasks import ExplicitTasks
@@ -430,8 +431,13 @@ class Service:
         return result
 
     def control(self, secret, thread, operation, arguments):
-        with self.state_lock:
+        with bounded(25, "control_timeout"), stage("control_lock"), locked(self.state_lock):
             return self._control(secret, thread, operation, arguments)
+
+    def verify_control(self, thread):
+        with stage("host_verification"):
+            self.control_verifier(thread)
+            checkpoint()  # A late verification must not bind or mutate after expiry.
 
     def _control(self, secret, thread, operation, arguments, *, managed=False):
         if not isinstance(arguments, dict) or not isinstance(operation, str):
@@ -446,14 +452,14 @@ class Service:
             desktop = getattr(self.host, "desktop", None)
             if desktop is not None:
                 desktop.adopt()
-            self.control_verifier(thread)
+            self.verify_control(thread)
             self._pause("explicit_service_resume")
             self.store.set_state("host-lifecycle", {"restart_required": True, "stopped_at": time.time()})
             if self.supervisor:
                 self.supervisor.ensure_ready()
             self.store.set_state("host-lifecycle", {"restart_required": False, "resumed_at": time.time()})
             return {"service_ready": True, "role_started": False, "host": self.host_status()}
-        self.control_verifier(thread)  # Official host checks project and archive state.
+        self.verify_control(thread)  # Official host checks project and archive state.
         if operation == "management_open":
             # Serialize rebinding with notification reservation across processes.
             with self.store.lock, self.store.db() as db:

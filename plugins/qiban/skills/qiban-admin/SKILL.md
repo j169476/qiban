@@ -23,6 +23,12 @@ python <插件绝对路径>/scripts/run.py call config_get --input <UTF-8 JSON �
 
 首次用 management_open 绑定管理聊天，打开返回的 web.admin。它只启动暂停状态的网页服务。初始化账号用 service_setup，打开返回的十分钟一次性 setup_url，由用户在页面设置密码，不在聊天提交密码。
 
+普通首页没有初始化凭据时不能创建管理员；不要让用户反复输入密码。先确认 `management_open` 返回绑定成功，再调用 `service_setup`。链接失效或过期时重新签发，已完成初始化时返回首页登录。
+
+恢复调用的外层工具等待时间至少给 150 秒：服务启动总预算 60 秒、控制 HTTP 40 秒、CLI 协作预算 105 秒、插件子进程保护 120 秒。stderr 持续输出脱敏阶段及耗时，stdout 保留最终 JSON。不要用 30 秒外层超时判断内部执行失败；超时或连接断开后，先运行 `python <插件绝对路径>/scripts/run.py doctor`，再从原管理聊天查状态，避免直接重复提交。
+
+若终端在 Python 尚未运行前报 `Requested registry access is not allowed`，属于执行环境拒绝，不是密码或数据库错误。说明拒绝发生在终端启动阶段，使用获准的终端/执行工具重试同一官方入口；不要伪造 `CODEX_THREAD_ID`，不要靠清库、删除数据库 PID 文件或跳过权限恢复。没有成功的健康检查和控制结果，不宣称服务或绑定已就绪。详细阶段说明见仓库 `docs/SERVICE_RECOVERY.md`。
+
 用户明确需要重设本机网页密码时，在已绑定管理聊天调用 `service_password_reset`，打开返回的十分钟单次 `reset_url`。由用户在网页设置新密码；重设会暂停角色并撤销两个网页入口的登录会话。已登录用户也可在管理网页修改密码。此流程不修改 B站凭据，不要求在聊天中提供密码。
 
 共享 MCP 缺少逐次聊天身份，优先 CLI。CODEX_THREAD_ID 必须来自宿主，不手填或改成另一聊天。角色控制聊天不能改为管理聊天。

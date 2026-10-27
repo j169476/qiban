@@ -10,7 +10,7 @@ async function api(path, body) {
     if(response.status===401){$("#messages")?.replaceChildren();$("#task-list")?.replaceChildren();if($("#task-fields"))$("#task-fields").disabled=true;if($("#message button[type=submit]"))$("#message button[type=submit]").disabled=true;window.qibanSessionExpired?.();}
     const fallback=response.status===401?ui("登录已过期，请刷新页面并重新登录。"):response.ok?ui("服务返回了无法识别的响应（HTTP {0}），请刷新页面后重试。",response.status):ui("服务暂时无法完成操作（HTTP {0}），请稍后重试。",response.status);
     const message=uiError(value?.error,value?.message,fallback);if(value?.error)apiDiagnostic={display:message,detail:{code:value.error,message:value.message}};
-    const error=new Error(message);error.httpStatus=response.status;throw error;
+    const error=new Error(message);error.httpStatus=response.status;error.code=value?.error;throw error;
   }
   return value;
 }
@@ -22,7 +22,27 @@ function bind(selector, callback, event="click") {
 }
 const setupTicket=location.hash.startsWith("#setup=")?location.hash.slice(7):"";
 if(setupTicket) history.replaceState(null,"","/");
-bind("#setup",async()=>{await api("/setup",{ticket:setupTicket,password:$('#setup input').value});location.reload();},"submit");
+let setupVerified=false;
+async function prepareSetup(){
+  if(!$('#setup')||!setupTicket)return;
+  $('#setup-guidance').textContent=ui('正在核验初始化链接…');
+  try{
+    await api('/setup/validate',{ticket:setupTicket});setupVerified=true;
+    $('#setup-guidance').textContent=ui('初始化链接已核验，请设置本机管理密码。');
+    $('#setup').hidden=false;$('#setup fieldset').disabled=false;
+  }catch(error){$('#setup-guidance').textContent=error.message;}
+}
+prepareSetup();
+bind("#setup",async()=>{
+  if(!setupVerified)return;
+  $('#setup fieldset').disabled=true;
+  try{await api("/setup",{ticket:setupTicket,password:$('#setup input').value});location.reload();}
+  catch(error){
+    if(error.code?.startsWith('setup_ticket_')){setupVerified=false;$('#setup').hidden=true;$('#setup-guidance').textContent=error.message;}
+    else $('#setup fieldset').disabled=false;
+    throw error;
+  }
+},"submit");
 bind("#login",async()=>{await api("/login",{password:$('#login input').value});location.reload();},"submit");
 bind("#logout",async()=>{await api("/logout",{});location.reload();});
 let selected=null,next=null;
