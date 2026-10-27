@@ -136,7 +136,7 @@ class RpcProcess:
     async def receive(self):
         while True:
             # Host/database guards may perform synchronous IPC. Running one per
-            # token starves the stream consumer. Poll them at most every 100 ms
+            # token starves the stream consumer. Poll them at most every second
             # while draining; deadline/failure checks still run for every event.
             # send() and final action authorization retain their full checks.
             check_guard = time.monotonic() >= self._receive_guard_due
@@ -145,10 +145,13 @@ class RpcProcess:
             else:
                 self.check(check_guard=False)
             if check_guard:
-                self._receive_guard_due = time.monotonic() + .1
+                self._receive_guard_due = time.monotonic() + 1.0
             try:
                 return self.incoming.get_nowait()
             except queue.Empty:
+                # With no output to drain, keep revocation responsive. The
+                # longer interval only batches checks during a token burst.
+                self._receive_guard_due = min(self._receive_guard_due, time.monotonic() + .1)
                 await asyncio.sleep(.02)
 
     async def call(self, method, params, on_event=lambda row: None):

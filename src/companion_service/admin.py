@@ -16,6 +16,7 @@ class Management:
         self.service, self.admin, self.store = service, service.admin, service.store
         self.restore_previews = {}
         self.delete_previews = {}
+        self.growth_previews = {}
 
     def backups(self, request):
         self.require(request)
@@ -204,6 +205,28 @@ class Management:
 
     def operation(self, request, operation, args):
         self.require(request)
+        if operation in {"public_growth_preview", "public_growth_rebuild"}:
+            from companion_core import public_growth
+
+            with self.service.state_lock, self.store.lock:
+                run = self.store.state("core-run:bilibili", {})
+                if run.get("status") == "active" or "bilibili" in self.service.platform_runs.busy:
+                    raise AssistantError("worker_busy", "先暂停B站并等待当前任务退出")
+                if operation == "public_growth_preview":
+                    if args:
+                        raise AssistantError("invalid_operation", "公开成长预览不接受参数")
+                    preview = public_growth.preview(self.store)
+                    token = secrets.token_urlsafe(24)
+                    self.growth_previews = {token: {"actor": request.actor, "session": request.session_id,
+                        "expected": preview["expected"], "expires": time.time() + 120}}
+                    return {**preview, "token": token, "expires_in_seconds": 120}
+                if set(args) != {"token"}:
+                    raise AssistantError("invalid_operation", "请使用公开成长预览令牌")
+                preview = self.growth_previews.pop(args["token"], None)
+                if (not preview or preview["actor"] != request.actor or preview["session"] != request.session_id
+                        or preview["expires"] <= time.time()):
+                    raise AssistantError("edit_conflict", "公开成长预览已失效，请重新预览")
+                return public_growth.rebuild(self.store, preview["expected"], request.actor)
         if operation in {"platform_setup_status", "platform_setup_run"}:
             return self.service.setup.operation(request, operation, args)
         if operation in {"model_catalog", "model_settings_get", "model_settings_set"}:
@@ -238,6 +261,7 @@ class Management:
                 self.admin.repository.audit(request.actor, "task_cancel", args["id"])
                 return result
         if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set",
+                         "reply_policy_object_set", "reply_policy_object_reset",
                          "reply_import_preview", "reply_import_confirm"}:
             from .reply_management import ReplyManagement
 

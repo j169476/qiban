@@ -139,26 +139,39 @@ class ReplyManagement:
         if name == "reply_policy_list":
             require(not arguments)
             participation = Participation(self.store)
-            groups = []
+            groups, contacts = [], []
             for target in targets.values():
                 scope = target.scope
-                if scope.kind != "group":
+                policy = policies.effective(scope)
+                identity = {**policy, "platform": scope.platform, "label": target.label,
+                            "account_label": target.account_label}
+                if scope.kind == "private":
+                    contacts.append(identity | {"usage": participation.usage(scope)[1]})
                     continue
-                policy = policies.get(scope.platform, scope.account_identity)
                 window = self.store.state(participation.window_key(scope), {})
                 run = self.service.platform_runs.status(scope.platform)
                 active = (window.get("status") == "active" and window.get("expires", 0) > participation.now()
                           and window.get("generation") == run.get("generation") and run.get("status") == "active"
-                          and window.get("policy") == policy["version"]
                           and window.get("permission") == self.permissions.version(scope))
-                groups.append({"platform": scope.platform, "label": target.label, "active": active,
+                groups.append({**identity, "active": active,
                     "settings": policy["settings"], "used": participation.spent(window),
                     "decisions": window.get("decisions", 0), "expires": window.get("expires"),
                     "reply_limit": window.get("reply_limit", policy["settings"]["group_session_replies"])})
-            return {"items": [policies.get(platform, account) | {"account_label": target.account_label,
-                       "private_usage": Participation(self.store).usage(target.scope)[1]}
+            return {"items": [policies.get(platform, account) | {"account_label": target.account_label}
                     for (platform, account), target in sorted(accounts.items())], "bounds": BOUNDS,
-                    "platforms": platforms, "private_quota_scope": "platform_account_calendar_day", "groups": groups}
+                    "platforms": platforms, "private_quota_scope": "contact_calendar_day",
+                    "contacts": contacts, "groups": groups}
+        if name in {"reply_policy_object_set", "reply_policy_object_reset"}:
+            require(set(arguments) == ({"scope_id", "changes", "expected_version"} if name == "reply_policy_object_set" else
+                                       {"scope_id", "expected_version"}))
+            with self.service.state_lock, self.store.lock:
+                self.service.admin.authority.require(request, administrator=True)
+                fresh, _ = self.targets()
+                target = fresh.get(arguments["scope_id"])
+                require(target is not None, "reply_target_unverified")
+                saved = policies.update_object(target.scope, arguments.get("changes", {}),
+                    arguments["expected_version"], request.actor, restore=name.endswith("reset"))
+                return {"policy": saved, "platform_paused": False, "role_started": False}
         require(name == "reply_policy_set" and set(arguments) == {
             "platform", "account_identity", "changes", "expected_version"})
         platform, account = arguments["platform"], arguments["account_identity"]
@@ -168,13 +181,7 @@ class ReplyManagement:
             fresh, _ = self.targets()
             require(any((t.scope.platform, t.scope.account_identity) == (platform, account) for t in fresh.values()),
                     "reply_target_unverified")
-            # Validate and commit before pause while holding the same submission
-            # lock. Changed policy versions immediately invalidate old tickets.
-            before = policies.get(platform, account)
+            # Limit changes share the final submission lock, preserve usage and
+            # never change platform lifecycle or conversation authorization.
             saved = policies.update(platform, account, arguments["changes"], arguments["expected_version"], request.actor)
-            changed = before["version"] != saved["version"]
-            core = self.service.platform_runs.cores.get(platform)
-            paused = bool(changed and core and self.store.state(core.run_key, {}).get("status") == "active")
-            if paused:
-                core.stop("reply_policy_changed")
-            return {"policy": saved, "platform_paused": paused, "role_started": False}
+            return {"policy": saved, "platform_paused": False, "role_started": False}

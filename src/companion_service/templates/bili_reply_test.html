@@ -1,6 +1,5 @@
 <details class="card" id="bili-reply-test">
   <summary>限定对象的 B站私信验收</summary>
-  <p>仅回复指定对象在本次启动后发送的私信，最多尝试发送一次，随后自动暂停。结果不确定也不自动重发。其他对象及公开互动均不参与。</p>
   <form id="bili-test-form">
     <div class="quota-fields">
       <label>机器人 UID<input id="bili-test-account" type="text" inputmode="numeric" pattern="[1-9][0-9]{0,19}" maxlength="20" required autocomplete="off"></label>
@@ -9,5 +8,4 @@
     </div>
     <button id="bili-test-start" type="submit">启动限定私信验收</button>
   </form>
-  <p class="task-hint">须先暂停 B站；沿用现有模型和额度。限制只属于本次运行，下一次普通启动不会继承。可随时在上方 B站卡片暂停。</p>
 </details>

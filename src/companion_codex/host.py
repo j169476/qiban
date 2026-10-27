@@ -28,6 +28,7 @@ class CodexHost:
         self.lock = threading.RLock()
         self.active_cache_seconds = active_cache_seconds
         self._active_snapshot = None
+        self._chat_titles = {}
         self.desktop = desktop
 
     def identity(self):
@@ -120,6 +121,9 @@ class CodexHost:
         thread = read["thread"]
         if Path(thread["cwd"]).resolve() != self.project:
             raise AssistantError("wrong_project", "聊天所属项目与数据空间不匹配")
+        title = thread.get("name") or thread.get("title")
+        if isinstance(title, str) and title.strip():
+            self._chat_titles[tid] = title[:500]
         # Empty sourceKinds includes every source, including desktop/appServer/exec.
         # Both lists are paginated; absence from the first page is not evidence of archive.
         for archived in (True, False):
@@ -135,6 +139,10 @@ class CodexHost:
                 if not cursor:
                     break
         raise AssistantError("host_state_unknown", "宿主列表无法确认聊天状态")
+
+    def chat_title(self, thread_id):
+        """Metadata observed during normal scoped checks; never scan other chats."""
+        return self._chat_titles.get(thread_id)
 
     def require_active(self, thread_id=None):
         if self.desktop is not None:

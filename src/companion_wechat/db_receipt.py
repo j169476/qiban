@@ -17,7 +17,14 @@ from dataclasses import dataclass, field
 
 from . import send_receipt as proof
 from .db_probe import message_table
-from .db_source import SourceError, _integer, _list_shards, _username, validate_enrollment
+from .db_source import (
+    SourceError,
+    _integer,
+    _list_shards,
+    _username,
+    enrollment_identity,
+    validate_enrollment,
+)
 from .db_text import short_text
 
 _CODES = {"receipt_invalid_input", "receipt_action_busy", "receipt_capacity_exceeded",
@@ -105,7 +112,7 @@ class DatabaseReceiptReader:
         session = self._session
         session._require_open()
         observed = self._client_fn()
-        if (scope != self.scope or validate_enrollment(session._enrollment) != self._enrollment
+        if (scope != self.scope or enrollment_identity(session._enrollment) != enrollment_identity(self._enrollment)
                 or session._prepared.client != self._client
                 or session._prepared.self_username != self.scope.self_ref
                 or (self._client.pid, self._client.executable, self._client.version) != self._client_signature

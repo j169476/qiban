@@ -182,8 +182,10 @@ class WeChatModule:
         if pointer is None:
             return ()
         enrollment = validate_enrollment(pointer["enrollment"])
+        names = self.store.state("wechat-display-names:" + enrollment["account_id"], enrollment.get("display_names", {}))
         return tuple(ReplyTarget(ReplyScope("wechat", enrollment["account_id"], target["kind"],
-            target["username"]), target["username"], enrollment["self_username"],
+            target["username"]), names.get(target["username"], ""),
+            names.get(enrollment["self_username"], enrollment["self_username"]),
             "私聊直接回应；群聊由真实@或引用唤起，已核验成员可在参与阶段交流")
             for target in enrollment["targets"].values())
 

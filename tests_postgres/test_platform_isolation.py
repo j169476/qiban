@@ -186,7 +186,7 @@ async def test_public_events_cannot_fill_the_private_reply_batch(pg_store):
     service = prepare(pg_store)
     call(service, "qq-owner", "qq_start")
     core, handled = service.platform_runs.cores["qq"], []
-    private = SimpleNamespace(visibility="private")
+    private = SimpleNamespace(visibility="private", thread="synthetic-private-conversation")
 
     async def poll():
         return [*[SimpleNamespace(visibility="public") for _ in range(3)], private]

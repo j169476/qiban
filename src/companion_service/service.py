@@ -88,6 +88,7 @@ class Service:
         run = self.store.state("core-run", {})
         return {"status": run.get("status", "paused"), "reason": run.get("reason", "explicit_start_required"),
                 "host": self.host_status(), "owner": run.get("owner"),
+                "owner_title": getattr(self.host, "chat_title", lambda _: None)(run.get("owner")),
                 "generation": run.get("generation"), "busy": self.busy,
                 "platforms": [self.platform_runs.status(p) for p in ("bilibili", "wechat", "qq")],
                 "read_only": run.get("read_only", False), "deadline_at": run.get("deadline_at"),
@@ -342,15 +343,14 @@ class Service:
             self.wakeup.clear()
             try:
                 self.recover_storage()
-                if self.maintenance_until <= time.time():
-                    self.backup_task = asyncio.create_task(asyncio.to_thread(self.maintain_backups))
-                    # A shutdown cancels this coroutine, not the file writer.
-                    # close() joins the surviving job before closing the store.
-                    backup = await asyncio.shield(self.backup_task)
-                    if backup and backup.get("failures", 0) >= 3:
-                        from .faults import record
-
-                        record(self, "backup_failed", incident=backup["incident"])
+                if self.backup_task is not None and self.backup_task.done():
+                    finished_backup = self.backup_task
+                    self.backup_task = None
+                    finished_backup.result()
+                if self.maintenance_until <= time.time() and self.backup_task is None:
+                    # A bounded backup is joined on shutdown, but new messages
+                    # no longer wait for its file/compression work to finish.
+                    self.backup_task = asyncio.create_task(self._background_backup())
                 active = self.status()["status"] == "active"
             except Exception:
                 # BackupMaintenance retains a bounded retry in memory during a
@@ -394,6 +394,13 @@ class Service:
                 self._pause_local("service_fault")
             finally:
                 self.busy = False
+
+    async def _background_backup(self):
+        backup = await asyncio.to_thread(self.maintain_backups)
+        if backup and backup.get("failures", 0) >= 3:
+            from .faults import record
+
+            await asyncio.to_thread(record, self, "backup_failed", incident=backup["incident"])
 
     def maintain_backups(self):
         # Restore previews and automatic backup scheduling share this gate.
@@ -534,6 +541,7 @@ class Service:
         if operation in {"model_catalog", "model_settings_get", "model_settings_set"}:
             return self.model_operation(request, operation, arguments)
         if operation in {"reply_authorization_list", "reply_authorization_set", "reply_policy_list", "reply_policy_set",
+                         "reply_policy_object_set", "reply_policy_object_reset",
                          "reply_import_preview", "reply_import_confirm"}:
             from .reply_management import ReplyManagement
 

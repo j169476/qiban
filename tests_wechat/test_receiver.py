@@ -82,6 +82,25 @@ def store(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_display_name_changes_preserve_identity_epoch_and_checkpoint(store):
+    first = snapshot()
+    gateway = DatabaseGateway(store, {}, transport_factory=Factory(Worker([first])))
+    await gateway.start()
+    epoch = gateway.connection().epoch
+    await gateway.close()
+    renamed = copy.deepcopy(first)
+    renamed['enrollment']['display_names'] = {OWNER: 'Renamed contact', SELF: 'Companion'}
+    resumed = DatabaseGateway(store, {}, transport_factory=Factory(Worker([renamed])))
+    try:
+        await resumed.start()
+        assert resumed.connection().epoch == epoch
+        assert resumed._saved['checkpoint'] == first['checkpoint']
+        assert store.state('wechat-display-names:' + first['enrollment']['account_id'])[OWNER] == 'Renamed contact'
+    finally:
+        await resumed.close()
+
+
+@pytest.mark.asyncio
 async def test_two_targets_identical_text_bubbles_restart_replay_and_ack(store):
     first = snapshot()
     data, after = batch(first, row(1), row(2), row(1, group=True), row(2, group=True))

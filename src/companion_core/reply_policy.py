@@ -1,4 +1,4 @@
-"""Shared private quotas and bounded group participation; no platform imports."""
+"""Independent contact quotas and group windows inheriting account defaults."""
 from dataclasses import asdict
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -15,8 +15,9 @@ BOUNDS = {"private_daily_replies": (0, 10000), "group_session_replies": (1, 100)
 
 
 class ReplyPolicies:
-    def __init__(self, store):
+    def __init__(self, store, *, clock=None):
         self.store = store
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     @staticmethod
     def key(platform, account):
@@ -26,6 +27,58 @@ class ReplyPolicies:
     def get(self, platform, account, db=None):
         return self.store.state(self.key(platform, account), {
             "platform": platform, "account_identity": account, "version": None, "settings": dict(DEFAULTS)}, db)
+
+    def effective(self, scope, db=None):
+        base = self.get(scope.platform, scope.account_identity, db)
+        override = self.store.state("reply-policy-object:" + scope.id, {}, db)
+        fields = (["private_daily_replies"] if scope.kind == "private" else
+                  [key for key in DEFAULTS if key.startswith("group_")])
+        settings = {key: override.get("settings", {}).get(key, base["settings"][key]) for key in fields}
+        return {"scope": asdict(scope), "scope_id": scope.id, "settings": settings,
+                "inherited": not bool(override.get("settings")),
+                "version": stable_key("reply-policy-effective", settings, override.get("version"))}
+
+    def update_object(self, scope, changes, expected_version, actor, *, restore=False):
+        with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old = self.effective(scope, db)
+            require(old["version"] == expected_version, "edit_conflict")
+            require(type(restore) is bool and isinstance(changes, dict), "reply_policy_invalid")
+            require((restore and not changes) or (bool(changes) and not set(changes) - set(old["settings"])),
+                    "reply_policy_invalid")
+            require(all(type(v) is int and BOUNDS[k][0] <= v <= BOUNDS[k][1] for k, v in changes.items()),
+                    "reply_policy_invalid")
+            require(self.store.ledger_encode("reply-policy-preflight", {}).startswith("enc1:"), "reply_policy_unencrypted")
+            result = {"version": uuid4().hex, "scope": asdict(scope),
+                      "settings": {} if restore else old["settings"] | changes}
+            self.store.set_state("reply-policy-object:" + scope.id, result, db)
+            self.store.set_state("reply-policy-audit:" + result["version"], {
+                "actor": actor, "before": old, "after": result, "at": self.clock().isoformat()}, db)
+            self._update_window(scope, old["settings"], db)
+            return self.effective(scope, db)
+
+    def _update_window(self, scope, old_settings, db):
+        if scope.kind != "group":
+            return
+        key = Participation.window_key(scope)
+        window = self.store.state(key, {}, db)
+        if not window:
+            return
+        now = self.clock().timestamp()
+        # Close an already exhausted/expired stage BEFORE applying larger limits.
+        if window.get("status") == "active" and (
+                window.get("expires", 0) <= now or Participation.spent(window) >= old_settings["group_session_replies"]
+                or window.get("decisions", 0) >= old_settings["group_session_decisions"]):
+            window.update(status="closed", reason="participation_complete")
+        current = self.effective(scope, db)
+        settings = current["settings"]
+        window.update(policy=current["version"], reply_limit=settings["group_session_replies"],
+                      expires=window["started"] + settings["group_session_minutes"] * 60)
+        if window.get("status") == "active" and (
+                window["expires"] <= now or Participation.spent(window) >= settings["group_session_replies"]
+                or window.get("decisions", 0) >= settings["group_session_decisions"]):
+            window.update(status="closed", reason="quota_changed")
+        self.store.set_state(key, window, db)
 
     def update(self, platform, account, changes, expected_version, actor):
         require(isinstance(changes, dict) and bool(changes) and not set(changes) - set(DEFAULTS), "reply_policy_invalid")
@@ -38,22 +91,27 @@ class ReplyPolicies:
             if settings == old["settings"]:
                 return old
             require(self.store.ledger_encode("reply-policy-preflight", {}).startswith("enc1:"), "reply_policy_unencrypted")
+            scopes = [ReplyScope(**r["scope"]) for r in ReplyAuthorizations(self.store).records()
+                      if r["scope"]["platform"] == platform and r["scope"]["account_identity"] == account]
+            previous = {scope.id: self.effective(scope, db)["settings"] for scope in scopes}
             result = {"platform": platform, "account_identity": account, "version": uuid4().hex, "settings": settings}
             self.store.set_state(self.key(platform, account), result, db)
             self.store.set_state("reply-policy-audit:" + result["version"], {
                 "actor": actor, "before": old, "after": result, "at": datetime.now(timezone.utc).isoformat()}, db)
+            for scope in scopes:
+                self._update_window(scope, previous[scope.id], db)
             return result
 
 
 class Participation:
-    """Persistent tickets pin permission, policy, run and group-session versions.
+    """Tickets pin permission, run and group-session identity; limits stay live.
 
     A reserved or uncertain send consumes capacity until its outcome is known.
     No reply quota is spent on a known pre-submit failure or silent decision.
     """
     def __init__(self, store, *, clock=None):
         self.store, self.clock = store, clock or (lambda: datetime.now(timezone.utc))
-        self.policies, self.permissions = ReplyPolicies(store), ReplyAuthorizations(store)
+        self.policies, self.permissions = ReplyPolicies(store, clock=self.clock), ReplyAuthorizations(store)
 
     def now(self):
         return self.clock().timestamp()
@@ -65,7 +123,10 @@ class Participation:
     def usage(self, scope, db=None):
         zone = self.store.read("policy")["data"]["timezone"]
         day = self.clock().astimezone(ZoneInfo(zone)).date().isoformat()
-        key = stable_key("private-reply-usage", scope.platform, scope.account_identity, day)
+        from .reply_quota_migration import migrate
+
+        migrate(self.store, scope, day, db)
+        key = stable_key("private-reply-usage-v2", scope.id, day)
         return key, self.store.state(key, {"confirmed": 0, "reserved": 0, "uncertain": 0}, db)
 
     @staticmethod
@@ -74,10 +135,11 @@ class Participation:
 
     def admit(self, scope, event_id, trigger, generation):
         with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
             permission = self.permissions.version(scope, db=db)
             if permission is None:
                 return None
-            policy = self.policies.get(scope.platform, scope.account_identity, db)
+            policy = self.policies.effective(scope, db)
             settings, now = policy["settings"], self.now()
             ticket = {"scope": asdict(scope), "event_id": event_id, "permission": permission,
                       "policy": policy["version"], "generation": generation, "expires": now + 300, "window": None}
@@ -88,7 +150,7 @@ class Participation:
             key = self.window_key(scope)
             window = self.store.state(key, {}, db)
             active = (window.get("status") == "active" and window.get("generation") == generation
-                      and window.get("permission") == permission and window.get("policy") == policy["version"]
+                      and window.get("permission") == permission
                       and window.get("expires", 0) > now and self.spent(window) < settings["group_session_replies"]
                       and window.get("decisions", 0) < settings["group_session_decisions"])
             if not active:
@@ -102,14 +164,13 @@ class Participation:
             # Duplicate source events are eliminated by each connector before admission.
             window["decisions"] += 1
             self.store.set_state(key, window, db)
-            ticket.update(window=window["id"], expires=min(ticket["expires"], window["expires"]))
+            ticket.update(window=window["id"])
             return ticket
 
     def check(self, ticket, generation, db=None):
         scope = ReplyScope(**ticket["scope"])
         self.permissions.check(scope, ticket["permission"], db=db)
-        require(ticket["generation"] == generation and ticket["expires"] > self.now()
-                and self.policies.get(scope.platform, scope.account_identity, db)["version"] == ticket["policy"],
+        require(ticket["generation"] == generation and ticket["expires"] > self.now(),
                 "reply_session_expired")
         if scope.kind == "group":
             window = self.store.state(self.window_key(scope), {}, db)
@@ -119,7 +180,7 @@ class Participation:
 
     def context(self, ticket, generation):
         scope = self.check(ticket, generation)
-        settings = self.policies.get(scope.platform, scope.account_identity)["settings"]
+        settings = self.policies.effective(scope)["settings"]
         if scope.kind == "private":
             return {"mode": "private", "instruction": "当前为已授权私聊，正常回应当前用户；不需要@唤起。"}
         window = self.store.state(self.window_key(scope))
@@ -143,7 +204,7 @@ class Participation:
             scope = self.check(ticket, generation, db)
             key = "reply-send:" + action_id
             require(self.store.state(key, None, db) is None, "reply_already_submitted")
-            settings = self.policies.get(scope.platform, scope.account_identity, db)["settings"]
+            settings = self.policies.effective(scope, db)["settings"]
             if scope.kind == "private":
                 bucket_key, bucket = self.usage(scope, db)
                 limit = settings["private_daily_replies"]
@@ -154,11 +215,13 @@ class Participation:
             require(self.spent(bucket) < limit, "reply_quota_exhausted")
             bucket["reserved"] += 1
             self.store.set_state(bucket_key, bucket, db)
-            self.store.set_state(key, {"bucket": bucket_key, "window": ticket["window"], "status": "reserved"}, db)
+            self.store.set_state(key, {"bucket": bucket_key, "scope": asdict(scope),
+                                       "window": ticket["window"], "status": "reserved"}, db)
 
     def settle(self, action_id, status):
         require(status in {"succeeded", "failed", "cancelled", "uncertain"}, "reply_outcome_invalid")
         with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
             key = "reply-send:" + action_id
             record = self.store.state(key, None, db)
             if not record or record["status"] != "reserved":

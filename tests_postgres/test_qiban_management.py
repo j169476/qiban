@@ -160,6 +160,7 @@ def test_group_usage_reports_reservations_and_expired_run_without_private_conten
     body = {"operation": "reply_policy_list", "arguments": {}}
     group = admin.post("/operate", json=body, headers=headers).json()["groups"][0]
     assert group["active"] and group["used"] == 1 and group["decisions"] == 1
-    assert set(group) == {"platform", "label", "active", "settings", "used", "decisions", "expires", "reply_limit"}
+    assert group["scope"] == {"platform": "qq", "account_identity": "10001", "kind": "group", "target_id": "10003"}
+    assert group["scope_id"] == scope.id and group["inherited"]
     monkeypatch.setattr(service.platform_runs, "status", lambda p: {"status": "paused", "generation": "run"})
     assert not admin.post("/operate", json=body, headers=headers).json()["groups"][0]["active"]

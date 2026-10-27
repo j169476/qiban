@@ -15,7 +15,7 @@ from copy import deepcopy
 from .access import AccessService, RecordPolicy, RequestAuthority
 from .errors import AssistantError
 from .governance import GovernanceRepository, ReadView, resource_id
-from .provenance import freeze, rebase, routine_update
+from .provenance import freeze, mutable, rebase, routine_update
 
 
 class PublicWorkspace(ReadView):
@@ -54,8 +54,9 @@ class PublicWorkspace(ReadView):
                 data = deepcopy(self.profile.defaults["growth"])
                 return {"data": data, "version": self._version(data)}
             policy = self.repository.policy("partition/public-growth")
-            if policy is None or not self.access.can_read(self.request, policy.resource):
-                raise AssistantError("access_denied", "公开成长状态的来源已失效")
+            from .public_growth import require_readable
+
+            require_readable(self, result, policy)
             self.direct.add(policy.resource)
             return result
         if kind == "persona" and resource_id(kind) not in self.readable:
@@ -155,8 +156,9 @@ class PublicWorkspace(ReadView):
         self.check()
         if kind in self.profile.config:
             raise AssistantError("mode_denied", "公开工作区不能修改管理配置")
+        resource = "partition/public-growth" if kind == "growth" else resource_id(kind, item_id)
         with self.store.lock, self.store.db() as db, (
-                routine_update(self.store, "partition/public-growth") if kind == "growth" else nullcontext()):
+                routine_update(self.store, resource) if mutable(resource) else nullcontext()):
             if getattr(db, "dialect", "sqlite") == "postgres":
                 db.execute("BEGIN IMMEDIATE")
             self.check()

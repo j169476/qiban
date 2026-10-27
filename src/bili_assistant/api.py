@@ -32,7 +32,7 @@ TOOLS = {
     "runtime_monitor": ("管理端读取 Qiban 上限与用量、Codex coding plan 额度、已观测 token 和任务元数据。", obj({
         "days": {"type": "integer", "minimum": 1, "maximum": 30}}, [])),
     "reply_policy_list": ("管理端读取QQ/微信的私聊每日额度、群聊参与上限及私聊用量。", obj({})),
-    "reply_policy_set": ("管理端修改私聊额度与群聊参与参数，版本冲突需重读，变更暂停对应平台。", obj({
+    "reply_policy_set": ("管理端修改账号默认额度，立即生效并保留已用量，不改变运行状态；版本冲突需重读。", obj({
         "platform": {"enum": ["qq", "wechat"]}, "account_identity": TEXT,
         "changes": {"type": "object", "minProperties": 1, "additionalProperties": False, "properties": {
             "private_daily_replies": {"type": "integer", "minimum": 0, "maximum": 10000},
@@ -40,6 +40,10 @@ TOOLS = {
             "group_session_decisions": {"type": "integer", "minimum": 1, "maximum": 1000},
             "group_session_minutes": {"type": "integer", "minimum": 1, "maximum": 120}}},
         "expected_version": {"type": ["string", "null"]}})),
+    "reply_policy_object_set": ("管理端调整单个联系人的每日额度或单个群的参与额度；先读取scope_id与版本，立即生效且保留已用量。", obj({
+        "scope_id": TEXT, "expected_version": TEXT, "changes": DOC})),
+    "reply_policy_object_reset": ("管理端移除单个对象额度覆盖，立即继承账号默认值；保留已用量且不恢复已结束阶段。", obj({
+        "scope_id": TEXT, "expected_version": TEXT})),
     "reply_authorization_list": ("管理聊天分页检索QQ/微信回复授权；search须选平台并输入完整目标ID，authorized仅列已授权。返回next_offset用于翻页，不授予权限。", obj({
         "platform": {"enum": ["qq", "wechat"]}, "query": {"type": "string", "maxLength": 256},
         "view": {"enum": ["all", "search", "authorized"]},
@@ -315,7 +319,7 @@ async def call(engine, name, arguments):
         raise AssistantError("service_entry_required", "数据库资料由本机服务接管，禁止旧入口直接加载角色上下文")
     if name in {"platform_setup_status", "platform_setup_run", "reply_import_preview", "reply_import_confirm", "model_catalog", "model_settings_get", "model_settings_set",
                 "assistant_stop_all", "reply_authorization_list", "reply_authorization_set",
-                "reply_policy_list", "reply_policy_set"} or name in {
+                "reply_policy_list", "reply_policy_set", "reply_policy_object_set", "reply_policy_object_reset"} or name in {
             p + "_" + a for p in ("bili", "wechat", "qq") for a in ("start", "stop", "pause", "status")}:
         raise AssistantError("service_entry_required", "平台独立启停需要本机服务入口")
     if name not in TOOLS:

@@ -22,7 +22,8 @@ def local_url(value, scheme):
 
 
 def validate(value):
-    require(isinstance(value, dict) and set(value) == {"version", "account", "private_targets", "groups", "http", "ws"}
+    fields = {"version", "account", "private_targets", "groups", "http", "ws"}
+    require(isinstance(value, dict) and fields <= set(value) and not set(value) - fields - {"launch"}
             and value["version"] == 1, "qq_configuration")
     result = {**value, "account": qq_id(value["account"]), "http": local_url(value["http"], "http"),
               "ws": local_url(value["ws"], "ws")}
@@ -31,6 +32,16 @@ def validate(value):
         result[field] = [qq_id(v) for v in value[field]]
         require(len(set(result[field])) == len(result[field]), "qq_configuration")
     require(result["account"] not in result["private_targets"], "qq_configuration")
+    if value.get("launch") is not None:
+        launch = value["launch"]
+        require(isinstance(launch, dict) and set(launch) == {"executable", "arguments", "directory", "timeout"},
+                "qq_launch_configuration")
+        require(all(isinstance(launch[k], str) and Path(launch[k]).is_absolute()
+                    and len(launch[k]) <= 2048 for k in ("executable", "directory")), "qq_launch_configuration")
+        require(isinstance(launch["arguments"], list) and len(launch["arguments"]) <= 32
+                and all(isinstance(arg, str) and len(arg) <= 4096 and "\x00" not in arg
+                        for arg in launch["arguments"]), "qq_launch_configuration")
+        require(type(launch["timeout"]) is int and 5 <= launch["timeout"] <= 180, "qq_launch_configuration")
     return result
 
 

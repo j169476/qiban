@@ -1,10 +1,12 @@
 """One explicit role run, multiple connectors, durable scoped decisions and actions."""
+import asyncio
 import json
 import uuid
 from contextlib import AsyncExitStack, nullcontext
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from weakref import WeakValueDictionary
 
 from jsonschema import validate
 
@@ -25,6 +27,7 @@ class Companion(RelationshipUpdates):
         self.platforms = PlatformRegistry(adapters)
         self.identities = IdentityService(store)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self._conversation_locks = WeakValueDictionary()
         for adapter in self.platforms.all():
             if hasattr(adapter, "bind_runtime"):
                 adapter.bind_runtime(self)
@@ -268,6 +271,11 @@ class Companion(RelationshipUpdates):
                                  self.store, "conversation_turns", item_id, disclosure)) if disclosure else None)
 
     async def handle(self, event):
+        lock = self._conversation_locks.setdefault(event.thread, asyncio.Lock())
+        async with lock:
+            return await self._handle_serial(event)
+
+    async def _handle_serial(self, event):
         run = self.guard()
         try:
             from .reply_trace import point, reply
@@ -304,8 +312,11 @@ class Companion(RelationshipUpdates):
 
         async def generate(instructions, material, schema):
             adapter = self.platforms.get(event.platform, event.account)
-            return await self.model(instructions, material, schema, guard=guard,
-                                    interactive=bool(getattr(adapter, "interactive", False)))
+            from .observability import stage
+
+            with stage("recall.expand"):
+                return await self.model(instructions, material, schema, guard=guard,
+                                        interactive=bool(getattr(adapter, "interactive", False)))
 
         readable = governed.repository.readable_resources(governed.access, governed.request)
         count = sum(resource.split("/", 1)[0] in self.store.profile.memory_collections for resource in readable)
@@ -456,7 +467,10 @@ class Companion(RelationshipUpdates):
                 if facts:
                     facts.supplied(material)
                 extra = {"interactive": True} if getattr(adapter, "interactive", False) else {}
-                return await self.model(instructions, material, schema, images, guard=check_context, **extra)
+                from .observability import stage
+
+                with stage("reply.generate"):
+                    return await self.model(instructions, material, schema, images, guard=check_context, **extra)
 
         memory_versions = {(item["kind"], item["data"]["id"]): item["version"] for item in memory["records"]}
         # Catalog summaries are also model evidence, including partial excerpts.

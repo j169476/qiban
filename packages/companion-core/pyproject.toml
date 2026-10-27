@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-companion-core"
-version = "0.9.1"
+version = "0.9.3"
 description = "Platform-independent local companion cognition, storage and identity services."
 requires-python = ">=3.11"
 license = {file = "LICENSE"}

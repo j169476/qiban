@@ -18,6 +18,11 @@ BENIGN_STOPS = {
     "host_session_end", "duration_complete",
 }
 FAULT_TEXT = {
+    "public_growth_policy_missing": "B站公开成长状态缺少来源登记，请在管理页预览恢复；平台保持暂停。",
+    "public_growth_source_changed": "B站公开成长来源版本已变化，请在管理页复核并预览恢复；平台保持暂停。",
+    "public_growth_source_denied": "B站公开成长来源授权已失效，请在管理页复核并预览恢复；平台保持暂停。",
+    "public_growth_invalid": "B站公开成长状态完整性检查失败，请在管理页预览恢复；平台保持暂停。",
+    "public_growth_validation_failed": "B站公开成长来源验证未完成，请查看管理页诊断；平台保持暂停。",
     "login_required": "B站登录已失效或尚未完成，需要重新登录。",
     "credential_invalid": "本机登录凭证无效，需要重新登录。",
     "credential_refresh_required": "平台要求更新登录，但缺少续期条件，需要重新登录。",

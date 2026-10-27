@@ -47,6 +47,9 @@ class QQModule:
         self.enrollment_key = "qq-enrollment:" + self.account
         self.participation = Participation(store)
         self.send_lock = asyncio.Lock()
+        from .lifecycle import ManagedBridge
+
+        self.bridge = ManagedBridge(store, self.options) if self.options else None
 
     def bind_runtime(self, core):
         require(core.store is self.store, "qq_store_mismatch")
@@ -64,7 +67,8 @@ class QQModule:
         saved = self.store.state(self.enrollment_key)
         if not saved or saved.get("intent") != digest(self.options):
             return ()
-        return tuple(ReplyTarget(ReplyScope("qq", self.account, kind, target), target,
+        return tuple(ReplyTarget(ReplyScope("qq", self.account, kind, target),
+            saved["identity"].get("names", {}).get(kind, {}).get(target, ""),
             saved["identity"]["account_label"] or self.account,
             "私聊直接回应；群聊须@或引用唤起，随后限额参与")
             for kind, field in (("private", "private_targets"), ("group", "groups")) for target in self.options[field])
@@ -154,19 +158,26 @@ class QQModule:
             await self.socket.close()
             self.socket = None
         try:
-            identity = await asyncio.to_thread(self.provider.probe)
+            identity = (await self.bridge.ensure(self.provider, self.core.guard) if self.options.get("launch") else
+                        await asyncio.to_thread(self.provider.probe))
             require(identity["account"] == self.account, "qq_account_mismatch")
+            self.store.set_state(self.enrollment_key, {"intent": digest(self.options), "identity": identity,
+                                                       "at": datetime.now(timezone.utc).isoformat()})
             self.socket = await self.provider.connect()
             # Recheck both sides of the connection before accepting any event.
             await asyncio.to_thread(self.provider.identity)
             await asyncio.to_thread(self.core.guard)
             self.ready, self.code, self.failures = True, "", 0
+            if self.bridge:
+                self.bridge.state = "connected"
             self.reader = asyncio.create_task(self._read(self.socket))
         except AssistantError as exc:
             self.code = exc.code
             self.failures += 1
             self.retry_at = time.monotonic() + min(60, 2 ** min(self.failures, 6))
-            if exc.code in {"qq_account_mismatch", "qq_target_unverified"}:
+            if self.options.get("launch") or exc.code in {"qq_account_mismatch", "qq_target_unverified"}:
+                if self.bridge:
+                    await asyncio.to_thread(self.bridge.stop)
                 raise
 
     async def runtime_poll(self):
@@ -176,12 +187,13 @@ class QQModule:
         await self._connect()
         if not self.ready or run["read_only"]:
             return []
-        result = []
+        result, selected_threads = [], set()
+        batch_size = self.store.read("companion")["data"].get("inbox_batch_size", 3)
         with self.store.lock, self.store.db() as db:
             queue = self.store.state(self.queue_key, [], db)
             retained = []
             for event_id in queue:
-                if result:
+                if len(result) >= batch_size:
                     retained.append(event_id)
                     continue
                 try:
@@ -193,6 +205,9 @@ class QQModule:
                 if self.store.state("core-processed:" + event_id, None, db) == saved["version"]:
                     continue
                 event = Event.from_dict(saved["event"])
+                if event.thread in selected_threads:
+                    retained.append(event_id)
+                    continue
                 if (datetime.fromisoformat(event.occurred_at).timestamp() < self.participation.now() - 300):
                     continue
                 key = "qq-admission:" + event_id
@@ -213,6 +228,7 @@ class QQModule:
                 if not self.participation.eligible(admission["ticket"], run["generation"]):
                     continue
                 retained.append(event_id)
+                selected_threads.add(event.thread)
                 if delivery.eligible(self.core, event, saved["version"], run):
                     result.append(event)
             self.store.set_state(self.queue_key, retained, db)
@@ -299,6 +315,11 @@ class QQModule:
         await self.close()
 
     async def close(self):
+        # Native submits are shielded and journalled before the bridge can exit.
+        async with self.send_lock:
+            await self._close()
+
+    async def _close(self):
         self.ready = False
         if self.reader:
             self.reader.cancel()
@@ -310,9 +331,12 @@ class QQModule:
         if self.provider:
             self.provider.close()
             self.provider = None
+        if self.bridge:
+            await asyncio.to_thread(self.bridge.stop)
 
     def runtime_status(self):
         return {"state": "connected" if self.ready else (
+                    self.bridge.state if self.bridge and self.options.get("launch") else
                     "retrying" if self.failures or self.code else "new") if self.provider else "paused",
                 "code": self.code, "pending": len(self.store.state(self.queue_key, [])),
                 "uncertain": self.tainted, "automatic_start": False}

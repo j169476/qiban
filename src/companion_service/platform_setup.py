@@ -182,12 +182,15 @@ class PlatformSetup:
 
             from companion_qq.config import credential_key, validate
 
-            require(set(settings) == {"account", "private_targets", "groups", "http", "ws", "token"})
+            fields = {"account", "private_targets", "groups", "http", "ws", "token"}
+            require(fields <= set(settings) and not set(settings) - fields - {"launch"})
             secret = settings["token"]
             require(isinstance(secret, str) and (not secret or 16 <= len(secret) <= 512))
             value = validate({"version": 1, **{k: v for k, v in settings.items() if k != "token"}})
             old = self.options(platform)
             if old and old["account"] == value["account"]:
+                if "launch" not in settings and "launch" in old:
+                    value["launch"] = old["launch"]
                 for key in ("private_targets", "groups"):
                     value[key] = list(dict.fromkeys(old[key] + value[key]))
             if secret:

@@ -274,8 +274,8 @@ def test_private_and_group_settings_share_web_and_admin_chat_with_cas_and_platfo
     args = {"platform": "qq", "account_identity": "10001", "changes": {
         "private_daily_replies": 12, "group_session_replies": 3}, "expected_version": None}
     result = operation("reply_policy_set", args)
-    assert result.status_code == 200 and result.json()["platform_paused"]
-    assert stopped == [("qq", "reply_policy_changed")]
+    assert result.status_code == 200 and not result.json()["platform_paused"]
+    assert stopped == []
     assert operation("reply_policy_set", args).status_code == 409
     chat = service.control("synthetic-bridge-secret", "admin", "reply_policy_list", {})
     qq = next(item for item in chat["items"] if item["platform"] == "qq")

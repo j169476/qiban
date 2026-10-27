@@ -39,6 +39,14 @@ jobs:
         run: |
           $coreWheel = Get-ChildItem dist/core/local_companion_core-*.whl | Select-Object -First 1
           python scripts/check_core_package.py $coreWheel.FullName
+      - if: matrix.shard == 0
+        run: python -m pip wheel --no-deps packages/companion-qq --wheel-dir dist/qq
+      - shell: pwsh
+        if: matrix.shard == 0
+        run: |
+          $coreWheel = Get-ChildItem dist/core/local_companion_core-*.whl | Select-Object -First 1
+          $qqWheel = Get-ChildItem dist/qq/local_companion_qq-*.whl | Select-Object -First 1
+          python scripts/check_qq_package.py $qqWheel.FullName $coreWheel.FullName
       - name: Save unit and core test evidence
         if: always()
         uses: actions/upload-artifact@v4

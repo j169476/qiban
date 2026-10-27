@@ -109,6 +109,25 @@ async def test_private_replies_dedupe_identical_bubbles_and_group_scope(env):
 
 
 @pytest.mark.asyncio
+async def test_poll_batches_different_conversations_without_overtaking_same_chat(env):
+    from companion_core.reply_batch import handle_batch
+
+    for raw in (incoming(101), incoming(102), incoming(103, group=True, mention=True)):
+        env.module.accept(raw)
+    batch = await env.module.runtime_poll()
+    from companion_qq.normalization import normalize
+
+    assert [event.id for event in batch] == [normalize(raw, OPTIONS, sent_reference=lambda *_: False).id
+        for raw in (incoming(101), incoming(103, group=True, mention=True))]
+    assert len({event.thread for event in batch}) == 2
+    await handle_batch(env.core, batch)
+    following = await env.module.runtime_poll()
+    assert [event.id for event in following] == [normalize(incoming(102), OPTIONS, sent_reference=lambda *_: False).id]
+    await handle_batch(env.core, following)
+    assert len(env.provider.sent) == 3
+
+
+@pytest.mark.asyncio
 async def test_group_wake_any_member_five_replies_then_requires_new_trigger(env):
     assert await handle(env, incoming(1, group=True, text="@小龙娘")) == []
     for number in range(2, 7):

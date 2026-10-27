@@ -13,7 +13,7 @@ class Element {
 }
 function page({kind='admin', authenticated=true, listing, policies, fail=false, confirmed=true}={}) {
   const nodes = new Map(), handlers = new Map(), calls = [], notices = [];
-  const context = {kind, confirm:()=>confirmed, location: {hash:''}, document: {
+  const context = {kind, window:{}, ui:(text,...values)=>text.replace(/\{(\d+)\}/g,(_,i)=>String(values[i])), confirm:()=>confirmed, location: {hash:''}, document: {
     body: {dataset: {authenticated: String(authenticated)}}, createElement: () => new Element(),
   }, $: selector => {if(!nodes.has(selector))nodes.set(selector,new Element()); return nodes.get(selector);},
     bind: (selector, callback) => handlers.set(selector, callback), notice: text => notices.push(text),
@@ -39,7 +39,7 @@ test('management card renders opaque IDs safely and submits exact scope/CAS', as
   assert.match(p.nodes.get('#reply-platforms').textContent, /QQ.*未接入/);
   const card=p.nodes.get('#reply-authorizations').children[0];
   assert.match(card.children[0].textContent, /<img/);
-  assert.match(card.children[1].textContent, /synthetic@chatroom/);
+  assert.match(card.children[1].children[0].textContent, /synthetic@chatroom/);
   await card.children.at(-1).listeners.click();
   assert.equal(JSON.stringify(p.calls[1]),JSON.stringify({operation:'reply_authorization_set',args:{
     scope_id:'stable-scope',enabled:true,expected_version:'current-revision'}}));
@@ -58,7 +58,7 @@ test('stale writes are not retried, revoke uses false, vanished targets cannot b
   assert.match(p.notices[0],/edit_conflict.*重新读取/);
   const gone=page({listing:{...listing,items:[{...item,verified_target:false}]}});
   await gone.handlers.get('#load-reply-authorizations')();
-  assert.equal(gone.nodes.get('#reply-authorizations').children[0].children.length,3);
+  assert.equal(gone.nodes.get('#reply-authorizations').children[0].children.length,2);
 });
 
 test('role and unauthenticated pages do not bind management actions', () => {
@@ -92,17 +92,17 @@ test('changing platform invalidates an in-flight search', async()=>{
   assert.equal(p.nodes.get('#reply-authorizations').children.length,0);
 });
 
-test('participation editor uses stable account and CAS and displays distinct private counters', async () => {
+test('account defaults editor uses stable account and CAS without shared contact counters', async () => {
   const settings={private_daily_replies:200,group_session_replies:5,group_session_decisions:20,group_session_minutes:10};
   const policies={items:[{platform:'qq',account_identity:'10001',account_label:'synthetic',version:'p1',settings,
     private_usage:{confirmed:2,reserved:1,uncertain:1}}],bounds:Object.fromEntries(Object.keys(settings).map(k=>[k,[0,10000]]))};
   const p=page({policies});await p.handlers.get('#load-reply-policies')();
   const form=p.nodes.get('#reply-policies').children[0];
-  assert.match(form.children[1].textContent,/成功 2.*处理中 1.*不确定 1/);
-  form.children[2].children[0].children[0].value='12';
+  assert.equal(form.children.length,3);
+  form.children[1].children[0].children[0].value='12';
   await form.listeners.submit({preventDefault(){}});
   assert.equal(JSON.stringify(p.calls[1]),JSON.stringify({operation:'reply_policy_set',args:{
     platform:'qq',account_identity:'10001',expected_version:'p1',changes:{...settings,private_daily_replies:12}}}));
   assert.equal(p.calls[2].operation,'reply_policy_list');
-  assert.match(p.notices[0],/未启动角色/);
+  assert.match(p.notices[0],/默认额度已保存并生效/);
 });

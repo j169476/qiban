@@ -164,9 +164,12 @@ class RuntimeSession(RoleSession):
 
     def admitted_pending(self):
         record, run = self._active()
-        result = []
+        result, selected_threads = [], set()
+        batch_size = self.store.read("companion")["data"].get("inbox_batch_size", 3)
         with self.store.lock, self.store.db() as db:
             for key in record.get("pending_order", list(record["admissions"])):
+                if len(result) >= batch_size:
+                    break
                 admission = record["admissions"][key]
                 if not self._permission_current(admission, db):
                     continue
@@ -177,6 +180,8 @@ class RuntimeSession(RoleSession):
                 if row is None or row["deleted"]:
                     continue
                 event = Event.from_dict(self.store.ledger_decode("core_events.body", row["body"]))
+                if event.thread in selected_threads:
+                    continue
                 if not self._candidate(event, record):
                     continue
                 if admission["ticket"] is None:
@@ -193,10 +198,9 @@ class RuntimeSession(RoleSession):
                     continue
                 self.store.set_state(self.key, record, db)
                 self.check_event(event, db=db)
+                selected_threads.add(event.thread)
                 if delivery.eligible(self.core, event, version, run):
                     result.append(event)
-                if event.visibility == "group":
-                    break
             self.store.set_state(self.key, record, db)
         return result
 

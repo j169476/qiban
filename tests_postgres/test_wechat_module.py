@@ -145,6 +145,9 @@ async def test_restart_resumes_unsent_admission_and_cursor_without_resending_com
     enqueue(env, row(1), row(2))
     incoming = await env.adapter.collect_once()
     assert (await env.core.handle(incoming[0]))["action"]["status"] == "succeeded"
+    assert len(incoming) == 1
+    pending = env.adapter.admitted_pending()
+    assert len(pending) == 1 and pending[0].id != incoming[0].id
     checkpoint, epoch = env.receiver._saved, env.receiver.inbox.epoch
     env.core.stop("synthetic-restart")
     await env.adapter.close()
@@ -153,7 +156,7 @@ async def test_restart_resumes_unsent_admission_and_cursor_without_resending_com
         resumed.core.start()
         enqueue(resumed)
         remaining = await resumed.adapter.collect_once()
-        assert [e.id for e in remaining] == [incoming[1].id]
+        assert [e.id for e in remaining] == [pending[0].id]
         assert resumed.receiver.inbox.epoch == epoch
         assert (await resumed.core.handle(remaining[0]))["action"]["status"] == "succeeded"
         assert len(resumed.driver.sent) == 1
