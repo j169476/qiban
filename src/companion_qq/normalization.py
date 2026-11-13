@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 from companion_core.contracts import ActorRef, Event, stable_key
 from companion_core.reply_authorization import require
 
-from .config import qq_id
-from .transport import message_id
+from .config import message_id, qq_id
 
 
 def normalize(raw, options, *, sent_reference):

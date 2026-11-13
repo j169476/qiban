@@ -30,6 +30,11 @@ def pack(context, settings, instructions="", schema=None):
     if any(type(value) is not int or value <= 0 for value in limits.values()) or limits["reply_context_tokens"] <= limits["reply_output_reserve"]:
         raise AssistantError("context_budget", "统一上下文预算配置无效")
     result = deepcopy(context)
+    documents = result.get('event_material', {}).pop('attachment_texts', [])
+    if documents:
+        from .media_text import append_excerpts, install_notice
+
+        install_notice(result, documents)
     candidates, sections = [], {}
 
     def candidate(section, priority, path, value, *, grouped=False):
@@ -80,6 +85,16 @@ def pack(context, settings, instructions="", schema=None):
         growth = result["private_growth"]
         result["private_growth"] = {"reflection_due": False, "context_omitted": True}
         candidate("growth", 70, ("private_growth",), growth)
+    stickers = result.get("event_material", {}).get("stickers")
+    if stickers:
+        offered, stickers["items"] = stickers.get("items", []), []
+        for item in offered:
+            candidate("stickers", 95, ("event_material", "stickers", "items"), item)
+    files = result.get("event_material", {}).get("files")
+    if files:
+        offered, files["items"] = files.get("items", []), []
+        for item in offered:
+            candidate("files", 94, ("event_material", "files", "items"), item)
     result["context_selection"] = {"limited": True, "guidance": "未提供的资料不能当作不存在；仅依据本轮可见证据回答。"}
 
     def fits():
@@ -90,6 +105,7 @@ def pack(context, settings, instructions="", schema=None):
     # Metadata counters have bounded space even after recalculation at the end.
     if not fits():
         raise AssistantError("context_budget", "核心设定、当前消息和必要材料超过统一预算；请调整预算或缩短输入，未截断设定")
+    fixed_usage = measure(result, instructions, schema)
     for _, _, section, path, value, grouped in sorted(candidates):
         supplied_facts = {item["id"] for item in result.get("personal_facts", {}).get("items", [])}
         supplied_records = {(item["kind"], item["data"]["id"]) for item in result.get("memory", {}).get("records", [])
@@ -135,9 +151,20 @@ def pack(context, settings, instructions="", schema=None):
     if "social_relations" in result:
         result["social_relations"]["truncated"] = bool(context["social_relations"].get("truncated")
             or len(result["social_relations"]["claims"]) < len(context["social_relations"].get("claims", [])))
+    if documents:
+        def media_fits():
+            usage = measure(result, instructions, schema)
+            return (usage['chars'] + 512 <= limits['reply_context_chars']
+                    and usage['estimated_tokens'] + 512 + limits['reply_output_reserve'] <= limits['reply_context_tokens'])
+
+        media_report = append_excerpts(result, documents, media_fits)
+        sections['attachment_text'] = media_report
+        limited |= media_report['limited']
+        result['context_selection']['limited'] = limited
     if not fits():
         raise AssistantError("context_budget", "上下文预算元数据超过限制，未提交模型")
     report = {"before": measure(context, instructions, schema), "after": measure(result, instructions, schema),
+              "fixed": fixed_usage,
               "limits": limits, "sections": sections, "limited": limited,
               "token_estimator": "utf8_bytes_upper_estimate", "image_tokens_included": False}
     return result, report

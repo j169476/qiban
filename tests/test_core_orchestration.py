@@ -91,9 +91,12 @@ async def test_default_and_native_core_use_same_complete_services(store, tmp_pat
             monkeypatch.setattr("companion_codex.model.CodexModel.generate", fake_generate)
             cycle = controller.cycle
         first = await cycle()
+        # The account-owned favorite tools stage runs before exploration, and both
+        # orchestration entry points must expose the same complete service list.
         assert [stage["name"] for stage in first["workflows"][0]["stages"]] == [
             "emotion_recovery", "delivery_recovery", "inbox", "selection_context", "native_tools", "video_gap",
-            "goal_learning", "exploration", "decision_and_delivery", "reflection", "maintenance"]
+            "goal_learning", "favorite_tools", "exploration", "decision_and_delivery", "reflection",
+            "maintenance"]
         platform.events, platform.candidates = [incoming()], []
         await cycle()
         await cycle()

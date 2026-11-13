@@ -23,10 +23,13 @@ FACT = obj({"actor": TEXT, "account": {"type": "string", "minLength": 1, "maxLen
             "supersedes": UPDATE["properties"]["supersedes"]})
 FACT["properties"]["confirmation"] = obj({"by": TEXT, "reason": {"type": "string", "minLength": 1, "maxLength": 1000},
     "at": {"type": "string", "format": "date-time"}, "chosen": TEXT})
+FACT["properties"]["correction"] = obj({"by": TEXT, "reason": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "at": {"type": "string", "format": "date-time"}, "original": TEXT, "original_value": TEXT})
 UPDATES = {"type": "array", "maxItems": 3, "items": UPDATE}
 PROMPT = (
     "personal_facts 是程序按本会话来源计算的人物事实：active 为当前有效，historical 为旧状态，"
     "disputed 表示冲突未解决，future 尚未生效。普通记忆或关系 facts 不能覆盖其明确的更正。"
+    "带 correction 的事实值由管理员更正，quote 保留原始来源原话，不代表更正后的值是用户原话；当前状态仍按 status 使用。"
     "只有当前用户明确讲述自己的居住地、希望的称呼、饮食偏好，才可返回 fact_updates（最多3项）。"
     "quote 必须是当前 event.text 的完整原话片段，value 必须逐字出现在 quote；转述、假设、提问不更新。"
     "不确定就返回空数组，不补全未说出的事实。valid_from 仅在原话包含 YYYY-MM-DD 时填写，否则 null。"
@@ -123,7 +126,7 @@ class PersonalFacts:
         """
         if not self.headers:
             return
-        from .access import RecordPolicy
+        from .fact_projection import persist
 
         with self.governed.store.lock, self.governed.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -135,16 +138,7 @@ class PersonalFacts:
                 if policy is None:
                     raise AssistantError("context_changed", "人物事实来源已删除")
                 pins.append((resource, policy.version))
-            identifier = stable_key("fact-view", self.event.actor.key, self.event.account, self.event.thread,
-                                    self.signature, pins)
-            resource = "personal-fact-view/" + identifier
-            policy = RecordPolicy(resource, identifier, "personal", frozenset((self.event.actor.key,)),
-                                  self.event.thread, "private", tuple(key for key, _ in pins), source_versions=tuple(pins))
-            existing = self.governed.repository.policy(resource)
-            if existing is None:
-                self.governed.repository.set_policy(policy, None, "personal-fact-projection", db=db)
-            elif existing != policy:
-                raise AssistantError("context_changed", "事实视图的来源节点已经变化")
+            resource = persist(self.governed.repository, db, self.event, self.signature, pins)
         # The file-store backend opens a separate connection for access checks.
         # Publish the metadata node first, then verify its complete pinned graph.
         self.governed.access.lease(self.governed.request, [resource])
@@ -182,6 +176,15 @@ class PersonalFacts:
         self.visible &= {item["id"] for item in context.get("personal_facts", {}).get("items", [])}
 
     def save(self, updates):
+        # Serialize the retirement watermark check with record + policy writes.
+        if getattr(self.governed.store, 'backend', None) != 'postgres':
+            with self.governed.store.lock:
+                return self._save(updates)
+        with self.governed.store.lock, self.governed.store.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            return self._save(updates)
+
+    def _save(self, updates):
         if not updates or not self.available:
             return {"written": 0, "rejected": len(updates or [])}
         store, event = self.governed.store, self.event
@@ -190,6 +193,10 @@ class PersonalFacts:
         current = [row for row in self.headers if self.states[row["id"]] in {"active", "disputed"}]
         written = rejected = 0
         for update in updates:
+            from .fact_retirement import accepts
+            if not accepts(store, event, update['attribute']):
+                rejected += 1
+                continue
             quote, value = update["quote"].strip(), update["value"].strip()
             if (not quote or not value or quote not in event.text or value not in quote
                     or not assertion_clause(event.text, quote)

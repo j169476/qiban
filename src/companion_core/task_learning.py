@@ -3,6 +3,18 @@ from . import learning
 from .errors import AssistantError
 
 
+def assessment(grades):
+    """Derive an effective verdict without rewriting the model's assessment."""
+    conflicts = [grade['id'] for grade in grades if grade['passed'] and grade['gap'].strip()]
+    gaps = [grade['gap'] if grade['gap'].strip() else grade['reason']
+            for grade in grades if not grade['passed'] or grade['gap'].strip()]
+    passed = bool(grades) and all(grade['passed'] for grade in grades) and not conflicts
+    summary = ('模型自检通过；这不是独立实测或用户掌握证明。' if passed else
+               ('评阅存在矛盾，自检未通过。' if conflicts else '模型自检未通过。') +
+               '本轮仍有知识缺口：' + '；'.join(gaps))
+    return {'passed': passed, 'gaps': gaps, 'conflicts': conflicts, 'summary': summary[:12000]}
+
+
 async def step(arguments, previous, generate, research):
     phase = previous["phase"] if previous else "start"
     data = previous["payload"] if previous else {"round": 1, "gaps": []}
@@ -27,11 +39,11 @@ async def step(arguments, previous, generate, research):
     value = await generate(learning.GRADE_PROMPT, {"questions": data["questions"], "answers": data["answers"],
                                                  "sources": data["sources"]}, learning.GRADE_SCHEMA)
     learning.checked_ids(value["grades"], [q["id"] for q in data["questions"]])
-    passed = all(grade["passed"] for grade in value["grades"])
+    checked = assessment(value['grades'])
+    passed = checked['passed']
     final = passed or data["round"] >= arguments["round_limit"]
-    gaps = [grade["gap"] or grade["reason"] for grade in value["grades"] if not grade["passed"]]
+    gaps = checked['gaps']
     return {"phase": "assessed" if final else "research_again", "complete": final,
             "payload": {**data, **value, "passed": passed, "gaps": gaps,
                         "round": data["round"] if final else data["round"] + 1},
-            "summary": ("模型自检通过；这不是独立实测或用户掌握证明。" if passed else
-                        "本轮仍有知识缺口：" + "；".join(gaps))[:12000]}
+            "summary": checked['summary']}

@@ -18,6 +18,11 @@ def pg_profile():
 
 @pytest.fixture
 def pg_store(tmp_path, pg_profile):
+    if os.environ.get("QIBAN_DESKTOP_TEST_ROOT"):
+        from tests_postgres.test_desktop_management import desktop_store
+
+        yield from desktop_store.__wrapped__(tmp_path, pg_profile)
+        return
     config = Path(os.environ.get("COMPANION_TEST_DATABASE", "")) if os.environ.get("COMPANION_TEST_DATABASE") else (
         Path(__file__).resolve().parents[1] / ".dev/postgres-test-v2/connection.json")
     if not config.exists():

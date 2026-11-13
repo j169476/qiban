@@ -103,3 +103,31 @@ def test_recalled_old_recent_turn_only_deduplicates_when_evidence_is_complete(pa
     assert report["sections"]["recent_turns"]["duplicates"] == (0 if partial else 1)
     if partial:
         assert any(row["data"]["content"] == "完整原文0" for row in older)
+
+
+def test_sticker_catalog_uses_shared_budget_without_displacing_persona_and_memory():
+    original = context()
+    original['event_material'] = {'stickers': {'guidance': 'choose only provided ids',
+        'items': [{'id': str(i), 'revision': 'v1', 'name': '表情', 'tags': ['标签' * 300]} for i in range(12)]}}
+    original['conversation']['turns'] = [turn('recent', '应优先保留的聊天' * 50)]
+    selected, report = pack(original, {'reply_context_chars': 3500})
+    assert selected['persona'] == original['persona']
+    assert selected['conversation']['turns'] == original['conversation']['turns']
+    assert len(selected['event_material']['stickers']['items']) < 12
+    assert report['sections']['stickers']['offered'] == 12
+    assert report['after']['chars'] <= 3500
+
+
+def test_file_catalog_shares_fixed_context_budget_and_does_not_displace_persona():
+    value = context()
+    limits = {"count": 3, "total_mib": 20, "revision": "r1"}
+    value["event_material"] = {"files": {"limits": limits, "items": [
+        {"id": "library:" + str(i), "revision": "v1", "name": "文件名" * 40,
+         "tags": ["标签" * 30] * 8, "bytes": 100} for i in range(24)]}}
+    before = deepcopy(value)
+    packed, report = pack(value, {"reply_context_chars": 3500})
+    assert report["after"]["chars"] <= 3500
+    assert len(packed["event_material"]["files"]["items"]) < 24
+    assert packed["event_material"]["files"]["limits"] == limits
+    assert packed["persona"] == value["persona"] and packed["foundation_memories"] == value["foundation_memories"]
+    assert value == before

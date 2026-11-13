@@ -187,3 +187,28 @@ class ProcessScope:
                 if not self.attached and self.process.poll() is None:
                     self.process.kill()  # Assignment failed; the child is still suspended.
                 self.process.wait(timeout=3)
+
+
+def process_exited(pid):
+    if os.name != 'nt':
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            return False
+        return False
+    api = ctypes.WinDLL('kernel32', use_last_error=True)
+    api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    api.OpenProcess.restype = wintypes.HANDLE
+    api.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    api.WaitForSingleObject.restype = wintypes.DWORD
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    api.CloseHandle.restype = wintypes.BOOL
+    handle = api.OpenProcess(0x100000, False, pid)  # SYNCHRONIZE only.
+    if not handle:
+        return ctypes.get_last_error() == 87  # PID no longer exists; access denied is not proof.
+    try:
+        return api.WaitForSingleObject(handle, 0) == 0
+    finally:
+        api.CloseHandle(handle)

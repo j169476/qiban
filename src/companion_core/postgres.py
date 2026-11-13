@@ -33,6 +33,8 @@ def migrate(database, profile):
         db.execute("BEGIN IMMEDIATE")
         found = db.execute("SELECT to_regclass('schema_migrations')").fetchone()[0]
         known = dict(db.execute("SELECT version,checksum FROM schema_migrations")) if found else {}
+        if set(known) - {int(path.name.split('_', 1)[0]) for path in scripts}:
+            raise AssistantError('migration_version', '资料库版本高于当前应用，请使用较新的应用版本')
         for path in scripts:
             number = int(path.name.split("_", 1)[0])
             raw = path.read_bytes()
@@ -54,6 +56,20 @@ def migrate(database, profile):
                        ON CONFLICT(kind) DO UPDATE SET schema_json=excluded.schema_json,
                        is_collection=excluded.is_collection""",
                        (kind, json.dumps(schema), kind in profile.collections))
+
+
+def verify_schema(database):
+    """A runtime never reports ready against a missing, changed or newer schema."""
+    scripts = sorted((Path(__file__).parent / 'sql').glob('[0-9]*.sql'))
+    with database.connect() as db:
+        known = dict(db.execute('SELECT version,checksum FROM schema_migrations'))
+    if set(known) != {int(path.name.split('_', 1)[0]) for path in scripts}:
+        raise AssistantError('storage_schema_upgrade_required', '数据库版本与应用不一致，请重新启动应用以完成资料准备')
+    for path in scripts:
+        raw = path.read_bytes().replace(b'\r\n', b'\n')
+        if known[int(path.name.split('_', 1)[0])] not in {
+                hashlib.sha256(raw).hexdigest(), hashlib.sha256(raw.replace(b'\n', b'\r\n')).hexdigest()}:
+            raise AssistantError('migration_checksum', '数据库升级记录与应用不一致')
 
 
 class PostgresStore(Store):
@@ -253,6 +269,10 @@ class PostgresStore(Store):
         if db is None:
             with self.db() as connection:
                 return self.set_state(key, value, connection)
+        from .source_retention import state_refs, tracked
+
+        if tracked(key):
+            db.execute('BEGIN IMMEDIATE')
         if key == "public-growth":
             from .governance import GovernanceRepository
             from .provenance import invalidate_state
@@ -261,9 +281,20 @@ class PostgresStore(Store):
             invalidate_state(GovernanceRepository(self), db)
         db.execute("INSERT INTO state VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                    (key, self.ledger_encode("state:" + key, value)))
+        if tracked(key):
+            state_refs(db, key, value)
         if key.startswith("core-processed:"):
             db.execute("""INSERT INTO core_event_receipts VALUES(?,?) ON CONFLICT(event_id)
                        DO UPDATE SET version=excluded.version""", (key[15:], value))
+            # Retention begins only with the durable processing receipt, in the
+            # same transaction. Replays must not extend the retention period.
+            db.execute("""UPDATE media_originals SET processed_at=COALESCE(processed_at,EXTRACT(EPOCH FROM clock_timestamp()))
+                       WHERE event_id=? AND source_version=?""", (key[15:], value))
+        elif key.startswith("merged-consumed:"):
+            # A merged reply retires every member, not only its anchor event.
+            # Consumption is not a claim that omitted media was read.
+            db.execute("""UPDATE media_originals SET processed_at=COALESCE(processed_at,EXTRACT(EPOCH FROM clock_timestamp()))
+                       WHERE event_id=? AND source_version=?""", (key[16:], value['version']))
         elif key.startswith("core-delivery:"):
             db.execute("""INSERT INTO core_delivery_state VALUES(?,?,?,?,?,?) ON CONFLICT(event_id)
                        DO UPDATE SET version=excluded.version,owner=excluded.owner,status=excluded.status,

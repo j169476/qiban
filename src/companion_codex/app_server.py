@@ -6,6 +6,7 @@ select a local file, process command, login scope, or privileged protocol method
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import queue
@@ -202,9 +203,10 @@ def copy_inputs(job, images):
         raise AssistantError("model_input_size", "本轮图片超过上限")
     result = []
     for index, source in enumerate(images):
-        path = Path(source)
         try:
-            if path.is_symlink() or path.stat().st_size > 20_000_000:
+            path = io.BytesIO(source) if isinstance(source, bytes) else Path(source)
+            if (len(source) > 20_000_000 if isinstance(source, bytes) else
+                    path.is_symlink() or path.stat().st_size > 20_000_000):
                 raise ValueError()
             # Decode and re-encode to remove metadata, embedded unrelated content
             # and original paths. The caller, never model text, chooses this file.
@@ -249,7 +251,9 @@ class TurnEvidence:
             if self.turn_id and turn.get("id") != self.turn_id:
                 raise AssistantError("model_protocol", "模型完成事件轮次不一致")
             if turn.get("status") != "completed":
-                raise AssistantError("model_failed", "隔离模型调用未完成")
+                from .failures import turn_failure
+
+                raise turn_failure(turn.get("status"), turn.get("error"))
             self.completed = True
         if method not in ("item/started", "item/completed"):
             return
@@ -300,11 +304,14 @@ def verify_configuration(config, native):
 
 
 async def generate(instructions, context, output_schema, images=(), *, native=None,
-                   store, policy, guard, phase, observation, reasoning_effort=None, model=None):
+                   store, policy, guard, phase, observation, reasoning_effort=None, model=None,
+                   plan_access_token=None, executable=None):
     from companion_core.structured_output import restore_optional, strict_schema
 
     from .isolated_artifacts import export_image
 
+    if plan_access_token is not None and (native not in (None, 'web') or not plan_access_token or not model or not reasoning_effort):
+        raise AssistantError('model_config', '订阅模型执行参数无效。')
     await asyncio.to_thread(guard)
     work = store.runtime / "worker"
     deadline = time.monotonic() + policy["worker_timeout_seconds"]
@@ -312,21 +319,28 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
     async with AsyncExitStack() as cleanup:
         cleanup.callback(phase, "cycle")
         cleanup.callback(lambda: observation.tokens(evidence.usage))
-        settings = model_settings()
+        settings = model_settings() if plan_access_token is None else {}
         if model is not None:
             settings["model"] = model
             # A selected model must not inherit an unrelated global effort.
             settings.pop("model_reasoning_effort", None)
         if reasoning_effort is not None:
             settings["model_reasoning_effort"] = reasoning_effort
-        job = IsolatedJob(work, native=native, settings=settings)
+        job = IsolatedJob(work, native=native, settings=settings, executable=executable)
         cleanup.push_async_callback(asyncio.to_thread, job.close)
+        environment = job.environment()
+        if plan_access_token is not None:
+            from . import plan_provider
+
+            plan_provider.configure(job)
+            environment['ACCESS_TOKEN'] = plan_access_token
         supplied_images = copy_inputs(job, images)
-        client = await RpcProcess.open(job.command(), cwd=job.work, env=job.environment(), guard=guard,
+        client = await RpcProcess.open(job.command(), cwd=job.work, env=environment, guard=guard,
                                        deadline=deadline, max_bytes=32_000_000 if native == "image" else 8_000_000)
         cleanup.push_async_callback(asyncio.to_thread, client.close)
         initialized = await client.call("initialize", {
-            "clientInfo": {"name": "companion_isolated", "version": "0.6.0"},
+            "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.4"} if plan_access_token is not None
+                           else {"name": "companion_isolated", "version": "0.6.0"}),
             "capabilities": {"experimentalApi": True},
         })
         if Path(initialized.get("codexHome", "")).resolve() != job.home:
@@ -334,7 +348,10 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
         await asyncio.to_thread(client.send, {"method": "initialized"})
         configuration = await client.call("config/read", {"includeLayers": False})
         verify_configuration(configuration.get("config", {}), native)
-        await client.call("account/login/start", login_params())
+        if plan_access_token is None:
+            await client.call("account/login/start", login_params())
+        else:
+            plan_provider.verify(configuration.get('config', {}), model, reasoning_effort)
         value = await client.call("thread/start", {
             "cwd": str(job.work), "ephemeral": True, "approvalPolicy": "never", "sandbox": "read-only",
             "developerInstructions": instructions, "environments": [], "selectedCapabilityRoots": [],

@@ -1,5 +1,13 @@
 # 开发、测试与发布
 
+## 当前重构工作区
+
+独立 EXE 重构以 0.9.4（00d3367a）为基线，使用本仓库作为唯一开发与构建源码；当前分支为 codex/standalone-exe。父目录中的旧开发文件保留作历史核对，不参与新构建。日常安装与本仓库分离。
+
+所有命令从本仓库根目录执行；本仓库自己的 .venv 用于常规开发，.dev 存放已忽略的测试证据和临时资源，dist 存放生成产物。临时借用其他虚拟环境时，必须明确设置本仓库 src 为导入路径并核查实际加载位置，避免误测旧版。
+
+阶段状态见[重构进度](QIBAN_REFACTOR_PROGRESS.md)，范围见[重构路线](QIBAN_STANDALONE_REFACTOR_PLAN.md)，旧能力去向见[迁移清单](QIBAN_V094_MIGRATION_INVENTORY.md)。
+
 常规开发安装：
 
 ```powershell

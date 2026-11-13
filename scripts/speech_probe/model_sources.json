@@ -1,0 +1,14 @@
+{
+  "tts_assets": [
+    {
+      "id": 677614055,
+      "name": "kokoro-int8-multi-lang-v1_1.tar.bz2",
+      "size": 147052523,
+      "digest": "sha256:259c9c8bc906d6078e4e0570421885dabb68b539c2f970fcbb890a58eeaf3e9c",
+      "browser_download_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2",
+      "updated_at": "2026-10-26T09:10:03Z"
+    }
+  ],
+  "asr_commit": "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66",
+  "sherpa_onnx_version": "2.0.1"
+}

@@ -13,6 +13,7 @@ from companion_core.errors import AssistantError
 from companion_core.reply_authorization import ReplyScope, ReplyTarget
 from companion_core.schema import obj
 
+from .alias_reviews import AliasReviews
 from .collector import collector_account
 from .contracts import require
 from .db_cli import load_config
@@ -102,11 +103,17 @@ class ReconnectingTransport:
             pid, _born = self.identity
             arguments["config"] = {**arguments["config"], "client_pid": pid}
             self.next_check = self.clock() + 5
-        elif command == "read" and self.clock() >= self.next_check:
+        elif command in {"resolve_alias", "member_kind", "directory_page", "enrolled_members", "member_page", "chat_member_page", "member_window"}:
+            require(self.identity is not None, "wechat_module_enrollment_required")
+            await asyncio.to_thread(self.check, self.account, self.identity)
+        elif command in {"read", "freeze_window", "read_window"} and self.clock() >= self.next_check:
             require(self.identity is not None, "wechat_module_enrollment_required")
             await asyncio.to_thread(self.check, self.account, self.identity)
             self.next_check = self.clock() + 5
-        return await self.worker.request(command, **arguments)
+        result = await self.worker.request(command, **arguments)
+        if command in {"resolve_alias", "member_kind", "directory_page", "enrolled_members", "member_page", "chat_member_page", "member_window"}:
+            await asyncio.to_thread(self.check, self.account, self.identity)
+        return result
 
     async def close(self):
         await self.worker.close()
@@ -118,6 +125,25 @@ class ContinuousAdapter(RoleAdapter):
         super().__init__(*args)
         self.timeout = 30.0
 
+    @property
+    def merged(self):
+        return self.session.merged
+
+    def decision_batch(self, event):
+        return self.merged.for_event(event)
+
+    def validate_context_event(self, event):
+        from .connector import WeChatConnector
+
+        WeChatConnector.validate_event(self, event)
+        self.session.check_context_event(event)
+
+    def finish_batch(self, event, action):
+        record, run = self.session._active()
+        ticket = record["admissions"][event.id]["ticket"]
+        if ticket.get("backlog") and action is None:
+            self.session.participation.end(ticket, run["generation"])
+
     def capabilities(self):
         return [Capability("message.reply", "向当前授权微信会话回复单行纯文本，最多300字符和1023个UTF-8字节", obj({
             "text": {"type": "string", "minLength": 1, "maxLength": 300, "pattern": r"^[^\r\n]+$"}})),
@@ -125,10 +151,15 @@ class ContinuousAdapter(RoleAdapter):
 
     @asynccontextmanager
     async def decision_material(self, event, *, guard):
+        from companion_core.media_budget import prepare_unread
+
         guard()
         self.session.check_event(event)
         record, run = self.session._active()
-        yield {"context": self.session.participation.context(record["admissions"][event.id]["ticket"], run["generation"]),
+        media = prepare_unread(self.store, self.merged, event)
+        guard()
+        yield {"context": {**self.session.participation.context(record["admissions"][event.id]["ticket"], run["generation"]),
+                           "media_budget": media},
                "images": ()}
 
     async def execute(self, capability, arguments, *, guard):
@@ -172,10 +203,24 @@ class WeChatModule:
         self.options = options
         self.factory = factory or self._compose
         self.core = self.delegate = None
+        self.alias_reviews = AliasReviews()
         self.stopping = False
 
     def bind_runtime(self, core):
         self.core = core
+
+    @property
+    def merged(self):
+        return self.delegate.merged
+
+    def decision_batch(self, event):
+        return self.delegate.decision_batch(event)
+
+    def validate_context_event(self, event):
+        return self.delegate.validate_context_event(event)
+
+    def finish_batch(self, event, action):
+        return self.delegate.finish_batch(event, action)
 
     def reply_targets(self):
         pointer = self.store.state("wechat-db-enrollment:" + stable_key("logical-account", self.account))
@@ -194,10 +239,19 @@ class WeChatModule:
 
         options = self.options or load_options(self.project)
         require(options is not None, "wechat_module_configuration")
-        require(options["database_python"].is_file(), "wechat_database_python_missing")
-        config = load_config(options["locations"], options["targets"])
+        if "reader_executable" in options:
+            reader = options["reader_executable"]
+            require(reader.is_file(), "wechat_reader_missing")
+            config = options["verified_config"]
+            def transport():
+                return ReconnectingTransport(None, worker=SubprocessTransport(executable=reader))
+        else:
+            require(options["database_python"].is_file(), "wechat_database_python_missing")
+            config = load_config(options["locations"], options["targets"])
+            def transport():
+                return ReconnectingTransport(options["database_python"])
         receiver = DatabaseGateway(self.store, config, account=self.account,
-            transport_factory=lambda: ReconnectingTransport(options["database_python"]))
+                                     transport_factory=transport, fixed_windows=True, monitor_members=True)
         pointer = self.store.state(receiver.pointer_key)
         require(pointer is not None, "wechat_module_enrollment_required")
         receiver._initialize(pointer)  # Encrypted metadata only. pump_once opens the source lazily.
@@ -206,7 +260,7 @@ class WeChatModule:
         session = RuntimeSession(self.store, self.account, family=True)
         permits = PermitAuthority(secrets.token_bytes(32))
         driver = NativeDriver(lambda: NativeBridge(options["native_dll"], enrollment["self_username"], targets),
-                              DatabaseReceiptClient(receiver), preflight=lambda: validate_build(options["native_dll"]))
+                              DatabaseReceiptClient(receiver), targets=targets, preflight=lambda: validate_build(options["native_dll"]))
         sender = NativeSenderGateway(self.store, receiver, permits, driver, session, timeout=25)
         return ContinuousAdapter(receiver, sender, permits, session)
 
@@ -250,7 +304,10 @@ class WeChatModule:
         return await self.delegate.receive(cursor)
 
     async def runtime_poll(self):
-        return await self.delegate.collect_once()
+        incoming = await self.delegate.collect_once()
+        if not incoming and getattr(self.store, "backend", None) == "postgres":
+            await self.alias_reviews.poll(self.core, self.delegate.receiver)
+        return incoming
 
     def workflow(self, core):
         return self.delegate.workflow(core)

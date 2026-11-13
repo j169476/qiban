@@ -48,8 +48,10 @@ def test_previous_schema_upgrade_backfills_without_changing_content_or_role(pg_s
         owner.migrate()
         owner.migrate()
         with psycopg.connect(**scoped) as db:
-            for table in ('maintenance_revision', 'conversation_index', 'input_image_blobs', 'personal_fact_index'):
-                db.execute(sql.SQL('GRANT SELECT,INSERT,UPDATE,DELETE ON {}.{} TO {}').format(
+            db.execute(sql.SQL('GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA {} TO {}').format(
+                sql.Identifier(schema), sql.Identifier(role)))
+            for table in ('schema_migrations', 'record_kinds'):
+                db.execute(sql.SQL('REVOKE INSERT,UPDATE,DELETE ON {}.{} FROM {}').format(
                     sql.Identifier(schema), sql.Identifier(table), sql.Identifier(role)))
         with app.db() as db:
             after = [list(row) for row in db.execute('SELECT kind,id,version FROM content_records ORDER BY kind,id')]

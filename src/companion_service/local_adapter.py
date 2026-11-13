@@ -18,6 +18,7 @@ from companion_core.schema import obj
 
 class LocalAdapter:
     platform = "local"
+    allow_image_only = False
     interactive = True
     action_budget_field = "daily_local_replies"
     reply_quota_preflight = True
@@ -43,7 +44,7 @@ class LocalAdapter:
         raise AssistantError("unsupported", "本机入口不支持任意资料读取")
 
     def post(self, token, text, nonce, images=None):
-        if (not isinstance(text, str) or not text.strip() or len(text) > 12000
+        if (not isinstance(text, str) or not (text.strip() or self.allow_image_only and images) or len(text) > 12000
                 or not isinstance(nonce, str) or not re.fullmatch(r"[a-f0-9]{32}", nonce)):
             raise AssistantError("invalid_message", "消息为空、过长或提交标识无效")
         run = self.core.guard()
@@ -80,15 +81,24 @@ class LocalAdapter:
                                       policy.version, request.actor, db=db)
             return result
 
-    def validate_event(self, event):
+    def owner_actor(self):
         owner = self.store.state("web-owner", {})
         from companion_core.contracts import ActorRef
 
-        actor = ActorRef(**owner["actor"]) if owner else None
+        return ActorRef(**owner["actor"]) if owner else None
+
+    def session_active(self, identifier):
+        return self.sessions.repository.session_active(identifier)
+
+    def accepted_for_run(self, event, run):
+        return (self.session_active(event.metadata.get("session", ""))
+                and event.metadata.get("generation") == run["generation"])
+
+    def validate_event(self, event):
+        actor = self.owner_actor()
         run = self.core.guard()
         if (not actor or actor != event.actor or event.visibility != "private" or event.conversation != actor.key
-                or not self.sessions.repository.session_active(event.metadata.get("session", ""))
-                or event.metadata.get("generation") != run["generation"]):
+                or not self.accepted_for_run(event, run)):
             raise AssistantError("session_expired", "本机消息的会话或运行已结束，需要重新提交")
         if self.store.state("web-message:" + event.id, {}).get("reason") == "user_cancelled":
             raise AssistantError("session_expired", "该消息已由用户取消")
@@ -99,10 +109,13 @@ class LocalAdapter:
         thread = Event(self.platform, self.account, "web", actor, actor.key, "", "").thread
         return self.sessions.request(token, "role", conversation=thread)
 
+    def material_request(self, event):
+        return self.sessions._recover(event.metadata["session"], "role", conversation=event.thread)
+
     @asynccontextmanager
     async def decision_material(self, event, *, guard):
         with tempfile.TemporaryDirectory(prefix="input-image-", dir=self.store.runtime) as folder:
-            request = self.sessions._recover(event.metadata["session"], "role", conversation=event.thread)
+            request = self.material_request(event)
             files = []
             for key in identifiers(event):
                 guard()
@@ -110,7 +123,8 @@ class LocalAdapter:
                 target.write_bytes(self.images.read(request, key))
                 files.append(target)
             guard()
-            yield {"context": {"images_read": len(files), "input": "authenticated_private_upload"}, "images": files}
+            yield {"context": {"images_read": len(files), "input": "authenticated_private_upload"},
+                   "images": files, "directory": Path(folder)}
 
     async def execute(self, capability, arguments, *, guard):
         guard()
@@ -118,12 +132,9 @@ class LocalAdapter:
         return ActionResult("succeeded", {"local": True})
 
     def conversation(self):
-        from companion_core.contracts import ActorRef
-
-        owner = self.store.state("web-owner", {})
-        if not owner:
+        actor = self.owner_actor()
+        if not actor:
             return None
-        actor = ActorRef(**owner["actor"])
         return Event(self.platform, self.account, "maintenance", actor, actor.key, "", "").thread
 
     def maintenance_request(self):
@@ -167,7 +178,8 @@ class LocalAdapter:
             item = {"id": row["id"], "status": status, "reason": state.get("reason", ""), "due_at": state.get("due_at")}
             if not row["deleted"] and access.can_read(request, "event/" + row["id"]):
                 lease = access.lease(request, ["event/" + row["id"]])
-                item["text"] = events.get(self.store, row["id"])["event"]["text"][:160]
+                event = events.get(self.store, row["id"])["event"]
+                item.update(text=event["text"][:160], at=event["occurred_at"], images=len(event.get("attachments", [])))
                 access.revalidate(lease)
             output.append(item)
         self.sessions.authority.require(request)

@@ -15,8 +15,9 @@ def lab(tmp_path):
         value.close()
 
 
-def parse(kind, text, source=None, verified=False):
-    return message(kind, text, source, SELF, own_reference=lambda _identifier: verified)
+def parse(kind, text, source=None, verified=False, conversation=None):
+    return message(kind, text, source, SELF, own_reference=lambda _identifier: verified,
+                   conversation=conversation)
 
 
 def test_only_metadata_mentions_wake_and_entity_xml_is_rejected():
@@ -49,7 +50,35 @@ def test_real_source_selects_metadata_and_verifies_quoted_sender(lab):
         initial = session.snapshot()
         connection.execute(f'INSERT INTO "{table}" VALUES(2,1235,1700000002,1,3,?,9,?)',
             ("@shown hello", f"<msgsource><atuserlist>{SELF}</atuserlist></msgsource>"))
-        quote = f"<msg><appmsg><type>57</type><title>question</title><refermsg><fromusr>{SELF}</fromusr><svrid>1234</svrid></refermsg></appmsg></msg>"
+        quote = f"<msg><appmsg><type>57</type><title>question</title><refermsg><fromusr>{GROUP}</fromusr><chatusr>{SELF}</chatusr><svrid>1234</svrid></refermsg></appmsg></msg>"
         connection.execute(f'INSERT INTO "{table}" VALUES(3,1236,1700000003,?,3,?,9,NULL)', ((57 << 32) | 49, quote))
         result = session.read(initial["checkpoint"])
         assert [r["trigger"] for r in result["rows"]] == ["mention", "reply"]
+
+
+@pytest.mark.parametrize("origin,author,verified,expected", [
+    ("test@chatroom", SELF, True, "reply"),
+    ("test@chatroom", SELF, False, "none"),
+    ("other@chatroom", SELF, True, "none"),
+    ("test@chatroom", "wxid_other", True, "none"),
+    ("test@chatroom", "", True, "none"),
+    (SELF, "wxid_other", True, "none"),
+])
+def test_group_reference_uses_chat_author_and_current_conversation(origin, author, verified, expected):
+    body = (f"<msg><appmsg><type>57</type><title>follow up</title><refermsg><fromusr>{origin}</fromusr>"
+            f"<chatusr>{author}</chatusr><svrid>1234</svrid>"
+            f"<content>@bot old preview</content><msgsource><atuserlist>{SELF}</atuserlist></msgsource>"
+            "</refermsg></appmsg></msg>")
+    assert parse(49, body, verified=verified, conversation="test@chatroom") == ("follow up", expected)
+
+
+def test_group_reference_cannot_claim_another_senders_message_in_database(lab):
+    from tests_wechat.test_db_source import GROUP
+
+    lab.insert(1, target=GROUP, server_id=1234, sender=1, text="other sender")
+    with lab.session() as session:
+        initial = session.snapshot()
+        body = (f"<msg><appmsg><type>57</type><title>question</title><refermsg><fromusr>{GROUP}</fromusr>"
+                f"<chatusr>{SELF}</chatusr><svrid>1234</svrid></refermsg></appmsg></msg>")
+        lab.insert(2, target=GROUP, sender=3, kind=(57 << 32) | 49, text=body)
+        assert session.read(initial["checkpoint"])["rows"][0]["trigger"] == "none"

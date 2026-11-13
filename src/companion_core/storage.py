@@ -414,7 +414,7 @@ class Store:
         wanted = {uid for uid in uids if uid}
         if wanted:
             wanted |= {ref["id"] for ref in references if ref["kind"] == "relationships"}
-            if persona.get("relationship_baseline"):
+            if persona.get("relationship_baseline", {}).get("owner_uid"):
                 wanted.add(persona["relationship_baseline"]["owner_uid"])
         records = [
             {"kind": kind, **record}

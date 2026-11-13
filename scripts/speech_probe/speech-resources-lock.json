@@ -1,0 +1,100 @@
+{
+  "files": [
+    {
+      "path": "codec/index.cjs",
+      "sha256": "74bb76aba57b1b52787e1eace2870eaaab2deec32241e28f47a138c6b98de065"
+    },
+    {
+      "path": "codec/silk.wasm",
+      "sha256": "88152af59af535b8056ac806710824b2259a361027451b494f175f48fb39c807"
+    },
+    {
+      "path": "licenses/Node-LICENSE.txt",
+      "sha256": "4573185d56580da2b890ba34a85a409257640f1c5632eade4300137266194d18"
+    },
+    {
+      "path": "licenses/SILK-SDK-LICENSE.txt",
+      "sha256": "2605f550752714dccc2b9f38c5951582937b1f1e957bc0d0b51bad5a0ac5f6b6"
+    },
+    {
+      "path": "licenses/silk-wasm-MIT.txt",
+      "sha256": "3b1585c0e6d9d501e86383948fc0d1734bcb86517a13111d97749c65ad2bfb74"
+    },
+    {
+      "path": "licenses/Skype-SILK-SDK.txt",
+      "sha256": "f6146e60d451c4dcede8ea88eabdde91a4b9b0e2d7008e02fe4ade96074b6291"
+    },
+    {
+      "path": "licenses/Whisper-LICENSE.txt",
+      "sha256": "b5d65a59060e68c4ff940e1eddfa6f94b2d68fdf58ed7f4dd57721c997e35e9d"
+    },
+    {
+      "path": "licenses/Whisper-model-card.md",
+      "sha256": "b922acef3616e27b1d416260b63ba7114c732f0315012006781af2da69cd1ebf"
+    },
+    {
+      "path": "model/config.json",
+      "sha256": "56a6d8110d311f19c8f0471e562832c7527f146b567275bfca59fcf7c184da9a"
+    },
+    {
+      "path": "model/model.bin",
+      "sha256": "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9"
+    },
+    {
+      "path": "model/tokenizer.json",
+      "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+    },
+    {
+      "path": "model/vocabulary.txt",
+      "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+    },
+    {
+      "path": "node.exe",
+      "sha256": "3331e1ffe19874215472217c5e94f5a0c6d8e18c4ac7111d3937aa0ad5e9b4a5"
+    },
+    {
+      "path": "tts/date-zh.fst",
+      "sha256": "eb8aa079ae3cb81d8f4404992f39d61a0cb990947512b5b8d1e54d1f6980e718"
+    },
+    {
+      "path": "tts/lexicon-zh.txt",
+      "sha256": "fea060803db3e59193987f1a3436f56917bda09f3b3595b6588e46ae60cebf93"
+    },
+    {
+      "path": "tts/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "tts/model.int8.onnx",
+      "sha256": "05d793700b0b507f760c183c0e39bdd6a97b43d32fdc7bf7b54a5179f1b11222"
+    },
+    {
+      "path": "tts/number-zh.fst",
+      "sha256": "743f402181fcfebf76cc2f0546b71fa26476e626fbe4e460fb7b4c3a7a8bd5bd"
+    },
+    {
+      "path": "tts/phone-zh.fst",
+      "sha256": "1ac2b6fa56b1442320c4de7db08353bab8963a2b57f365eebcdd3a2d3562f8d7"
+    },
+    {
+      "path": "tts/README.md",
+      "sha256": "e2d39356ea4d67ac15c39a7e5a238ea12b0f6fb8a55bb0c87bc2f659eb1cf7ac"
+    },
+    {
+      "path": "tts/tokens.txt",
+      "sha256": "931ab2df2400cd65d580a22402024c2347ced8ae9ea300e545144b1aacc48e14"
+    },
+    {
+      "path": "tts/voices.bin",
+      "sha256": "e64a5a581d8c2a350d848f51c3121657cd83aa07ed6109172177345874a7244c"
+    }
+  ],
+  "speaker": 3,
+  "excluded": [
+    "espeak-ng-data",
+    "unused English lexicons"
+  ],
+  "format": 1,
+  "asr_revision": "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66",
+  "tts_archive_sha256": "259c9c8bc906d6078e4e0570421885dabb68b539c2f970fcbb890a58eeaf3e9c"
+}

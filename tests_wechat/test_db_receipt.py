@@ -111,6 +111,26 @@ def lab(tmp_path):
         connection.close()
 
 
+def test_followed_target_uses_its_own_receipt_and_releases_borrowed_session(lab,monkeypatch):
+    lab.add_shard("message_1.db")
+    lab.raw["message_1.db"].execute(f'DROP TABLE "{message_table(GROUP)}"')
+    lab.targets = [Target("owner_main",OWNER)]
+    with lab.session() as parent:
+        parent._prepared.shards={lab.account/"db_storage/message"/name:db for name,db in lab.spies.items()}
+        monkeypatch.setattr(parent,"member_kind",lambda username:"group" if username==GROUP else None)
+        handles=lab.handles(parent)
+        handle=handles.begin("dynamic-action",GROUP,kind="group",since=STAMP)["handle"]
+        child=handles._entries[handle].child
+        lab.add(1,target=OWNER)
+        assert not handles.check("dynamic-action",handle,TEXT)["confirmed"]
+        lab.add(1,target=GROUP,server_id=3000)
+        assert handles.check("dynamic-action",handle,TEXT)["confirmed"]
+        assert child._stack is None
+        monkeypatch.setattr(parent,"member_kind",lambda username:None)
+        assert handles.begin("departed",GROUP,kind="group",since=STAMP)=={"member_missing":True}
+        parent.snapshot()
+
+
 def test_live_heads_ignore_stale_receive_checkpoint_and_do_not_read_body(lab):
     with lab.session() as session:
         reader = lab.reader(session)

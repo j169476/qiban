@@ -27,8 +27,14 @@ class FactManagement:
         return facts
 
     def history(self, request, identifier, *, after="", limit=20, at=None):
+        self.admin.authority.require(request, administrator=True)
         if not isinstance(after, str) or type(limit) is not int or not 1 <= limit <= 50:
             raise AssistantError("invalid_query", "事实历史分页参数无效")
+        from .fact_retirement import archived_history
+        archived = archived_history(self.store, identifier, after=after, limit=limit, at=at)
+        if archived is not None:
+            self.admin.authority.require(request, administrator=True)
+            return archived
         facts = self.view(request, identifier)
         now = self.clock()
         if at is not None:
@@ -62,6 +68,14 @@ class FactManagement:
                 "at": now.isoformat(), "next": page[-1]["id"] if page and offset + limit < len(headers) else None}
 
     def confirm(self, request, identifier, expected, reason, supersedes):
+        return self._append(request, identifier, expected, reason, supersedes)
+
+    def correct(self, request, identifier, expected, reason, supersedes, value):
+        if not isinstance(value, str) or not 1 <= len(value.strip()) <= 160:
+            raise AssistantError("invalid_query", "更正后的事实值需要 1 至 160 字")
+        return self._append(request, identifier, expected, reason, supersedes, value=value.strip())
+
+    def _append(self, request, identifier, expected, reason, supersedes, *, value=None):
         self.admin.authority.require(request, administrator=True)
         if (not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000
                 or not isinstance(supersedes, list) or not supersedes or len(supersedes) > 20
@@ -75,6 +89,8 @@ class FactManagement:
                 raise AssistantError("edit_conflict", "事实或权限在查看后已经变化，请刷新时间线")
             headers = {row["id"]: row for row in facts.headers}
             chosen = facts.read(headers[identifier])
+            if value is not None and value == chosen["data"]["fact"]["value"]:
+                raise AssistantError("invalid_query", "新值与选中事实相同，请使用确认现有事实")
             attribute = chosen["data"]["fact"]["attribute"]
             if any(key not in headers or headers[key]["attribute"] != attribute
                    or facts.states[key] not in {"active", "disputed"} for key in supersedes):
@@ -85,14 +101,22 @@ class FactManagement:
             facts.check()
             self.admin.authority.require(request, administrator=True)
             now = self.clock().isoformat()
-            new_id = stable_key("fact", "confirmation", identifier, expected, request.actor, reason.strip())
+            operation = "correction" if value is not None else "confirmation"
+            new_id = stable_key("fact", operation, identifier, expected, request.actor, reason.strip(),
+                                *([value] if value is not None else []))
             fact = deepcopy(chosen["data"]["fact"])
             fact.update(valid_from=now, supersedes=supersedes,
                         confirmation={"by": request.actor, "at": now, "reason": reason.strip(), "chosen": identifier})
             data = {**chosen["data"], "id": new_id, "fact": fact,
                     "source": {**chosen["data"]["source"], "type": "user_instruction", "recorded_at": now}}
-            self.store.write("memories", data, None, "admin-fact-confirmation:" + request.actor, new_id)
+            if value is not None:
+                fact.pop("confirmation", None)
+                fact["correction"] = {"by": request.actor, "at": now, "reason": reason.strip(),
+                                      "original": identifier, "original_value": fact["value"]}
+                fact["value"] = value
+                data["content"] = "管理员更正：" + value
+            self.store.write("memories", data, None, "admin-fact-" + operation + ":" + request.actor, new_id)
             facts.governed.classify_written("memories", new_id, personal=True,
                                            sources=["memories/" + key for key in supersedes])
-            self.admin.repository.audit(request.actor, "fact_confirmation", "memories/" + new_id, db=db)
+            self.admin.repository.audit(request.actor, "fact_" + operation, "memories/" + new_id, db=db)
             return {"id": new_id, "history_preserved": True, "replaced": supersedes}

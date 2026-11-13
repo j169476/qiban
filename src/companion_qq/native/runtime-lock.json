@@ -1,0 +1,237 @@
+{
+  "format": 1,
+  "platform": "win-amd64",
+  "node": "24.15.0",
+  "qq": "9.9.28-46928",
+  "distribution_review": "pending",
+  "files": [
+    {
+      "path": "api-ms-win-core-console-l1-1-0.dll",
+      "size": 19136,
+      "sha256": "4ceaf28cadfd0929b44e9c686b93432a7151504c8ffe2a6afe516f9b16538131",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-core-handle-l1-1-0.dll",
+      "size": 18624,
+      "sha256": "d6bc1509fd2d4ea07e661f2f59395b4d71907d16f59942443a5d460df343dbf4",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-core-profile-l1-1-0.dll",
+      "size": 18120,
+      "sha256": "cffb2007c31932b092cda3a0a39f1cfcc5766b6a1c05e5eaeabc53660cbbe786",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-core-string-l1-1-0.dll",
+      "size": 18624,
+      "sha256": "7b5393e2cb79f0396d5d97510e8f0955a2586aacaf60eb8de3676006cb81dc5c",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-core-synch-l1-2-0.dll",
+      "size": 19136,
+      "sha256": "9566b81b1c6db1727a4bb3a7a3de12247ff5297f34548593280ec31f2b2e2c65",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-core-util-l1-1-0.dll",
+      "size": 18624,
+      "sha256": "070afbdbe5b3f3b76b6b7ea2dbb9f8deff81c6ec8706eef9080671543e2ae28b",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-conio-l1-1-0.dll",
+      "size": 19648,
+      "sha256": "1d4464fe335470452e58d613028dde2f105edf969d411e90ba7ca9e343c3fc89",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-convert-l1-1-0.dll",
+      "size": 22720,
+      "sha256": "91c5966932287078d0e616d8e0369347991f39765749bbffa1ed3a9df49776d9",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-environment-l1-1-0.dll",
+      "size": 19136,
+      "sha256": "8d9d3e905d072c4465e4787dd5bd843d3a5dd5ac5ad9d7f232032b25facc82ab",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-filesystem-l1-1-0.dll",
+      "size": 20672,
+      "sha256": "8f9361d02f68392127fe264655eac4fef4a4a1bf63571f184ce26faa98670702",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-heap-l1-1-0.dll",
+      "size": 19136,
+      "sha256": "76dad3e04c9ff61b40ae1c9e039837cd1c077d59b6a008643e4fbf2dbdb564dc",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-locale-l1-1-0.dll",
+      "size": 19136,
+      "sha256": "ba1458f730ff90009483c763926d1c74383480e529541c0ef5d4de44e7a4f14c",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-math-l1-1-0.dll",
+      "size": 27840,
+      "sha256": "5f2bb085217304006c81c55214c6093ec476e554e31808026e424da82f58aa0e",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-multibyte-l1-1-0.dll",
+      "size": 26304,
+      "sha256": "0aa2cf2cc029c95fc053374071d7873edddc410ff8858720ee5c29bfee62dddc",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-private-l1-1-0.dll",
+      "size": 70848,
+      "sha256": "c1e206aa4c8014dcfdad15c16f50fbf4e3ce8e76e9406af923131ebc001dd5ac",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-process-l1-1-0.dll",
+      "size": 19648,
+      "sha256": "36589e9738a9358065d5a72f4276505d6c2f78101508bede05bdcceea46a8cd8",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-runtime-l1-1-0.dll",
+      "size": 23232,
+      "sha256": "11aca97acda31203aeee496c9f183b49db1c54d0efa48888a15ab4ea47ee080f",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-stdio-l1-1-0.dll",
+      "size": 24768,
+      "sha256": "cf7bbe93ae75a1c46a38204a6acef71bf2f5e3cd34501825601900e07d3d7b15",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-string-l1-1-0.dll",
+      "size": 24768,
+      "sha256": "b516d1772b75714f039440cf5d070b87a187d2f67b7f891c94cf1c60330fbfa7",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-time-l1-1-0.dll",
+      "size": 21184,
+      "sha256": "a4b0f75854949980d410c5da90c36ddb94be292431c89fd3e992f9d5f8ee9983",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "api-ms-win-crt-utility-l1-1-0.dll",
+      "size": 19136,
+      "sha256": "d675ee0c418c4cd7ff0c19c2d945331c8e6072a51abbca548e7d9d2f1bf288dd",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "avif_convert.dll",
+      "size": 2233904,
+      "sha256": "1b7f365b7e5af134b59b72833018db43e08dd12ff6b0b42050b1adf3542aaee5",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "broadcast_ipc.dll",
+      "size": 1842224,
+      "sha256": "92b26554a4f4af6eb7a0614d806b54a16b72eeefc0370bc239687f49a8c45e13",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "dbghelp.dll",
+      "size": 1560104,
+      "sha256": "bb2f6f30cf94c0f1e85ac7330cdc6a41200cf8e9cbb45fed6b137c00c1e77905",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "libglib-2.0-0.dll",
+      "size": 1296944,
+      "sha256": "f1d785685effe70ed02e070c1b35ba4f82e9c052cf97788a329071fc0d98a0bf",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "libgobject-2.0-0.dll",
+      "size": 324144,
+      "sha256": "52aaa4bd74540045c711bf79c2ca567443ee5ba184db722d50b131f11ff8d8aa",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "libvips-42.dll",
+      "size": 20144688,
+      "sha256": "c78ccc6de5f5f995e87f83e9c79b61bc1f1e0743824ad8462efe8a78c07c0563",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "LightQuic.dll",
+      "size": 4151848,
+      "sha256": "48a5c7208ab08b1b0f404545ce4552b8048d20f0a00323baf4c99b255243908d",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "MSVCP140.dll",
+      "size": 567336,
+      "sha256": "52700c144ad1afd194d8c63b231b2f557d4bf9acf99e9c5d9fdad38031d1f2c1",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "msvcrt.dll",
+      "size": 646160,
+      "sha256": "834cab2fd2e6d88918ff6766ffdcaf4bad1a14bb3eeb8a36158e078f9e38ebde",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "ncnn.dll",
+      "size": 9083440,
+      "sha256": "649359165566332bf0b479f0ff77119334852359d51dde22bef820034a136e5b",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "node.exe",
+      "size": 91694408,
+      "sha256": "3331e1ffe19874215472217c5e94f5a0c6d8e18c4ac7111d3937aa0ad5e9b4a5",
+      "origin": "Node 24.15.0"
+    },
+    {
+      "path": "opencv.dll",
+      "size": 1832488,
+      "sha256": "985ec2637885562cf68a34e792ac9d879fb125648f6423e94174cfebc664978b",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "QBar.dll",
+      "size": 12729896,
+      "sha256": "b83145e7e56bb156691b7b2718aa0a5ff1eb84c25607858f4362402304c5a42d",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "QQNT.dll",
+      "size": 54924,
+      "sha256": "30d2b3cbc56267a1f279f57b89460e08ac0bc7ca95c8e542e7199274401a48f7",
+      "origin": "Qiban lifecycle adapter"
+    },
+    {
+      "path": "VCRUNTIME140.dll",
+      "size": 97152,
+      "sha256": "c53d7ef0e129a09b19c9dac927d601052a14b7b7ee318fb40b180515dccacb62",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "VCRUNTIME140_1.dll",
+      "size": 38432,
+      "sha256": "24912a1d180d5891cc5b736d65b55ef3089e7399a311a34006638c202c914741",
+      "origin": "QQ 9.9.28-46928 distribution"
+    },
+    {
+      "path": "wrapper.node",
+      "size": 100278320,
+      "sha256": "e93eefbdb3cf4b2eec1a416a71ae6a9a3e5c6d1f505b6da20b4da413d92b00e0",
+      "origin": "QQ 9.9.28-46928 distribution"
+    }
+  ]
+}

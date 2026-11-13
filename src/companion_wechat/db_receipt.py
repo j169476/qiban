@@ -87,7 +87,8 @@ class DatabaseReceiptReader:
             raise SourceError("source_catalog_changed")
         # A prepared shard with neither authorized table is not exposed by
         # SourceSession. Do not silently ignore a new table appearing there.
-        if {source.path.name for source in self._all_sources.values()} != set(self._catalog):
+        if ({p.name for p in getattr(session._prepared, "shards", {})}
+                | {source.path.name for source in self._all_sources.values()}) != set(self._catalog):
             raise SourceError("source_catalog_changed")
 
     def __repr__(self):
@@ -124,7 +125,7 @@ class DatabaseReceiptReader:
                 or tuple(session._prepared.catalog) != self._catalog
                 or set(session._sources) != set(self._all_sources)):
             raise SourceError("source_catalog_changed")
-        tables = {}
+        tables = {path.name:(conn,set()) for path,conn in getattr(session._prepared,"shards",{}).items()}
         for key, source in self._all_sources.items():
             item = self._items[key]
             expected = self._enrollment["targets"][item["target_ref"]]["username"]
@@ -319,6 +320,7 @@ class _Entry:
     reader: DatabaseReceiptReader
     watermark: proof.SendWatermark
     text_digest: bytes | None = field(default=None, repr=False)
+    child: object = None
 
 
 class ReceiptHandles:
@@ -341,14 +343,19 @@ class ReceiptHandles:
             raise DatabaseReceiptError()
         for handle, entry in tuple(self._entries.items()):
             if not 0 <= now - entry.watermark.captured_at <= _TTL:
-                self._entries.pop(handle)
+                self._remove(handle)
+
+    def _remove(self, handle):
+        entry = self._entries.pop(handle, None)
+        if entry and entry.child is not None:
+            entry.child.close()
 
     @staticmethod
     def _action(action_id):
         if not proof._identifier(action_id):
             raise DatabaseReceiptError()
 
-    def begin(self, action_id, target_ref):
+    def begin(self, action_id, target_ref, *, kind=None, since=None):
         self._prune()
         self._action(action_id)
         if any(entry.action_id == action_id or entry.target_ref == target_ref
@@ -356,12 +363,23 @@ class ReceiptHandles:
             raise DatabaseReceiptError("receipt_action_busy")
         if len(self._entries) >= 8:
             raise DatabaseReceiptError("receipt_capacity_exceeded")
-        reader = DatabaseReceiptReader(self._session, target_ref, client_fn=self._client_fn, clock=self._clock)
-        watermark = proof.begin_watermark(reader, reader.scope, clock=self._clock, wall_clock=self._wall_clock)
         handle = secrets.token_hex(32)
         if handle in self._entries:
             raise DatabaseReceiptError("receipt_capacity_exceeded")
-        self._entries[handle] = _Entry(action_id, target_ref, reader, watermark)
+        child = None
+        try:
+            if kind is not None:
+                if self._session.member_kind(target_ref) != kind:
+                    return {"member_missing":True}
+                child = self._session.member_source(target_ref,kind,since)
+                child.__enter__()
+            reader = DatabaseReceiptReader(child or self._session, target_ref, client_fn=self._client_fn, clock=self._clock)
+            watermark = proof.begin_watermark(reader, reader.scope, clock=self._clock, wall_clock=self._wall_clock)
+            self._entries[handle] = _Entry(action_id,target_ref,reader,watermark,child=child)
+        except BaseException:
+            if child is not None:
+                child.close()
+            raise
         return {"handle": handle}
 
     def check(self, action_id, handle, text):
@@ -376,7 +394,7 @@ class ReceiptHandles:
             raise DatabaseReceiptError()
         digest = hashlib.sha256(text.encode("utf-8")).digest()
         if entry.text_digest is not None and entry.text_digest != digest:
-            self._entries.pop(handle)
+            self._remove(handle)
             return {"status": "uncertain", "confirmed": False}
         entry.text_digest = digest
         result = proof.verify_receipt(entry.reader, entry.watermark, text, clock=self._clock)
@@ -384,7 +402,7 @@ class ReceiptHandles:
                 and entry.reader.pending):
             return {"status": "pending", "confirmed": False}
         if result.status != "pending":
-            self._entries.pop(handle)
+            self._remove(handle)
         return {"status": result.status, "confirmed": result.confirmed}
 
     def discard(self, action_id, handle):
@@ -395,9 +413,10 @@ class ReceiptHandles:
         entry = self._entries.get(handle)
         if entry is not None and entry.action_id != action_id:
             raise DatabaseReceiptError()
-        self._entries.pop(handle, None)
+        self._remove(handle)
         return {"discarded": True}
 
     def close(self):
-        self._entries.clear()
+        for handle in tuple(self._entries):
+            self._remove(handle)
         self._closed = True

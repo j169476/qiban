@@ -21,6 +21,9 @@ class NativeProof:
 
 
 class NativeSenderGateway(LiveSenderGateway):
+    async def _verify_target(self, request):
+        await asyncio.wait_for(self.driver.verify_membership(request), self.timeout)
+
     @staticmethod
     def _request_valid(request):
         LiveSenderGateway._request_valid(request)
@@ -50,10 +53,11 @@ class NativeSenderGateway(LiveSenderGateway):
 
 
 class NativeDriver:
-    def __init__(self, backend_factory, receipts, *, preflight=lambda: None,
+    def __init__(self, backend_factory, receipts, *, preflight=lambda: None, targets=None,
                  settle_seconds=3.0, confirmation_seconds=20.0, clock=time.monotonic, sleep=asyncio.sleep):
         require(3 <= settle_seconds <= 10 and 0 < confirmation_seconds <= 20, "wechat_native_configuration")
         self.factory, self.receipts, self.preflight = backend_factory, receipts, preflight
+        self.targets = targets
         self.settle, self.confirmation, self.clock, self.sleep = settle_seconds, confirmation_seconds, clock, sleep
         self.backend = self.token = self.request = self.proof = None
         self.revoked = self.tainted = False
@@ -80,6 +84,15 @@ class NativeDriver:
         require(not self.revoked and not self.tainted, "wechat_native_closed")
         NativeSenderGateway._request_valid(request)
         await self._cleanup()
+        if self.targets is not None and self.targets.get(request.conversation) != request.target_ref:
+            binding = self.receipts.receiver.bindings.get(request.conversation)
+            require(binding.enabled and binding.target_ref == request.target_ref
+                    and binding.revision == request.revision, "wechat_binding_changed")
+            if self.backend is not None:
+                require(not self.backend.pending, "wechat_native_closed")
+                self._call("close")
+                self.backend = None
+            self.targets[request.conversation] = request.target_ref
         if self.backend is not None:
             try:
                 self._call("check")
@@ -125,6 +138,10 @@ class NativeDriver:
                 and self.proof.request_digest == request.fingerprint, "wechat_native_closed")
         self._call("inspect")
         return self.proof
+
+    async def verify_membership(self, request):
+        require(request == self.request, "wechat_send_target_changed")
+        await self.receipts.verify_membership(request, self.token)
 
     def submit_once(self, request, proof):
         require(proof == self.inspect(request), "wechat_send_target_changed")

@@ -63,6 +63,9 @@ class Receipts:
         self.begins += 1
         return object()
 
+    async def verify_membership(self, request, token):
+        pass
+
     async def confirm(self, request, token):
         self.checks += 1
         return DriverOutcome("confirmed", True) if self.positive else DriverOutcome("uncertain")
@@ -82,6 +85,39 @@ def native(env):
     driver = NativeDriver(lambda: backend, receipts, clock=lambda: clock[0], sleep=sleep)
     sender = NativeSenderGateway(env.store, env.receiver, env.permits, driver, env.session, timeout=25)
     return SimpleNamespace(backend=backend, receipts=receipts, driver=driver, sender=sender, clock=clock)
+
+
+@pytest.mark.asyncio
+async def test_membership_lost_after_preparation_cancels_without_submission(env, native):
+    permit = await prepare(env, sender=native.sender)
+
+    async def departed(request, token):
+        raise AssistantError("wechat_target_no_longer_member", "已退群")
+
+    native.receipts.verify_membership = departed
+    result = await native.sender.commit(permit, guard=lambda: None)
+    assert (result.status, result.error) == ("cancelled", "wechat_target_no_longer_member")
+    assert native.backend.sends == 0 and native.receipts.discards == 1
+    assert await native.sender.commit(permit, guard=lambda: None) == result
+    assert native.backend.sends == 0
+
+
+@pytest.mark.asyncio
+async def test_revocation_during_membership_refresh_prevents_submit(env, native):
+    permit = await prepare(env, sender=native.sender)
+    checking, release = asyncio.Event(), asyncio.Event()
+
+    async def still_a_member(request, token):
+        checking.set()
+        await release.wait()
+
+    native.receipts.verify_membership = still_a_member
+    task = asyncio.create_task(native.sender.commit(permit, guard=lambda: None))
+    await asyncio.wait_for(checking.wait(), 2)
+    native.sender.revoke_generation(env.request.generation)
+    release.set()
+    result = await task
+    assert result.status == "cancelled" and native.backend.sends == 0
 
 
 @pytest.mark.asyncio

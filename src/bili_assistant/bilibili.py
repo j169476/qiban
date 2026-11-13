@@ -18,8 +18,16 @@ from .mentions import validate_mentions
 
 
 class Bilibili:
-    def __init__(self, store):
+    def __init__(self, store, credential_provider=None):
         self.store = store
+        self.credential_provider = credential_provider
+
+    def _credential(self, optional=False):
+        if self.credential_provider is not None:
+            return self.credential_provider.load()
+        if optional:
+            return credentials.load(self.store, optional=True)
+        return credentials.load(self.store)
 
     async def _read(self, operation):
         for attempt in range(2):
@@ -48,17 +56,25 @@ class Bilibili:
     async def me(self):
         from bilibili_api import user
 
-        credential = credentials.load(self.store)
+        credential = self._credential()
         data = await self._read(lambda: user.get_self_info(credential))
         return {"uid": str(data["mid"]), "name": data["name"]}
 
+    def favorite_tools(self, guard):
+        from .favorites import FavoriteTools
+
+        account = self.store.read("manifest")["data"]["account_uid"]
+        return FavoriteTools(self, account, guard)
+
     async def maintain_credentials(self, account):
+        if self.credential_provider is not None:
+            return await credentials.maintain(self.store, account, provider=self.credential_provider)
         return await credentials.maintain(self.store, account)
 
     async def video_interaction_status(self, bvid):
         from bilibili_api import video
 
-        item = video.Video(bvid=bvid, credential=credentials.load(self.store))
+        item = video.Video(bvid=bvid, credential=self._credential())
         liked = await self._read(item.has_liked)
         coins = await self._read(item.get_pay_coins)
         if type(liked) not in (bool, int) or liked not in (0, 1) or type(coins) is not int or coins < 0:
@@ -109,7 +125,7 @@ class Bilibili:
     async def feed(self, following=True, limit=10):
         from bilibili_api import dynamic, homepage
 
-        credential = credentials.load(self.store, optional=not following)
+        credential = self._credential(optional=not following)
         if following:
             data = await self._read(lambda: dynamic.get_dynamic_page_info(credential))
             rows = []
@@ -129,7 +145,7 @@ class Bilibili:
 
         if not re.fullmatch(r"BV[A-Za-z0-9]{10}", bvid):
             raise AssistantError("invalid_bvid", "BV 号格式错误")
-        v = video.Video(bvid=bvid, credential=credentials.load(self.store, optional=True))
+        v = video.Video(bvid=bvid, credential=self._credential(optional=True))
         info = await self._read(v.get_info)
         pages = info.get("pages", [])
         if not 0 <= page_index < len(pages):
@@ -425,9 +441,11 @@ class Bilibili:
         return events
 
     async def inbox(self, started_at):
+        if self.credential_provider is not None:
+            await self.maintain_credentials(self.credential_provider.uid)
         from bilibili_api import session
 
-        credential = credentials.load(self.store)
+        credential = self._credential()
         account = self.store.read("manifest")["data"]["account_uid"]
         since = datetime.fromisoformat(started_at).timestamp()
         replies = await self._notification_page(session.get_replies, credential, "replies", "reply_time",
@@ -471,7 +489,7 @@ class Bilibili:
 
         if type(resource_type) is not int or resource_type not in (1, 11, 17):
             raise AssistantError("comment_resource", "评论资源类型不受支持")
-        credential = credentials.load(self.store)
+        credential = self._credential()
         data = await self._read(lambda: comment.Comment(
             oid, comment.CommentResourceType(resource_type), root, credential=credential,
         ).get_sub_comments(page_index=page, page_size=20))
@@ -489,6 +507,11 @@ class Bilibili:
         }
 
     async def perform(self, kind, payload, policy, before_send):
+        if kind in ("favorite_create", "favorite_move"):
+            tools = self.favorite_tools(before_send)
+            if kind == "favorite_create":
+                return await tools.create(payload["title"], payload["private"], before_send=before_send)
+            return await tools.move(payload["source"], payload["target"], payload["bvids"], before_send=before_send)
         from bilibili_api import dynamic, session, user, video
         from bilibili_api.exceptions import ResponseCodeException
         from bilibili_api.utils.network import Api
@@ -496,7 +519,7 @@ class Bilibili:
 
         from .publication import post_once
 
-        credential = credentials.load(self.store)
+        credential = self._credential()
         v = video.Video(bvid=payload["bvid"], credential=credential) if "bvid" in payload else None
 
         async def send_comment(oid, root=None, parent=None, resource_type=1):
@@ -595,13 +618,19 @@ class Bilibili:
                     ) from None
                 return {"verified": True}
             if kind == "favorite":
-                if not policy["favorite_folder_id"]:
+                folder_id = payload.get("folder_id", policy["favorite_folder_id"])
+                if "folder_id" in payload:
+                    from .favorites import selected
+                    selected(await self.favorite_tools(before_send)._catalog(), folder_id)
+                if not folder_id and self.credential_provider is not None:
+                    folder_id = await self.favorite_tools(before_send).default()
+                if not folder_id:
                     raise AssistantError("platform_rejected", "未配置收藏夹 ID")
                 # has_favoured refers to any folder; conservative no duplicate additions.
                 if await v.has_favoured():
                     return {"already_done": True}
                 api = Api(**get_api("video")["operate"]["favorite"], credential=credential)
-                api.update_data(rid=v.get_aid(), type=2, add_media_ids=str(policy["favorite_folder_id"]),
+                api.update_data(rid=v.get_aid(), type=2, add_media_ids=str(folder_id),
                                 del_media_ids="")
                 return await post_once(api, before_send)
             if kind == "coin":

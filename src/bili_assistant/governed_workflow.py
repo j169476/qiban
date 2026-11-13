@@ -46,8 +46,18 @@ def definition(original, core):
         workspace.readable = workspace.repository.readable_resources(workspace.access, workspace.request)
         return result
 
+    async def favorite_tools(state):
+        if not state["fresh"]:
+            from .favorite_workflow import step
+            # Private favorite folders stay in this account-only lane. They do
+            # not enter public exploration's model packet or shared memories.
+            await step(CoreScheduler(original, core))
+
     stages = []
     for stage in flow.definition().stages:
+        if stage.name == "favorite_tools":
+            stages.append(Stage("favorite_tools", favorite_tools, 75, requires_model=True))
+            continue
         if stage.name == "selection_context":
             stages.append(Stage("private_replies", private_replies, 35, requires_model=True))
             stages.append(Stage("selection_context", prepare, 40, "prepare"))

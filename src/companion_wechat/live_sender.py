@@ -262,6 +262,9 @@ class LiveSenderGateway:
             return ActionResult("cancelled", error="wechat_prepared_mismatch")
         return await self._commit(ticket, guard=guard, prepared=True)
 
+    async def _verify_target(self, request):
+        """Drivers backed by a live contact directory can check the current relationship."""
+
     async def _commit(self, permit, *, guard, prepared):
         async with self._commit_lock:
             try:
@@ -292,6 +295,7 @@ class LiveSenderGateway:
                 if old is not None:
                     return self._finish(request, permit, old, claimed=False)
                 claimed = True
+                await self._verify_target(request)
                 # After all queueing and the durable intent: recheck permissions,
                 # live target and expiry, then one synchronous native submission.
                 guard()
@@ -328,7 +332,15 @@ class LiveSenderGateway:
             except Exception:
                 result = ActionResult("uncertain" if submitted else "cancelled",
                                       error="wechat_send_unconfirmed" if submitted else "wechat_send_preflight_failed")
-            return self._finish(request, permit, result, claimed=claimed)
+            finished = self._finish(request, permit, result, claimed=claimed)
+            if not submitted and proof is not None:
+                cleanup = getattr(self.driver, "discard", None)
+                if callable(cleanup):
+                    try:
+                        await asyncio.wait_for(cleanup(proof), self.timeout)
+                    except Exception:
+                        pass
+            return finished
 
     async def discard(self, ticket):
         pending = self._pending.pop(ticket, None)

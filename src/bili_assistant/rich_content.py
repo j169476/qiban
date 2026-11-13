@@ -293,5 +293,5 @@ async def event_context(engine, event_id, page=1):
     event["images_omitted"] = event["images_available"] - len(event["images"])
     from .persona import participant
 
-    event["relationship_context"] = participant(event, store.read("persona")["data"])
+    event["relationship_context"] = participant(event, store.read("persona")["data"], store)
     return event

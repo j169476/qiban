@@ -19,6 +19,7 @@ class ReceiptToken:
     started: float
     worker: object = field(compare=False)
     owner: object = field(compare=False)
+    membership: str | None = None
 
 
 class DatabaseReceiptClient:
@@ -55,12 +56,20 @@ class DatabaseReceiptClient:
         """Capture actual current source heads, never a saved receive cursor."""
         async with self.receiver._lock:
             worker = self._worker(request)
+            directory = getattr(self.receiver, "follow_directory", None)
+            follow = directory.chats.get(request.target_ref) if directory else None
+            extra = {"kind":follow[0].kind, "since":follow[2]} if follow else {}
+            membership = directory.live[follow[0]].token(follow[1], request.target_ref) if follow else None
+            require(not follow or membership is not None, "reply_not_authorized")
             result = await self._call(worker, "receipt_begin", action_id=request.action_id,
-                                      target_ref=request.target_ref)
+                                      target_ref=request.target_ref, **extra)
+            if follow and result == {"member_missing":True}:
+                directory.live[follow[0]].remove(request.target_ref)
+                raise AssistantError("wechat_target_no_longer_member","微信关系已变化，本次回复已取消")
             require(isinstance(result, dict) and set(result) == {"handle"}
                     and isinstance(result["handle"], str) and re.fullmatch(r"[a-f0-9]{64}", result["handle"]),
                     "wechat_receipt_invalid")
-            return ReceiptToken(result["handle"], request.fingerprint, self.clock(), worker, self)
+            return ReceiptToken(result["handle"], request.fingerprint, self.clock(), worker, self, membership)
 
     def _token(self, request, token):
         require(isinstance(token, ReceiptToken) and token.owner is self
@@ -69,6 +78,30 @@ class DatabaseReceiptClient:
         worker = self._worker(request)
         require(token.worker is worker, "wechat_receipt_disconnected")
         return worker
+
+    async def verify_membership(self, request, token):
+        async with self.receiver._lock:
+            worker = self._token(request, token)
+            expected = self.receiver.bindings.get(request.conversation).kind
+            check = None
+            if getattr(self.receiver, "monitor_members", False):
+                from .membership import MembershipCheck
+                check = MembershipCheck(self.receiver.store, request.account_identity,
+                                        [{"kind": expected, "username": request.target_ref}])
+            result = await self._call(worker, "member_kind", username=request.target_ref)
+            self._token(request, token)
+            if token.membership is not None:
+                directory = self.receiver.follow_directory
+                follow = directory.chats.get(request.target_ref)
+                require(follow and directory.live[follow[0]].token(follow[1], request.target_ref)==token.membership,
+                        "reply_not_authorized")
+            require(isinstance(result, dict) and set(result) == {"kind"}
+                    and result["kind"] in (None, "private", "group"), "wechat_source_invalid")
+            if check is not None:
+                present = result["kind"] == expected
+                check.finish({"verified": int(present), "unavailable": [] if present else [request.target_ref]})
+            if result != {"kind": expected}:
+                raise AssistantError("wechat_target_no_longer_member", "发送已取消，当前微信好友或群关系未通过核验")
 
     async def confirm(self, request, token):
         """One bounded check. Missing/ambiguous evidence never proves rejection."""

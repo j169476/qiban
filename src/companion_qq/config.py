@@ -21,7 +21,15 @@ def local_url(value, scheme):
     return value.rstrip("/")
 
 
+def message_id(value):
+    require(type(value) in (str, int) and re.fullmatch(r"-?[0-9]{1,20}", str(value)) is not None,
+            "qq_message_invalid")
+    return str(int(value))
+
+
 def validate(value):
+    if isinstance(value, dict) and value.get("version") == 2:
+        return validate_native(value)
     fields = {"version", "account", "private_targets", "groups", "http", "ws"}
     require(isinstance(value, dict) and fields <= set(value) and not set(value) - fields - {"launch"}
             and value["version"] == 1, "qq_configuration")
@@ -43,6 +51,30 @@ def validate(value):
                         for arg in launch["arguments"]), "qq_launch_configuration")
         require(type(launch["timeout"]) is int and 5 <= launch["timeout"] <= 180, "qq_launch_configuration")
     return result
+
+
+def validate_native(value):
+    fields = {"version", "transport", "account", "uid", "private_targets", "groups", "runtime", "data"}
+    require(set(value) == fields and type(value["version"]) is int and value["version"] == 2
+            and value["transport"] == "native",
+            "qq_configuration")
+    require(isinstance(value["uid"], str) and re.fullmatch(r"u_.{1,126}", value["uid"]), "qq_identity_invalid")
+    result = {**value, "account": qq_id(value["account"])}
+    for field in ("private_targets", "groups"):
+        require(isinstance(value[field], list), "qq_configuration")
+        result[field] = [qq_id(v) for v in value[field]]
+        require(len(set(result[field])) == len(result[field]), "qq_configuration")
+    require(result["account"] not in result["private_targets"], "qq_configuration")
+    for field in ("runtime", "data"):
+        require(isinstance(value[field], str) and 0 < len(value[field]) <= 2048 and "\x00" not in value[field]
+                and Path(value[field]).is_absolute(), "qq_native_resources_path")
+    return result
+
+
+def native_parameters(options):
+    value = validate_native(options)
+    return {"account": {"uin": value["account"], "uid": value["uid"]},
+            **{key: value[key] for key in ("private_targets", "groups", "runtime", "data")}}
 
 
 def load(project):

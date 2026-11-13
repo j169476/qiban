@@ -114,7 +114,7 @@ class DurableInbox:
             db.execute("BEGIN IMMEDIATE")
             return bool(self._enqueue((observation,), db))
 
-    def publish_batch(self, observations, *, checkpoint_key, expected_checkpoint, checkpoint):
+    def publish_batch(self, observations, *, checkpoint_key, expected_checkpoint, checkpoint, db=None):
         """Atomically CAS a source checkpoint and enqueue every new observation.
 
         Returns the number of newly queued IDs. Empty batches establish a baseline
@@ -122,16 +122,18 @@ class DurableInbox:
         failed CAS, full pending queue, content conflict, or storage failure rolls
         back all receipts, queued observations, and the checkpoint together.
         """
+        from contextlib import nullcontext
         require(isinstance(observations, (list, tuple)) and len(observations) <= 500)
         key = self._checkpoint_key(checkpoint_key)
         expected = _checkpoint_json(expected_checkpoint, optional=True)
         updated = _checkpoint_json(checkpoint)
-        with self.store.lock, self.store.db() as db:
-            db.execute("BEGIN IMMEDIATE")
-            actual = _checkpoint_json(self.store.state(key, db=db), optional=True)
+        with self.store.lock, (self.store.db() if db is None else nullcontext(db)) as connection:
+            if db is None:
+                connection.execute("BEGIN IMMEDIATE")
+            actual = _checkpoint_json(self.store.state(key, db=connection), optional=True)
             require(actual == expected, "wechat_checkpoint_conflict")
-            count = self._enqueue(observations, db)
-            self.store.set_state(key, json.loads(updated), db)
+            count = self._enqueue(observations, connection)
+            self.store.set_state(key, json.loads(updated), connection)
             return count
 
     @staticmethod

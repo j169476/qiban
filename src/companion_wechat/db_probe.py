@@ -45,7 +45,7 @@ def local_path(value):
     return p.resolve(strict=True)
 
 
-def validate_config(config):
+def validate_config(config, *, allow_empty=False):
     fields = {"account_dirs", "target_hints"} if isinstance(config, dict) and "target_hints" in config else {
         "account_dirs", "private_hint", "group_hint"}
     if (not isinstance(config, dict) or not fields <= set(config)
@@ -61,7 +61,7 @@ def validate_config(config):
         raise ProbeError("configuration_invalid")
     hints = config.get("target_hints")
     if hints is not None:
-        if not isinstance(hints, list) or not hints:
+        if not isinstance(hints, list) or not hints and not allow_empty:
             raise ProbeError("configuration_invalid")
         for item in hints:
             if (not isinstance(item, dict) or set(item) != {"kind", "hint"}
@@ -278,9 +278,11 @@ def base_report():
 def prepare(config):
     from .db_crypto import verify_key
     from .db_sqlite import open_readonly
+    from .db_text import require_decoder
     from .db_windows import NativeProcess, discover_wechat, extract_keys
 
     paths = validate_config(config)
+    require_decoder()
     client = discover_wechat(pid=config.get("client_pid"))
     with ExitStack() as stack:
         process = stack.enter_context(NativeProcess(client.pid))

@@ -5,8 +5,40 @@ import secrets
 import time
 from dataclasses import replace
 
+from . import relation_history
 from .access import AccessService, RecordPolicy
 from .errors import AssistantError
+
+STATUSES = ("claimed", "confirmed", "disputed", "revoked")
+# Only the core semantic: a revoked claim may be confirmed or disputed again.
+TARGETS = ("confirmed", "disputed", "revoked")
+ANOMALY_DETAIL = {
+    "policy_missing": "这条声明的权限记录缺失。",
+    "status_valid_mismatch": "这条声明的状态与它的权限有效标记不一致。",
+}
+
+
+def inconsistency(status, policy):
+    """Report a stored claim/policy disagreement, never silently repair it.
+
+    Adjudication derives ``valid`` from the requested status, so an already
+    inconsistent pair would silently turn a policy that was invalidated for
+    another reason back into a valid one (and make a source readable again).
+    Callers must stop and report this instead.
+    """
+    if policy is None:
+        return "policy_missing"
+    if bool(policy.valid) != (status != "revoked"):
+        return "status_valid_mismatch"
+    return None
+
+
+def require_consistent(status, policy):
+    anomaly = inconsistency(status, policy)
+    if anomaly is not None:
+        raise AssistantError("relation_inconsistent", ANOMALY_DETAIL[anomaly]
+                             + "本页不会默默把它改回有效；请先由维护流程核对这条声明与它的来源。")
+    return anomaly
 
 
 class RelationService:
@@ -54,22 +86,59 @@ class RelationService:
             self.repository.set_policy(policy, None, request.actor, db=db)
         return {"id": identifier, "version": version, "status": "claimed"}
 
-    def adjudicate(self, request, identifier, status, expected):
+    def adjudicate(self, request, identifier, status, expected, reason=""):
+        """Change only the status of one existing claim, keeping its history.
+
+        ``reason`` is optional and stays inside the history entry; the claim body
+        (statement, subject, object, declarer, evidence) is never rewritten, the
+        sources are never re-pinned and every other permission keeps its stored
+        value. A same-status request is refused rather than given a new version.
+
+        The history entry is appended in this same transaction, so the old web
+        entry point keeps the same record as the desktop page.
+        """
         self.authority.require(request, administrator=True)
-        if status not in ("confirmed", "disputed", "revoked"):
+        if status not in TARGETS:
             raise AssistantError("relation_status", "关系状态无效")
+        if not isinstance(reason, str) or len(reason) > relation_history.REASON_MAX:
+            raise AssistantError("relation_reason", f"更正说明最多 {relation_history.REASON_MAX} 字。")
         with self.store.lock, self.store.db() as db:
+            row = db.execute("SELECT subject,object,declarer,status,version,body "
+                             "FROM relationship_claims WHERE id=?", (identifier,)).fetchone()
+            if row is None:
+                raise AssistantError("relation_scope", "关系声明不存在")
+            if row["version"] != expected:
+                raise AssistantError("edit_conflict", "关系声明已变化")
+            if row["status"] == status:
+                raise AssistantError("relation_status", "关系状态没有变化，未增加新版本")
+            policy = self.repository.policy("relation/" + identifier)
+            require_consistent(row["status"], policy)
             version = secrets.token_hex(16)
             result = db.execute("UPDATE relationship_claims SET status=?,version=? WHERE id=? AND version=?",
                                 (status, version, identifier, expected))
             if result.rowcount != 1:
                 raise AssistantError("edit_conflict", "关系声明已变化")
-            policy = self.repository.policy("relation/" + identifier)
-            if policy is None:
-                raise AssistantError("relation_scope", "关系缺少权限来源")
-            self.repository.set_policy(replace(policy, version=version, valid=status != "revoked"),
-                                       policy.version, request.actor, db=db)
-        return {"id": identifier, "version": version, "status": status}
+            updated = replace(policy, version=version, valid=status != "revoked")
+            self.repository.set_policy(updated, policy.version, request.actor, db=db)
+            history = relation_history.append(
+                self.store, db=db, claim=identifier,
+                before={"status": row["status"], "version": row["version"],
+                        "policy_version": policy.version, "valid": bool(policy.valid)},
+                after={"status": status, "version": version,
+                       "policy_version": updated.version, "valid": bool(updated.valid)},
+                actor=request.actor, at=self.repository.clock(), reason=reason,
+                snapshot=self._snapshot(row), sources=policy.source_versions)
+        return {"id": identifier, "version": version, "status": status, "history": history,
+                "restored": history["restored"]}
+
+    def _snapshot(self, row):
+        try:
+            body = self.store.ledger_decode("relationship_claims.body", row["body"])
+        except AssistantError:
+            # A damaged body is recorded as unreadable; it is never reconstructed.
+            body = {"unreadable": True}
+        return {"subject": row["subject"], "object": row["object"], "declarer": row["declarer"],
+                "status": row["status"], "version": row["version"], "body": body}
 
     def query(self, request, actor_key, *, depth=1, max_nodes=20, max_edges=40, max_chars=6000):
         self.authority.require(request)

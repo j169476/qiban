@@ -21,13 +21,15 @@ from .errors import AssistantError
 from .governance import GovernanceRepository
 
 MAX_BACKUP = 512 * 1024 * 1024
+# Renewable application credentials belong to this installation, never a role snapshot.
+LOCAL_STATE_KEYS = frozenset({'desktop-siwc-validation', 'desktop-qq-account'})
 TABLES = (
     "content_records", "content_history", "content_audit", "sessions", "state", "actions", "events",
     "relationship_pending", "core_events", "core_actions", "core_identity_links", "core_observations",
     "governance_policies", "governance_grants", "governance_audit", "governance_sessions", "governance_challenges",
-    "record_owners", "source_dependencies", "grant_resources", "core_event_receipts", "core_delivery_state",
+    "record_owners", "source_dependencies", "grant_resources", "source_retention", "core_event_receipts", "core_delivery_state",
     "actor_nodes", "relationship_claims", "asset_restore_jobs", "governance_provenance", "conversation_index", "input_image_blobs",
-    "personal_fact_index",
+    "personal_fact_index", "qq_native_inbox", "media_originals", "media_original_holds", "sticker_library", "file_library",
 )
 
 
@@ -68,6 +70,9 @@ def _snapshot(store, db):
         cursor = db.execute("SELECT * FROM " + _identifier(table))
         columns = [column.name for column in cursor.cursor.description]
         rows = [[_encode(value) for value in row] for row in cursor]
+        if table == 'state':
+            index = columns.index('key')
+            rows = [row for row in rows if row[index] not in LOCAL_STATE_KEYS]
         rows.sort(key=lambda value: json.dumps(value, sort_keys=True))
         result[table] = {"columns": columns, "rows": rows}
     migrations = [list(row) for row in db.execute("SELECT version,checksum FROM schema_migrations ORDER BY version")]
@@ -121,11 +126,14 @@ def unpack(blob, backup_key):
         raise AssistantError("backup_invalid", "备份内容无效或完整性校验失败") from None
 
 
-def restore(store, blob, backup_key, *, expected):
+def restore(store, blob, backup_key, *, expected, finalize=None):
     from . import asset_transfer
 
     snapshot = unpack(blob, backup_key)
-    if set(snapshot.get("tables", {})) != set(tables(store)):
+    saved_tables = set(snapshot.get("tables", {}))
+    # Pre-Bilibili desktop backups contain all common tables but no video usage.
+    extend_videos = store.profile.extra_tables == {"videos"} and saved_tables == set(TABLES) and bool(store.state("desktop-owner"))
+    if not extend_videos and saved_tables != set(tables(store)):
         raise AssistantError("backup_schema", "备份与当前资料类型不一致")
     with store.lock, store.db() as db:
         db.execute("BEGIN IMMEDIATE")
@@ -134,12 +142,15 @@ def restore(store, blob, backup_key, *, expected):
             raise AssistantError("edit_conflict", "恢复预览后资料已经变化，请重新检查")
         if snapshot["migrations"] != current["migrations"]:
             raise AssistantError("backup_schema", "备份数据库版本不一致，请先执行明确的版本迁移")
+        if extend_videos:
+            snapshot["tables"]["videos"] = {"columns":current["tables"]["videos"]["columns"],"rows":[]}
         for key in RUN_KEYS:
             if (store.state(key, {}, db) or {}).get("status") == "active":
                 raise AssistantError("restore_active", "恢复前需要先停止角色")
         for table in tables(store):
             if snapshot["tables"][table]["columns"] != current["tables"][table]["columns"]:
                 raise AssistantError("backup_schema", "备份字段不匹配")
+        local_state = {key: store.state(key, db=db) for key in LOCAL_STATE_KEYS}
         for table in reversed(tables(store)):
             db.execute("DELETE FROM " + _identifier(table))
         for table in tables(store):
@@ -149,7 +160,14 @@ def restore(store, blob, backup_key, *, expected):
             if table == "content_audit":
                 query += " OVERRIDING SYSTEM VALUE"
             query += " VALUES(" + ",".join("?" for _ in columns) + ")"
-            db.executemany(query, [tuple(_decode(value) for value in row) for row in block["rows"]])
+            rows = block['rows']
+            if table == 'state':
+                index = columns.index('key')
+                rows = [row for row in rows if row[index] not in LOCAL_STATE_KEYS]
+            db.executemany(query, [tuple(_decode(value) for value in row) for row in rows])
+        for key, value in local_state.items():
+            if value is not None:
+                store.set_state(key, value, db)
         db.execute("SELECT setval(pg_get_serial_sequence('content_audit','id'),COALESCE(MAX(id),1),COUNT(*)>0) FROM content_audit")
         # Decode and validate all records before committing; a mismatched database
         # encryption key must not leave a partially restored service.
@@ -158,6 +176,17 @@ def restore(store, blob, backup_key, *, expected):
         from .input_images import verify_blobs
 
         verify_blobs(store)
+        from .media_originals import verify_originals
+
+        verify_originals(store)
+        from .sticker_library import verify_stickers
+
+        verify_stickers(store)
+        from .file_library import verify_files
+        verify_files(store)
+        # Restore requires stopped tasks. Holds belonged to exited task owners;
+        # their processing receipts and unfinished events remain in the snapshot.
+        db.execute('DELETE FROM media_original_holds')
         GovernanceRepository(store).reset_after_restore()
         from .reply_authorization import ReplyAuthorizations
 
@@ -166,5 +195,7 @@ def restore(store, blob, backup_key, *, expected):
             db.execute("UPDATE " + table + " SET status='cancelled' WHERE status='prepared'")
             db.execute("UPDATE " + table + " SET status='uncertain' WHERE status='dispatching'")
         asset_transfer.enqueue(store, snapshot.get("assets", []), db)
+        if finalize is not None:
+            finalize(db)
     asset_transfer.finish(store)
     return {"restored": True, "role_started": False, "sessions_revoked": True, "grants_require_review": True}

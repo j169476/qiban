@@ -94,7 +94,7 @@ class Companion(RelationshipUpdates):
             self.stop(exc.code, generation=run["generation"])
             raise
         if self.host.identity() != run["owner"]:
-            raise AssistantError("not_owner", "仅归属角色聊天可以驱动核心")
+            raise AssistantError("not_owner", "只有所属运行实例可以驱动核心")
         # The host check may yield to a new owner/run in another process.
         with self.store.lock:
             current = self.store.state(self.run_key, {})
@@ -107,11 +107,23 @@ class Companion(RelationshipUpdates):
                     adapter.validate_run(current)
             return current
 
+    def interrupt_transports(self, *, generation=None):
+        """Signal owned transports before callers wait for a dispatch ledger lock."""
+        run = self.store.state(self.run_key, {})
+        if not run or (generation and run.get("generation") != generation):
+            return
+        for adapter in self.platforms.all():
+            if hasattr(adapter, "runtime_interrupt"):
+                adapter.runtime_interrupt(run["generation"])
+
     def stop(self, reason="user_stop", *, generation=None):
         run = self.store.state(self.run_key, {})
         if not run or (generation and run.get("generation") != generation):
             return {"stopped": False, **run} if run else {"status": "paused", "stopped": False}
         atomic_write(self.store.runtime / ("core-stop-" + run["generation"]), reason.encode())
+        # Interrupt owned transports before waiting for an in-flight submit's
+        # ledger lock. The adapter binds interruption to this exact generation.
+        self.interrupt_transports(generation=run["generation"])
         with self.store.lock:
             with self.store.db() as db:
                 current = self.store.state(self.run_key, {}, db)
@@ -151,6 +163,49 @@ class Companion(RelationshipUpdates):
     def remaining_model_calls(self):
         self.guard()
         return budget.remaining(self.store, self.store.read("policy")["data"], self.clock())
+
+    async def prepare_backlog(self, base, source_events, instructions, schema, *, guard, history_status=None):
+        """Trusted batch coordinator supplies the same access guard as final reply.
+
+        Preparation does not acknowledge messages or authorize sending. Every
+        summary uses the normal model budget and run/account cancellation path.
+        """
+        from .backlog_context import BacklogContext, snapshots
+
+        run = self.guard()
+        rows = snapshots([events.get(self.store, event.id) for event in source_events])
+        expected = {row['id']:row['version'] for row in rows}
+        if not rows:
+            raise AssistantError('backlog_empty', '没有需要合并的消息。')
+        first = Event.from_dict(rows[0]['event'])
+        if [first.platform, first.account] not in run['accounts']:
+            raise AssistantError('connector_scope', '积压消息账号不属于当前运行。')
+        adapter = self.platforms.get(first.platform, first.account)
+        settings = self.store.read('companion')
+
+        def check():
+            self.guard(run['generation'])
+            guard()
+            if self.store.version('companion') != settings['version']:
+                raise AssistantError('context_changed', '摘要期间上下文配置已改变。')
+            with self.store.db() as db:
+                current = dict(db.execute('SELECT id,version FROM core_events WHERE deleted=0 AND conversation=?',
+                                          (first.thread,)).fetchall())
+            if any(current.get(identifier) != version for identifier,version in expected.items()):
+                raise AssistantError('context_changed', '摘要期间原消息已修改或删除。')
+            for row in rows:
+                if hasattr(adapter, 'validate_context_event'):
+                    adapter.validate_context_event(Event.from_dict(row['event']))
+                elif hasattr(adapter, 'validate_event'):
+                    adapter.validate_event(Event.from_dict(row['event']))
+
+        async def generate(prompt, material, output):
+            return await self.model(prompt, material, output, guard=check,
+                                    interactive=bool(getattr(adapter, 'interactive', False)))
+
+        check()
+        return await BacklogContext(self.store, generate=generate, guard=check).prepare(
+            base, rows, settings['data'], instructions, schema, history_status=history_status)
 
     async def cycle(self):
         from .orchestration import Stage, Workflow, run_cycle
@@ -208,13 +263,17 @@ class Companion(RelationshipUpdates):
                               owner=run["owner"], now=self.clock().isoformat(),
                               config_token=delivery.config_token(self.store)) if allows(run, event)]
 
-    async def _identity_review(self, event):
+    async def _identity_review(self, event, batch_events=()):
         from .governance import enabled
 
         if enabled(self.store):
-            # Cross-account correspondence is an internal maintenance operation;
-            # never attach its other private conversations to a reply worker.
-            return
+            if self.remaining_model_calls() < 2:
+                return
+            governed = self.governed_context(event)
+            request = governed.authority.for_event(event, purpose="maintenance")
+            return await self.identities.review(event.actor, self.model, self.guard,
+                                                maintenance=(governed.access, request),
+                                                triggers=batch_events or (event,))
         return await self.identities.review(event.actor, self.model, self.guard)
 
     def memory_context(self, event, *, dependencies=None):
@@ -294,17 +353,26 @@ class Companion(RelationshipUpdates):
             delivery.defer(self, event, version, run, exc.code)
             raise
 
-    async def governed_memory(self, governed, event, relationship_id, run, configurations, event_version):
+    async def governed_memory(self, governed, event, relationship_id, run, configurations, event_version,
+                              *, query=None, source_events=()):
         """Reuse scoped Codex query plans before ranking the authorized corpus."""
         from .recall_routing import resolve
 
-        lease = governed.access.lease(governed.request, ["event/" + event.id])
+        sources = source_events or [event]
+        pins = {source.id: events.get(self.store, source.id)["version"] for source in sources}
+        lease = governed.access.lease(governed.request, ["event/" + source.id for source in sources])
+        query = event.text if query is None else query
 
         def guard():
             self.guard(run["generation"])
             adapter = self.platforms.get(event.platform, event.account)
             if hasattr(adapter, "validate_event"):
                 adapter.validate_event(event)
+            for source in sources:
+                if hasattr(adapter, "validate_context_event"):
+                    adapter.validate_context_event(source)
+                if events.get(self.store, source.id)["version"] != pins[source.id]:
+                    raise AssistantError("context_changed", "查询扩写期间批次来源已变化")
             governed.access.revalidate(lease)
             if (events.get(self.store, event.id)["version"] != event_version
                     or any(self.store.version(kind) != value["version"] for kind, value in configurations.items())):
@@ -335,18 +403,28 @@ class Companion(RelationshipUpdates):
 
                 history_count = len(conversations.records(ReadView(self.store, readable), scope["account"], tid))
             eligible = history_count > settings.get("conversation_context_turns", 24)
-        plan = await resolve(self.store, event.text,
+        plan = await resolve(self.store, query,
             scope="governed:" + governed.request.actor + ":" + event.thread + ":" + event.visibility,
             uids=[relationship_id], eligible=eligible,
             remaining=self.remaining_model_calls(), generate=generate, guard=guard, clock=self.clock)
         references = [ref for ref in plan["references"] if ref["kind"] + "/" + ref["id"] in readable]
-        memory = governed.memory(event.text, uids=[relationship_id], queries=plan["queries"], references=references)
+        memory = governed.memory(query, uids=[relationship_id], queries=plan["queries"], references=references)
         return memory, plan["queries"]
 
     def governed_context(self, event):
         from .governance import GovernedContext
 
         return GovernedContext(self.store, event)
+
+    def record_user_turn(self, event, governed):
+        scope = self.conversation_scope(event)
+        if governed:
+            governed.classify_event()
+        conversations.append(self.store, scope["account"], scope["channel"], scope["key"], scope["message_id"],
+                             event.text, "user", scope["sender_uid"], "received", utcnow(), event.occurred_at,
+                             reply_to=scope["reply_to"], attachments=event.attachments,
+                             on_write=(lambda key: governed.classify_written(
+                                 "conversation_turns", key, sources=["event/" + event.id])) if governed else None)
 
     async def _handle(self, event, run):
         from .governance import enabled, resource_id
@@ -359,6 +437,8 @@ class Companion(RelationshipUpdates):
         adapter = self.platforms.get(event.platform, event.account)
         if hasattr(adapter, "validate_event"):
             adapter.validate_event(event)
+        batch = adapter.decision_batch(event) if hasattr(adapter, "decision_batch") else None
+        batch_events = adapter.merged.check(batch) if batch else []
         with self.store.lock:
             with self.store.db() as db:
                 current = db.execute("SELECT version,deleted FROM core_events WHERE id=?", (event.id,)).fetchone()
@@ -378,23 +458,22 @@ class Companion(RelationshipUpdates):
         if governed:
             governed.classify_event()
         scope = self.conversation_scope(event)
-        conversations.append(self.store, scope["account"], scope["channel"], scope["key"], scope["message_id"],
-                             event.text, "user", scope["sender_uid"], "received", utcnow(), event.occurred_at,
-                             reply_to=scope["reply_to"], attachments=event.attachments,
-                             on_write=(lambda item_id: governed.classify_written(
-                                 "conversation_turns", item_id, sources=["event/" + event.id])) if governed else None)
+        for source in batch_events if batch else [event]:
+            self.record_user_turn(source, self.governed_context(source) if governed else None)
         if hasattr(adapter, "recover_conversation"):
             adapter.recover_conversation(event)
         done = "core-processed:" + event.id
         if self.store.state(done) == receipt["version"]:
+            if batch:
+                adapter.merged.finish(batch, "recovered_terminal_receipt")
             return {"duplicate": True}
-        if not delivery.eligible(self, event, receipt["version"], run):
+        if not delivery.eligible(self, event, receipt["version"], run, keep_pending=bool(batch)):
             return {"deferred": True, "delivery": self.store.state(delivery.key(event))}
         if getattr(adapter, "reply_quota_preflight", False) and not run["read_only"]:
             from .action_budget import require
 
             require(self, adapter)
-        await self._identity_review(event)
+        await self._identity_review(event, batch_events)
         persona = self.store.read("persona")
         policy = self.store.read("policy")
         companion = self.store.read("companion")
@@ -406,8 +485,15 @@ class Companion(RelationshipUpdates):
         relationship_version = relationship["version"] if relationship else None
         memory_sources = {}
         if governed:
+            query = None
+            if batch and event.visibility == "group":
+                from .backlog_context import group_tail, snapshots
+
+                selected, _selection = group_tail(snapshots([events.get(self.store, source.id) for source in batch_events]))
+                query = "\n".join(unit["text"] for unit in selected)
             memory, recall_queries = await self.governed_memory(
-                governed, event, relationship_id, run, configurations, receipt["version"])
+                governed, event, relationship_id, run, configurations, receipt["version"],
+                query=query, source_events=batch_events)
         else:
             memory, recall_queries = self.memory_context(event, dependencies=memory_sources), ()
         identity = ({"identity": {"actor": asdict(event.actor)}, "person_profile": {}, "dependency": None}
@@ -436,6 +522,14 @@ class Companion(RelationshipUpdates):
                    "relationship_updates": {"enabled": companion["data"]["auto_relationships"],
                                             "locked": bool(relationship and relationship["data"]["locked"])}}
         context.update(governed.persona_context() if governed else {"persona": persona["data"]})
+        relation = context.get("persona", {}).get("relationship_baseline", {})
+        person_bound = relation.get("target") == "person"
+        if person_bound:
+            from .person_baseline import matches
+            person_match = matches(self.store, event.actor)
+            context["event"]["relationship_context"] = {
+                "is_owner": person_match, "identity_basis": "selected_person",
+                "meaning": "只指当前消息发送者。基础关系是管理员设定，不是互动历史，不授予权限，也不适用于群内其他发送者。"}
         facts = None
         if governed and event.visibility == "private":
             from .temporal_facts import PersonalFacts
@@ -457,10 +551,12 @@ class Companion(RelationshipUpdates):
                 for claim in graph["claims"]:
                     governed.resources.add("relation/" + claim["id"])
                     governed.resources.update("actor/" + claim[key] for key in ("subject", "object"))
+            if batch:
+                governed.resources.update("event/" + source.id for source in batch_events)
             governed.freeze()
             from .reply_trace import sources
 
-            sources(governed.lease.versions)
+            sources(governed.lease.versions, roots=governed.lease.roots)
 
         class Budgeted:
             async def generate(_, instructions, material, schema, images=(), **options):
@@ -479,10 +575,15 @@ class Companion(RelationshipUpdates):
 
         def check_context():
             self.guard(run["generation"])
+            if batch:
+                for source in adapter.merged.check(batch):
+                    adapter.validate_context_event(source)
             if hasattr(adapter, "validate_event"):
                 adapter.validate_event(event)
             if governed:
                 governed.check()
+            if person_bound and matches(self.store, event.actor) != person_match:
+                raise AssistantError("context_changed", "基础关系的账号关联已变化，请重新生成")
             if growth:
                 growth.check()
             if facts:
@@ -515,18 +616,73 @@ class Companion(RelationshipUpdates):
 
         async with AsyncExitStack() as material_scope:
             images = ()
+            finalize_images = None
             if hasattr(adapter, "decision_material"):
-                material = await material_scope.enter_async_context(adapter.decision_material(event, guard=check_context))
+                provider = (adapter.room_decision_material(event, conversation, guard=check_context)
+                            if hasattr(adapter, "room_decision_material") else adapter.decision_material(event, guard=check_context))
+                material = await material_scope.enter_async_context(provider)
                 context["event_material"] = material["context"]
                 images = material["images"]
+                finalize_images = material.get("finalize_images")
                 check_context()
+            prepared_report = None
+
+            async def prepare_context(material, instructions, schema):
+                nonlocal prepared_report
+                # Raw batch text is supplied once through the bounded composer.
+                # Do not duplicate it in the anchor or recent-turn material.
+                from copy import deepcopy
+
+                material = deepcopy(material)
+                material["event"]["text"] = "（本轮消息正文见 backlog，身份／事实引文仍须核对原始事件。）"
+                material["identity_evidence"] = []
+                message_ids = {self.conversation_scope(source)["message_id"] for source in batch_events}
+                for key in ("turns", "recalled"):
+                    material["conversation"][key] = [turn for turn in material["conversation"].get(key, [])
+                        if turn.get("data", turn).get("message_id") not in message_ids]
+                prepared, report = await self.prepare_backlog(material, batch_events, instructions, schema,
+                                                              guard=check_context, history_status=batch.get("history_status"))
+                prepared_report = report
+                return prepared, report
+
+            claim_sources = {}
+
+            async def context_ready(material):
+                from copy import deepcopy
+
+                check_context()
+                if finalize_images:
+                    finalize_images(material)
+                for unit in material.get("backlog", {}).get("units", ()):
+                    if unit["kind"] == "original" and (event.visibility == "private" or unit["id"] == event.id):
+                        claim_sources.setdefault((unit["id"], unit["version"]), []).append(unit["text"])
+                if hasattr(adapter, 'decision_context_ready'):
+                    adapter.decision_context_ready(event, material)
+                if not batch:
+                    return
+                report = {**prepared_report, 'media_budget': deepcopy(material.get('event_material', {}).get('media_budget'))}
+                report['image_sources'] = deepcopy(material.get('event_material', {}).get('image_sources', []))
+                excerpts = material.get('event_material', {}).get('attachment_text')
+                if excerpts:
+                    report['attachment_text'] = {**deepcopy(excerpts), 'items': [
+                        {**{k: deepcopy(v) for k, v in item.items() if k != 'units'},
+                         'units': [{k: deepcopy(v) for k, v in unit.items() if k != 'text'} for unit in item['units']]}
+                        for item in excerpts['items']]}
+                adapter.merged.prepared(batch, report)
+
             result = await DecisionService(Budgeted()).decide(context, capabilities, images=images,
-                                                            context_policy=companion["data"])
+                context_policy=companion["data"], prepare_context=prepare_context if batch else None,
+                context_ready=context_ready)
         # PostgreSQL commits derived content, ACLs and dedupe receipts together.
         # A failed permission recheck rolls back the whole local update batch.
         with self.store.lock, (self.store.db() if governed else nullcontext()):
             check_context()
-            self.identities.apply_model(result["identity_proposals"], allowed_evidence={event.id}, allowed_kinds={"claim"})
+            claims = result["identity_proposals"]
+            if batch:
+                claims = [p for p in claims if all(any(ref["quote"] in text for text in
+                          claim_sources.get((ref["event_id"], ref["version"]), ())) for ref in p["evidence"])]
+            self.identities.apply_model(claims, allowed_evidence={key[0] for key in claim_sources} if batch else {event.id},
+                                        allowed_kinds={"claim"})
             if (result.get("relationship") and companion["data"]["auto_relationships"]
                     and not (relationship and relationship["data"]["locked"])
                     and (not governed or not relationship or governed.access.can_read(
@@ -574,6 +730,10 @@ class Companion(RelationshipUpdates):
                 # Persist confirmed/uncertain outcomes even if the run was paused
                 # while the remote call completed; never replay an ambiguous send.
                 delivery.finish(self, event, receipt["version"], run)
+                if batch:
+                    adapter.merged.finish(batch, action["status"] if action else "no_action")
+                    if hasattr(adapter, "finish_batch"):
+                        adapter.finish_batch(event, action)
         return {"decision": result, "action": action}
 
     async def dispatch(self, event, proposal, *, context_guard=None, retry_unsent=False, disclosure=None):
@@ -604,6 +764,8 @@ class Companion(RelationshipUpdates):
                            (key + ":retired:" + previous["id"], previous["id"]))
                 previous = None
             if not previous:
+                if hasattr(adapter, "guard_reply_commit"):
+                    adapter.guard_reply_commit(event)
                 if not getattr(adapter, "manages_action_quota", False):
                     from .action_budget import require
 
@@ -618,6 +780,10 @@ class Companion(RelationshipUpdates):
                 db.execute("INSERT INTO core_actions VALUES (?,?,?,?,?,?,?,?,?,?)", (
                     action_id, key, run["generation"], event.platform, event.account, capability.name,
                     self.store.ledger_encode("core_actions.body", body), "dispatching", None, created))
+                if getattr(self.store, 'backend', None) == 'postgres':
+                    from .source_retention import action_refs
+
+                    action_refs(db, action_id, body)
         if previous:
             result = {**(self.store.ledger_decode("core_actions.result", previous["result"]) if previous["result"] else {}), "id": previous["id"],
                       "status": previous["status"], "duplicate": True}

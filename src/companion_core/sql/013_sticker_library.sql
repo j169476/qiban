@@ -1,0 +1,10 @@
+CREATE TABLE sticker_library (
+ id TEXT PRIMARY KEY,
+ sha256 TEXT NOT NULL UNIQUE,
+ size BIGINT NOT NULL CHECK(size BETWEEN 1 AND 10485760),
+ metadata TEXT NOT NULL CHECK(left(metadata,5)='enc1:'),
+ body BYTEA NOT NULL,
+ revision TEXT NOT NULL,
+ enabled BOOLEAN NOT NULL DEFAULT FALSE,
+ created_at DOUBLE PRECISION NOT NULL
+);

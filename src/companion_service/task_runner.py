@@ -15,8 +15,9 @@ from companion_core.storage import atomic_write
 
 
 class TaskRunner:
-    def __init__(self, service):
+    def __init__(self, service, *, private_video=None):
         self.service = service
+        self.private_video = private_video
 
     async def __call__(self, task, previous, *, request, guard):
         from companion_core.baseline import load
@@ -77,6 +78,8 @@ class TaskRunner:
                 "evidence_scope": "tool_open_verified_model_excerpt_not_independently_fetched"},
                 "summary": "\n\n".join(item["note"] for item in sources)[:12000]}
         if kind == "video":
+            if self.private_video is not None:
+                return await self.private_video(task, previous, request=request, guard=guard, generate=generate)
             runtimes = getattr(self.service, "platform_runs", None)
             cores = tuple(runtimes.cores.values()) if runtimes is not None else (core,)
             readers = [(platform_core, adapter) for platform_core in cores

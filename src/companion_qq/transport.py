@@ -1,19 +1,13 @@
 """Authenticated loopback OneBot v11. Reads may reconnect; sends never retry."""
 import json
-import re
 
 import httpx
 
 from companion_core.errors import AssistantError
 from companion_core.reply_authorization import require
 
+from .config import message_id as message_id
 from .config import qq_id, validate
-
-
-def message_id(value):
-    require(type(value) in (str, int) and re.fullmatch(r"-?[0-9]{1,20}", str(value)) is not None,
-            "qq_message_invalid")
-    return str(int(value))
 
 
 class OneBot:

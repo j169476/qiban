@@ -133,9 +133,15 @@ class Participation:
     def spent(value):
         return sum(value.get(k, 0) for k in ("confirmed", "reserved", "uncertain"))
 
-    def admit(self, scope, event_id, trigger, generation):
+    def admit(self, scope, event_id, trigger, generation, *, message_time=None):
+        from .reply_exclusion import accepts
+
         with self.store.lock, self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
+            # An excluded scope admits nothing. A lifted scope only admits messages
+            # timestamped after the lift; an unknown time never counts as new.
+            if not accepts(self.store, scope, message_time, db=db):
+                return None
             permission = self.permissions.version(scope, db=db)
             if permission is None:
                 return None
@@ -167,13 +173,82 @@ class Participation:
             ticket.update(window=window["id"])
             return ticket
 
+    def admit_backlog(self, scope, event_id, generation, batch_id, *, message_time=None):
+        """One catch-up send; never create or refresh the live group window.
+
+        The coordinator freezes batch_id before calling. The durable bucket is
+        keyed by the trigger itself so changing a batch cannot resend it.
+        """
+        from . import events
+        from .backlog_context import group_trigger
+        from .reply_exclusion import accepts
+
+        require(scope.kind == "group", "reply_group_required")
+        require(isinstance(batch_id, str) and 0 < len(batch_id) <= 200, "reply_batch_invalid")
+        with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            permission = self.permissions.version(scope, db=db)
+            if permission is None:
+                return None
+            source = events.get(self.store, event_id)
+            event = source["event"]
+            require(group_trigger(source) is not None and event["platform"] == scope.platform,
+                    "reply_event_untrusted")
+            if scope.platform == "qq":
+                require(event["account"] == scope.account_identity
+                        and event["metadata"]["qq"].get("target_id") == scope.target_id
+                        and event["conversation"] == "group:" + scope.target_id, "reply_event_untrusted")
+            else:
+                registry = self.store.state(stable_key("wechat-bindings-v1", event["account"]), {}, db)
+                binding = registry.get("conversations", {}).get(event["conversation"], {})
+                meta = event["metadata"]["wechat"]
+                require(registry.get("identity") == scope.account_identity and binding.get("enabled")
+                        and binding.get("kind") == "group" and binding.get("target_ref") == scope.target_id
+                        and meta.get("target_ref") == scope.target_id
+                        and meta.get("binding_revision") == binding.get("revision"), "reply_event_untrusted")
+            # Catch-up exists for messages older than the allow-all activation, so the
+            # exclusion cutoff is the only time rule applied here: a message from
+            # before a lifted exclusion is never replayed afterwards.
+            if not accepts(self.store, scope, message_time, db=db):
+                return None
+            key = stable_key("reply-backlog", scope.id, event_id)
+            old = self.store.state(key, None, db)
+            if old and (old["status"] != "active" or self.spent(old)):
+                return None
+            if old:
+                superseded = self.store.state("merged-batch:" + old["batch"], {}, db).get("status") == "superseded"
+                require(superseded or old["batch"] == batch_id and old["event_version"] == source["version"],
+                        "context_changed")
+            policy = self.policies.effective(scope, db)
+            now = self.now()
+            bucket = {"id": uuid4().hex, "batch": batch_id, "event_version": source["version"],
+                      "status": "active", "generation": generation, "permission": permission,
+                      "reply_limit": 1, "confirmed": 0, "reserved": 0, "uncertain": 0}
+            self.store.set_state(key, bucket, db)
+            return {"scope": asdict(scope), "event_id": event_id, "permission": permission,
+                    "policy": policy["version"], "generation": generation, "expires": now + 300,
+                    "window": bucket["id"], "backlog": key, "batch": batch_id,
+                    "event_version": source["version"]}
+
+    def ticket_bucket(self, ticket, scope):
+        return ticket.get("backlog") or self.window_key(scope)
+
     def check(self, ticket, generation, db=None):
         scope = ReplyScope(**ticket["scope"])
         self.permissions.check(scope, ticket["permission"], db=db)
         require(ticket["generation"] == generation and ticket["expires"] > self.now(),
                 "reply_session_expired")
         if scope.kind == "group":
-            window = self.store.state(self.window_key(scope), {}, db)
+            window = self.store.state(self.ticket_bucket(ticket, scope), {}, db)
+            if ticket.get("backlog"):
+                from . import events
+
+                require(window.get("id") == ticket["window"] and window.get("status") == "active"
+                        and window.get("batch") == ticket["batch"]
+                        and window.get("generation") == generation, "reply_session_expired")
+                require(events.get(self.store, ticket["event_id"])["version"] == ticket["event_version"],
+                        "context_changed")
+                return scope
             require(window.get("id") == ticket["window"] and window.get("status") == "active"
                     and window["expires"] > self.now(), "reply_session_expired")
         return scope
@@ -183,6 +258,10 @@ class Participation:
         settings = self.policies.effective(scope)["settings"]
         if scope.kind == "private":
             return {"mode": "private", "instruction": "当前为已授权私聊，正常回应当前用户；不需要@唤起。"}
+        if ticket.get("backlog"):
+            return {"mode": "group_backlog", "remaining_replies": 1,
+                    "instruction": "本轮仅合并补答停机期间的群聊唤起，最多回复一次；"
+                                   "不恢复持续参与，不因普通群消息继续回复；无需回复时action=null。"}
         window = self.store.state(self.window_key(scope))
         return {"mode": "group", "remaining_replies": max(0, settings["group_session_replies"] - self.spent(window)),
                 "remaining_seconds": max(0, int(window["expires"] - self.now())),
@@ -194,9 +273,10 @@ class Participation:
         with self.store.lock, self.store.db() as db:
             scope = self.check(ticket, generation, db)
             require(scope.kind == "group", "reply_group_required")
-            window = self.store.state(self.window_key(scope), {}, db)
+            key = self.ticket_bucket(ticket, scope)
+            window = self.store.state(key, {}, db)
             window.update(status="closed", reason="topic_ended")
-            self.store.set_state(self.window_key(scope), window, db)
+            self.store.set_state(key, window, db)
 
     def reserve(self, ticket, generation, action_id):
         with self.store.lock, self.store.db() as db:
@@ -209,9 +289,9 @@ class Participation:
                 bucket_key, bucket = self.usage(scope, db)
                 limit = settings["private_daily_replies"]
             else:
-                bucket_key = self.window_key(scope)
+                bucket_key = self.ticket_bucket(ticket, scope)
                 bucket = self.store.state(bucket_key, {}, db)
-                limit = settings["group_session_replies"]
+                limit = 1 if ticket.get("backlog") else settings["group_session_replies"]
             require(self.spent(bucket) < limit, "reply_quota_exhausted")
             bucket["reserved"] += 1
             self.store.set_state(bucket_key, bucket, db)

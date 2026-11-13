@@ -34,7 +34,8 @@ async def test_each_reconnect_uses_enrolled_identity_and_fresh_pid():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("code", ["client_not_running", "client_identity_changed", "process_closed"])
-async def test_read_rechecks_login_without_changing_checkpoint(code):
+@pytest.mark.parametrize("command", ["read", "freeze_window", "read_window"])
+async def test_read_rechecks_login_without_changing_checkpoint(code, command):
     now, checked = [0], []
     worker = Worker([{}, {}])
 
@@ -46,14 +47,14 @@ async def test_read_rechecks_login_without_changing_checkpoint(code):
                                       check=check, clock=lambda: now[0])
     previous = snapshot()
     await transport.request("open", config={"client_pid": 999}, **previous)
-    await transport.request("read", checkpoint=previous["checkpoint"])
+    await transport.request(command, checkpoint=previous["checkpoint"])
     assert not checked
     now[0] = 5
     with pytest.raises(WorkerError) as caught:
-        await transport.request("read", checkpoint=previous["checkpoint"])
+        await transport.request(command, checkpoint=previous["checkpoint"])
     assert caught.value.code == code
     assert checked == [(previous["enrollment"]["self_username"], (101, 501))]
-    assert [call[0] for call in worker.calls] == ["open", "read"]
+    assert [call[0] for call in worker.calls] == ["open", command]
     assert worker.calls[1][1]["checkpoint"] == previous["checkpoint"]
 
 

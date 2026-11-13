@@ -1,5 +1,6 @@
 """Reversible inferred identity graph. This graph never confers authorization."""
 import re
+from contextlib import nullcontext
 
 from jsonschema import ValidationError, validate
 
@@ -379,25 +380,90 @@ class IdentityService:
         if current != dependency:
             raise AssistantError("context_changed", "身份关联、来源证据或人物资料已变化，请重新生成决策")
 
-    async def review(self, actor, generate, guard):
+    @staticmethod
+    def _maintenance_material(context, snapshot, evidence, access, request):
+        """Give the reviewer only candidate pairs and excerpts within its existing grant."""
+        evidence = [item for item in evidence if access.can_read(request, "event/" + item["event"]["id"])]
+        represented = {ActorRef(**item["event"]["actor"]).key for item in evidence}
+        candidates = []
+        sources = set()
+        for record in context["candidates"]:
+            data = record["data"]
+            pair = {ActorRef(**data[side]).key for side in ("left", "right")}
+            original = next(r["data"] for r in snapshot["links"] if r["data"]["id"] == data["id"])
+            refs = {"event/" + ref["event_id"] for ref in original["evidence"]}
+            if pair <= represented and refs and all(access.can_read(request, ref) for ref in refs):
+                candidates.append({key: data[key] for key in ("left", "right", "status")})
+                sources.update(refs)
+        if not candidates:
+            return None
+        pairs = {frozenset(ActorRef(**c[side]).key for side in ("left", "right")) for c in candidates}
+        endpoints = set().union(*pairs)
+        evidence = [item for item in evidence if ActorRef(**item["event"]["actor"]).key in endpoints]
+        context = {"candidates": candidates}
+        sources.update("event/" + item["event"]["id"] for item in evidence)
+        lease = access.lease(request, sorted(sources))
+        return context, evidence, pairs, lease
+
+    async def review(self, actor, generate, guard, *, maintenance=None, triggers=()):
         from .decision import IDENTITY_INSTRUCTIONS
         with self.store.lock:
             snapshot = self._snapshot()
+            if not self._candidates(actor, snapshot["links"], include_hard=True):
+                return []
             context = self._context(actor, snapshot, include_evidence=True)
             dependency = self._decision_context(actor, snapshot)["dependency"]
         if not context["candidates"] or len({e["event"]["platform"] for e in context["evidence"]}) < 2:
             return []
         evidence = context.pop("evidence")
+        lease = private = None
+        if maintenance is not None:
+            from .private_identity_evidence import prepare
+
+            access, request = maintenance
+            material = self._maintenance_material(context, snapshot, evidence, access, request)
+            if material is None:
+                private = prepare(self, snapshot, triggers, access, request)
+                if private is None:
+                    return []
+                data = private.record["data"]
+                context = {"candidates": [{k: data[k] for k in ("left", "right", "status")}]}
+                evidence = private.evidence
+                pairs = {frozenset(ActorRef(**data[side]).key for side in ("left", "right"))}
+            else:
+                context, evidence, pairs, lease = material
+
+        def verify_review():
+            guard()
+            if lease is not None:
+                access.revalidate(lease)
+            if private is not None:
+                private.check(self, access, request)
+        verify_review()
         output = await generate("只评估跨平台身份候选，证据不足就返回空列表。" + IDENTITY_INSTRUCTIONS,
                                 {**context, "identity_evidence": evidence},
-                                obj({"identity_proposals": IDENTITY_PROPOSALS}))
-        guard()
+                                obj({"identity_proposals": IDENTITY_PROPOSALS}),
+                                **({"guard": verify_review} if maintenance is not None else {}))
+        verify_review()
         allowed = {e["event"]["id"] for e in evidence}
-        with self.store.lock:
+        atomic_review = maintenance is not None and getattr(self.store, "backend", None) == "postgres"
+        with self.store.lock, (self.store.db() if atomic_review else nullcontext()) as transaction:
+            if atomic_review:
+                transaction.execute("BEGIN IMMEDIATE")
+            verify_review()
             self.verify_context(dependency)
             with self.store.db() as db:
                 current = self._load_events(db, allowed)
             if any((item := current.get(e["event"]["id"])) is None or item["deleted"]
                    or item["version"] != e["version"] for e in evidence):
                 raise AssistantError("context_changed", "本轮身份评估所读消息已变化，请重新评估")
-            return self.apply_model(output["identity_proposals"], allowed_evidence=allowed)
+            proposals = output["identity_proposals"]
+            if maintenance is not None:
+                proposals = [p for p in proposals if
+                             frozenset(ActorRef(**p[s]).key for s in ("left", "right")) in pairs
+                             and all(any(ref["event_id"] == item["event"]["id"] and ref["version"] == item["version"]
+                                         and ref["quote"] in item["event"]["text"] for item in evidence)
+                                     for ref in p["evidence"])]
+                return self.apply_model(proposals, allowed_evidence=allowed,
+                                        allowed_kinds={"correspondence", "contradiction"})
+            return self.apply_model(proposals, allowed_evidence=allowed)

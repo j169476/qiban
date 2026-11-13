@@ -5,6 +5,7 @@ Only authenticated management code may call update. Discovery never grants acces
 """
 from __future__ import annotations
 
+import math
 import re
 import secrets
 import time
@@ -83,9 +84,28 @@ class ReplyAuthorizations:
                 result.append(self.record(scope, db=db))
             return result
 
-    def version(self, scope, *, db=None):
+    def version(self, scope, *, db=None, message_time=None):
         record = self.record(scope, db=db)
-        return record["version"] if record["enabled"] else None
+        from .reply_audience import effective_version
+        from .reply_exclusion import usable
+
+        if message_time is not None and not usable(message_time):
+            # A supplied message time that cannot be trusted never becomes a permit.
+            return None
+        manual = record["enabled"] and record.get("member_present", True)
+        if message_time is not None and message_time < record.get("messages_since", 0):
+            manual = False
+        return effective_version(self.store, scope, record["version"] if manual else None, db, message_time)
+
+    def observe_member(self, scope, present, expected_version, db):
+        """Keep the choice, but invalidate work accepted under a previous relationship."""
+        require(scope.platform == "wechat" and type(present) is bool)
+        record = self.record(scope, db=db)
+        if not record["enabled"] or record["version"] != expected_version or record.get("member_present", True) == present:
+            return
+        updated = {**record, "member_present": present, "version": secrets.token_hex(16)}
+        updated["messages_since"] = max(record.get("messages_since", 0), math.ceil(self.clock()))
+        self.store.set_state(PREFIX + scope.id, updated, db)
 
     def check(self, scope, version, *, db=None):
         require(isinstance(version, str) and self.version(scope, db=db) == version, "reply_not_authorized")
@@ -121,7 +141,9 @@ class ReplyAuthorizations:
             yield
 
     def reset_after_restore(self):
+        from .reply_audience import reset
         with self.store.lock, self.store.db() as db:
+            reset(self.store, db)
             for record in self.records():
                 if record["enabled"]:
                     self.update(ReplyScope(**record["scope"]), enabled=False,

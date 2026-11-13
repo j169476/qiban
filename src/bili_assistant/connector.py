@@ -102,9 +102,9 @@ class BilibiliConnector:
     platform = "bilibili"
     manages_action_quota = True
 
-    def __init__(self, engine):
+    def __init__(self, engine, *, account=None):
         self.engine = engine
-        self.account = engine.store.read("manifest")["data"]["account_uid"]
+        self.account = account if account is not None else engine.store.read("manifest")["data"]["account_uid"]
 
     def bind_runtime(self, core):
         from .core_binding import CoreBoundEngine

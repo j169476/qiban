@@ -1,0 +1,30 @@
+[
+  {
+    "name": "ctranslate2",
+    "version": "4.8.3",
+    "path": "ctranslate2.txt",
+    "source": "https://raw.githubusercontent.com/OpenNMT/CTranslate2/v4.8.3/LICENSE",
+    "sha256": "54aa79d9fe3c09e67a16dcd95b9e88676405a6ec174efda31036983cf7672ecb"
+  },
+  {
+    "name": "flatbuffers",
+    "version": "25.12.19",
+    "path": "flatbuffers.txt",
+    "source": "https://raw.githubusercontent.com/google/flatbuffers/v25.12.19/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "name": "tokenizers",
+    "version": "0.23.3",
+    "path": "tokenizers.txt",
+    "source": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.23.3/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "name": "sherpa-onnx-core",
+    "version": "2.0.1",
+    "path": "sherpa-onnx-core.txt",
+    "source": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v2.0.1/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  }
+]

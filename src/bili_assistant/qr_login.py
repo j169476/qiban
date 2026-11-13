@@ -2,7 +2,7 @@
 
 from enum import Enum
 from http.cookies import CookieError, SimpleCookie
-from io import StringIO
+from io import BytesIO, StringIO
 from urllib.parse import parse_qsl, urljoin, urlsplit
 
 import httpx
@@ -112,10 +112,11 @@ def _data(response):
 
 
 class WebQrLogin:
-    def __init__(self, client):
+    def __init__(self, client, credential_factory=None):
         self.client = client
+        self.credential_factory = credential_factory
         self._key = None
-        self._terminal = None
+        self._qr = None
         self._credential = None
 
     async def _get(self, url, **kwargs):
@@ -143,18 +144,23 @@ class WebQrLogin:
         self._key = data["qrcode_key"]
         qr = qrcode.QRCode()
         qr.add_data(url)
-        output = StringIO()
-        qr.print_ascii(out=output, invert=True)
-        self._terminal = output.getvalue()
+        self._qr = qr
 
     def get_qrcode_terminal(self):
-        if self._terminal is None:
+        if self._qr is None:
             raise AssistantError("qr_not_ready", "二维码尚未生成")
-        return self._terminal
+        output = StringIO()
+        self._qr.print_ascii(out=output, invert=True)
+        return output.getvalue()
+
+    def get_qrcode_png(self):
+        if self._qr is None:
+            raise AssistantError("qr_not_ready", "二维码尚未生成")
+        output = BytesIO()
+        self._qr.make_image().save(output, format="PNG")
+        return output.getvalue()
 
     async def _resolve_credential(self, data, response):
-        from bilibili_api import Credential
-
         values = _response_cookies(response)
         url = data.get("url")
         if not _complete(values) and url:
@@ -176,7 +182,11 @@ class WebQrLogin:
         refresh_token = data.get("refresh_token")
         if isinstance(refresh_token, str):
             values["ac_time_value"] = refresh_token
-        credential = Credential(**values)
+        factory = self.credential_factory
+        if factory is None:
+            from bilibili_api import Credential
+            factory = Credential
+        credential = factory(**values)
         validate_credential(credential, "login_credentials_incomplete")
         return credential
 

@@ -15,7 +15,7 @@ def xml(value, tag):
         return None
 
 
-def message(kind, content, source, self_username, *, own_reference):
+def message(kind, content, source, self_username, *, own_reference, conversation=None):
     """own_reference must verify a server ID in this exact source conversation."""
     if kind & 0xFFFFFFFF == 1:
         text = short_text(content)
@@ -33,7 +33,13 @@ def message(kind, content, source, self_username, *, own_reference):
     if not title or reference is None:
         return None, "none"
     identifier = reference.findtext("svrid") or ""
-    own = (reference.findtext("fromusr") == self_username and identifier.isascii()
+    origin = reference.findtext("fromusr")
+    author = reference.findtext("chatusr")
+    if origin and origin.endswith("@chatroom"):
+        claimed_own = origin == conversation and author == self_username
+    else:
+        claimed_own = origin == self_username and author in (None, "", self_username)
+    own = (claimed_own and identifier.isascii()
            and identifier.isdecimal() and 0 < len(identifier) <= 19 and 0 < int(identifier) <= 2**63 - 1
            and own_reference(int(identifier)))
     return title, "reply" if own else "none"

@@ -15,6 +15,8 @@ def remove(store, kind, identifier, expected, actor):
         raise AssistantError("baseline_locked", "请先从共用人物卡移除这条基础记忆")
     with store.lock, store.db() as db:
         db.execute("BEGIN IMMEDIATE")
+        if kind == 'memories' and store.read(kind, identifier)['data'].get('fact'):
+            raise AssistantError('fact_retirement_required', '个人事实请使用停用预览，不能只删除一条而恢复旧值')
         row = db.execute("SELECT version,body FROM content_records WHERE kind=? AND id=? FOR UPDATE", (kind, identifier)).fetchone()
         if not row or row["version"] != expected:
             raise AssistantError("edit_conflict", "资料在预览后已经改变")

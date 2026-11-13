@@ -36,6 +36,7 @@ class BilibiliWorkflow:
             Stage("native_tools", self.native_tools, 50, requires_model=True),
             Stage("video_gap", self.video_gap, 60, requires_model=True),
             Stage("goal_learning", self.goal_learning, 70, requires_model=True),
+            Stage("favorite_tools", self.favorite_tools, 75, requires_model=True),
             Stage("exploration", self.explore, 80, requires_model=True),
             Stage("decision_and_delivery", self.decide, 90, requires_model=True),
             Stage("reflection", self.reflect, 100, "finalize", True),
@@ -47,8 +48,11 @@ class BilibiliWorkflow:
 
         recover(self.engine)
 
-    def delivery_recovery(self, state):
+    async def delivery_recovery(self, state):
         delivery.recover(self.engine)
+        if hasattr(self.engine.adapter, "favorite_tools"):
+            from .favorite_actions import recover
+            await recover(self.engine)
 
     async def collect(self, state):
         engine = self.engine
@@ -142,6 +146,11 @@ class BilibiliWorkflow:
 
         if not state["fresh"] and await step(self.scheduler):
             return Flow.FINALIZE
+
+    async def favorite_tools(self, state):
+        if not state["fresh"]:
+            from .favorite_workflow import step
+            await step(self.scheduler)
 
     async def explore(self, state):
         from .discovery import diversity, expand, observe

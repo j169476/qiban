@@ -23,6 +23,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+files = ["pypdf==6.21.4", "openpyxl==3.1.5", "python-pptx==1.0.2", "defusedxml==0.7.1"]
+desktop-auth = ["PyJWT[crypto]==2.15.1"]
 dev = ["pytest>=8,<9", "pytest-asyncio>=0.26,<2", "ruff>=0.11,<1"]
 speech = ["faster-whisper>=1.1,<2"]
 wechat-probe = ["pywinauto==0.6.9; sys_platform == 'win32'"]
@@ -45,6 +47,7 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 [tool.setuptools.package-data]
 bili_assistant = ["defaults/*.yaml", "schemas/*.json"]
 companion_core = ["*.json", "sql/*.sql"]
+companion_qq = ["native/*.cjs", "native/*.c", "native/*.def", "native/*.json", "native/LICENSE.*"]
 companion_wechat = ["third_party/*.txt", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
 companion_service = ["templates/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/*.png", "static/*.txt"]
 

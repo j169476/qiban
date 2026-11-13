@@ -52,8 +52,9 @@ class SubprocessTransport:
     MAX_REQUEST = 262144
     MAX_REPLY = 2 * 1024 * 1024
 
-    def __init__(self, *, python=None, open_timeout=150.0, read_timeout=20.0):
+    def __init__(self, *, python=None, executable=None, open_timeout=150.0, read_timeout=20.0):
         self.python = str(python or sys.executable)
+        self.executable = str(executable) if executable else None
         self.open_timeout, self.read_timeout = open_timeout, read_timeout
         self.process = None
         self.sequence = 0
@@ -72,10 +73,17 @@ class SubprocessTransport:
             return
         env = dict(os.environ)
         env["PYTHONIOENCODING"] = "utf-8"
-        env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+        if self.executable:
+            env.pop("PYTHONHOME", None)
+            env.pop("PYTHONPATH", None)
+            env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+            command = [self.executable]
+        else:
+            env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+            command = [self.python, "-u", "-m", "companion_wechat.db_worker"]
         try:
             self.process = subprocess.Popen(
-                [self.python, "-u", "-m", "companion_wechat.db_worker"],
+                command,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 env=env, bufsize=0, close_fds=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),

@@ -176,7 +176,7 @@ def packet(engine, material, references=(), *, queries=()):
     events = material.get("events", [])
     query = " ".join([video.get("title", "")] + [event.get("text", "") for event in events])
     uids = {event["uid"] for event in events} | {video.get("owner_uid", "")}
-    if config["persona"]["data"].get("relationship_baseline"):
+    if config["persona"]["data"].get("relationship_baseline", {}).get("owner_uid"):
         uids.add(config["persona"]["data"]["relationship_baseline"]["owner_uid"])
     memory = store.context(query, references, uids, queries=queries)
     threads = context_for_events(store, config["manifest"]["data"]["account_uid"], events, queries=queries)

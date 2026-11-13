@@ -37,13 +37,13 @@ def finish(core, event, version, run, reason="completed"):
         core.store.set_state("core-processed:" + event.id, version, db)
 
 
-def eligible(core, event, version, run):
+def eligible(core, event, version, run, *, keep_pending=False):
     record = core.store.state(key(event))
     if not record or record.get("version") != version:
         return True
     if record["status"] != "deferred" or record["owner"] != run["owner"]:
         return False
-    if core.clock() - datetime.fromisoformat(event.occurred_at) > MAX_AGE:
+    if not keep_pending and core.clock() - datetime.fromisoformat(event.occurred_at) > MAX_AGE:
         finish(core, event, version, run, "expired")
         return False
     if record.get("attempts", 0) >= MAX_DEFERRALS:

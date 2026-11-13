@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows10.0.22621": {
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "kICGrGYEzCNI3wPzfEXcwNHgTvlvVn9yJDhSdRK+oZQy4jvYH529u7O0xf5ocQKzOMjfS07+3z9PKRIjrFMJDA=="
+      },
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.4314.35, )",
+        "resolved": "1.0.4314.35",
+        "contentHash": "x5MFf2W03xueU1mMNvivXfHSsQ+ODo7vJ36qw/dLtU5Gs+8d7+7N7zzmNNDoT3ffosmcvZNBtUnlzyiDUuBkSQ=="
+      }
+    },
+    "net10.0-windows10.0.22621/win-x64": {
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.4314.35, )",
+        "resolved": "1.0.4314.35",
+        "contentHash": "x5MFf2W03xueU1mMNvivXfHSsQ+ODo7vJ36qw/dLtU5Gs+8d7+7N7zzmNNDoT3ffosmcvZNBtUnlzyiDUuBkSQ=="
+      }
+    }
+  }
+}

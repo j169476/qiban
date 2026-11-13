@@ -57,13 +57,14 @@ def reply(store, event, run):
         CURRENT.reset(marker)
 
 
-def sources(pins):
+def sources(pins, *, roots=None):
     trace = CURRENT.get()
     if trace is not None:
         items = sorted(dict(pins).items())
         trace["source_count"] = len(items)
         trace["sources"] = [{"resource": key, "version": version} for key, version in items[:100]]
         trace["sources_limited"] = len(items) > 100
+        trace['retention_roots'] = list(roots) if roots is not None else [key for key, _ in items]
 
 
 def listing(store, limit=30):
@@ -72,7 +73,7 @@ def listing(store, limit=30):
     with store.db() as db:
         keys = db.execute("SELECT key FROM state WHERE key LIKE ? ORDER BY key DESC LIMIT ?",
                           (PREFIX + "%", limit)).fetchall()
-    return [{key: value for key, value in store.state(row[0], {}).items() if key not in {"sources", "steps"}}
+    return [{key: value for key, value in store.state(row[0], {}).items() if key not in {"sources", "steps", "retention_roots"}}
             for row in keys]
 
 
@@ -87,5 +88,6 @@ def detail(store, identifier, access, request):
         if access.can_read(request, source["resource"]):
             policy = access.repository.policy(source["resource"])
             visible.append({**source, "version_current": bool(policy and policy.version == source["version"])})
-    return {**trace, "sources": visible, "hidden_sources": len(trace.get("sources", [])) - len(visible),
+    return {**{key: value for key, value in trace.items() if key != 'retention_roots'},
+            "sources": visible, "hidden_sources": len(trace.get("sources", [])) - len(visible),
             "meaning": "程序处理记录；不保存提示词、原文或模型内部推理。来源按当前权限再次过滤。"}

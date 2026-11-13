@@ -31,7 +31,7 @@ class Worker:
 def env():
     worker = Worker()
     bindings = SimpleNamespace(get=lambda key: SimpleNamespace(
-        key="owner_main", enabled=True, revision=1, target_ref="synthetic-owner"))
+        key="owner_main", enabled=True, revision=1, target_ref="synthetic-owner", kind="private"))
     receiver = SimpleNamespace(_closed=False, _worker=worker, _lock=asyncio.Lock(), bindings=bindings,
                                connection=lambda: Connection("synthetic-self", "synthetic-inbox-epoch"))
 
@@ -112,6 +112,22 @@ async def test_expired_handle_and_wrong_target_fail_before_read(env):
     with pytest.raises(AssistantError):
         await client.begin(replace(request, conversation="other"))
     assert len(worker.calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["private", None, "group"])
+async def test_current_membership_checked_against_bound_target(env, kind):
+    receiver, worker, request = env
+    client = DatabaseReceiptClient(receiver)
+    token = await client.begin(request)
+    worker.result = {"kind": kind}
+    if kind == "private":
+        await client.verify_membership(request, token)
+    else:
+        with pytest.raises(AssistantError) as exc:
+            await client.verify_membership(request, token)
+        assert exc.value.code == "wechat_target_no_longer_member"
+    assert worker.calls[-1] == ("member_kind", {"username": request.target_ref})
 
 
 @pytest.mark.asyncio

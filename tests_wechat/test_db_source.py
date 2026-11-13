@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import json
 import sqlite3
@@ -63,9 +64,9 @@ class Harness:
         finally:
             self.closes += 1
 
-    def session(self, enrollment=None, checkpoint=None):
+    def session(self, enrollment=None, checkpoint=None, **options):
         return ds.SourceSession({}, enrollment, checkpoint, prepare_fn=self.prepare, clock=lambda: SINCE,
-                                state_fn=lambda _: {"window_count": 1})
+                                state_fn=lambda _: {"window_count": 1}, **options)
 
     def close(self):
         for conn in self.shards.values():
@@ -115,6 +116,88 @@ def test_bounded_pages_preserve_equal_sort_sequences_and_identical_text(lab):
         third = session.read(second["next_checkpoint"])
         assert [len(batch["rows"]) for batch in (first, second, third)] == [50, 50, 5]
         assert len({row["server_id"] for batch in (first, second, third) for row in batch["rows"]}) == 105
+
+
+def test_frozen_window_replays_and_resumes_without_absorbing_new_arrivals(lab):
+    with lab.session() as session:
+        snapshot = session.snapshot()
+        lab.insert(1, text="same body")
+        lab.insert(2, text="same body")
+        window = session.freeze_window(snapshot["checkpoint"])
+        first = session.read_window(snapshot["checkpoint"], window, limit=2)
+        assert [r["server_id"] for r in first["rows"]] == ["1001"]
+        assert first["window_complete"] is False
+        lab.insert(3, text="later window")
+        assert session.read_window(snapshot["checkpoint"], window, limit=2) == first
+    with lab.session(snapshot["enrollment"], first["next_checkpoint"]) as resumed:
+        second = resumed.read_window(first["next_checkpoint"], window, limit=2)
+        assert [r["server_id"] for r in second["rows"]] == ["1002"]
+        assert second["window_complete"] is True
+        exhausted = resumed.read_window(second["next_checkpoint"], window, limit=2)
+        assert exhausted["rows"] == []
+        assert exhausted["window_complete"] is True
+        following = resumed.freeze_window(second["next_checkpoint"])
+        third = resumed.read_window(second["next_checkpoint"], following, limit=2)
+        assert [r["text"] for r in third["rows"]] == ["later window"]
+        assert third["window_complete"] is True
+
+
+def test_window_completion_checks_all_sources_even_when_selected_page_is_empty(lab):
+    with lab.session() as session:
+        checkpoint = session.snapshot()["checkpoint"]
+        lab.insert(1, target=OWNER)
+        window = session.freeze_window(checkpoint)
+        # Sorted family/group source is empty, but owner_main still has work.
+        first = session.read_window(checkpoint, window, limit=1)
+        assert first["rows"] == []
+        assert first["window_complete"] is False
+        second = session.read_window(first["next_checkpoint"], window, limit=1)
+        assert len(second["rows"]) == 1
+        assert second["window_complete"] is True
+
+
+@pytest.mark.parametrize("fault", ["epoch", "source", "salt", "upper_identity", "position"])
+def test_invalid_or_changed_window_cannot_expand_read_scope(lab, fault):
+    with lab.session() as session:
+        checkpoint = session.snapshot()["checkpoint"]
+        lab.insert(1)
+        window = session.freeze_window(checkpoint)
+        key = next(k for k in window["sources"] if k.endswith("|owner_main"))
+        if fault == "epoch":
+            window["epoch"] = "f" * 32
+        elif fault == "source":
+            del window["sources"][key]
+        elif fault == "salt":
+            window["sources"][key]["salt"] = "f" * 64
+        elif fault == "upper_identity":
+            window["sources"][key]["upper"]["server_id"] += 1
+        else:
+            checkpoint["sources"][key]["anchor"] = {"local_id": 2, "server_id": 1002, "create_time": SINCE + 1}
+        with pytest.raises(ds.SourceError):
+            session.read_window(checkpoint, window)
+
+
+def test_window_worker_commands_return_only_their_requested_protocol_fields(lab):
+    with lab.session() as session:
+        checkpoint = session.snapshot()["checkpoint"]
+        lab.insert(1)
+        window = session.freeze_window(checkpoint)
+        # Use a separate initialized session through the production dispatcher.
+        snapshot = session.snapshot()
+    requests = [
+        {"id": 1, "command": "open", "config": {}, **snapshot},
+        {"id": 2, "command": "freeze_window", "checkpoint": checkpoint},
+        {"id": 3, "command": "read_window", "checkpoint": checkpoint, "window": window, "limit": 100},
+        {"id": 4, "command": "close"},
+    ]
+    output = io.StringIO()
+    assert db_worker.serve(io.StringIO("".join(json.dumps(r) + "\n" for r in requests)), output,
+                           session_factory=lambda config, enrollment, checkpoint: lab.session(enrollment, checkpoint)) == 0
+    results = [json.loads(line) for line in output.getvalue().splitlines()]
+    assert all(r["ok"] for r in results)
+    assert results[1]["result"] == window
+    assert results[2]["result"]["window_complete"] is True
+    assert len(results[2]["result"]["rows"]) == 1
 
 
 @pytest.mark.parametrize("fault,reason", [("server", "pending_server_id"),
@@ -568,3 +651,188 @@ def test_worker_main_refuses_user_visible_terminal(monkeypatch):
     monkeypatch.setattr(db_worker.sys, "stdin", SimpleNamespace(isatty=lambda: True))
     monkeypatch.setattr(db_worker, "serve", lambda *_: pytest.fail("private protocol must use pipes"))
     assert db_worker.main() == 2
+
+def test_alias_lookup_reads_current_bound_contact_and_requires_online(lab):
+    import sqlite3
+    from contextlib import contextmanager, nullcontext
+    contacts = sqlite3.connect(":memory:")
+    contacts.execute("CREATE TABLE contact(username TEXT,alias TEXT)")
+    contacts.execute("INSERT INTO contact VALUES (?,?)",(OWNER,"alias-test"))
+    @contextmanager
+    def prepared(config,enrollment):
+        with lab.prepare(config,enrollment) as value:
+            value.open_contacts=lambda: nullcontext(contacts)
+            yield value
+    windows = {"window_count":1}
+    try:
+        with ds.SourceSession({},prepare_fn=prepared,clock=lambda:SINCE,state_fn=lambda pid:windows) as session:
+            assert session.resolve_alias("alias-test")=={"username":OWNER}
+            contacts.execute("UPDATE contact SET alias='alias-new'")
+            assert session.resolve_alias("alias-test")=={"username":None}
+            contacts.execute("INSERT INTO contact VALUES ('outside','alias-new')")
+            assert session.resolve_alias("alias-new")=={"username":None}
+            windows["window_count"]=0
+            with pytest.raises(ds.SourceError,match="client_not_running"):
+                session.resolve_alias("alias-test")
+    finally:
+        contacts.close()
+
+def test_first_seen_since_broad_consent_preserves_boundary_and_durable_cursor(lab):
+    lab.insert(1,created=SINCE-2,text="before-consent")
+    lab.insert(2,created=SINCE,text="first-offline-message")
+    lab.insert(3,created=SINCE-1,text="older-timestamp-in-later-row")
+    lab.insert(4,created=SINCE+1,text="second-offline-message")
+    with lab.session(authorized_since=SINCE) as session:
+        initial=session.snapshot()
+        assert initial["enrollment"]["since"]==SINCE
+        result=session.read(initial["checkpoint"])
+        assert [r["text"] for r in result["rows"]]==["first-offline-message","second-offline-message"]
+    with lab.session(initial["enrollment"],result["next_checkpoint"]) as resumed:
+        assert resumed.read(result["next_checkpoint"])["rows"]==[]
+
+
+def test_bulk_verification_uses_exact_current_relationships_across_sql_pages():
+    from contextlib import closing
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.execute("CREATE TABLE contact(username,local_type,flag,delete_flag,verify_flag,is_in_chat_room)")
+        targets = [{"kind": "private", "username": f"user{i}"} for i in range(502)]
+        db.executemany("INSERT INTO contact VALUES (?,1,1,0,0,0)", [(t["username"],) for t in targets])
+        targets += [{"kind": "group", "username": "group@chatroom"}, {"kind": "private", "username": "me"}]
+        db.execute("INSERT INTO contact VALUES ('group@chatroom',2,0,0,0,1),('me',1,1,0,0,0)")
+        db.commit()
+        assert ds.verify_contacts(db, "me", targets) == {"verified": 503, "unavailable": ["me"]}
+        db.execute("UPDATE contact SET delete_flag=1 WHERE username='user500'")
+        db.execute("UPDATE contact SET is_in_chat_room=0 WHERE username='group@chatroom'")
+        db.execute("INSERT INTO contact VALUES ('user2',1,1,0,0,0)")
+        db.commit()
+        assert ds.verify_contacts(db, "me", targets) == {
+            "verified": 500, "unavailable": ["user2", "user500", "group@chatroom", "me"]}
+        with pytest.raises(ds.SourceError):
+            ds.verify_contacts(db, "me", targets * 2)
+
+
+def test_saved_roster_can_wait_for_first_message_and_keep_unrelated_cursor(lab):
+    with lab.session() as first:
+        initial = first.snapshot()
+    enrollment = {**initial["enrollment"], "schema_version": 2,
+                  "target_since": {name:SINCE+2 for name in initial["enrollment"]["targets"]}}
+    empty = {**initial["checkpoint"], "sources": {}}
+    conn = lab.shards["message_0.db"]
+    conn.execute(f'DROP TABLE "{message_table(OWNER)}"')
+    with lab.session(enrollment, empty, recover_missing_history=True) as waiting:
+        pointer = waiting.snapshot()
+        assert all(i["target_ref"] != "owner_main" for i in pointer["checkpoint"]["sources"].values())
+    conn.execute(f'CREATE TABLE "{message_table(OWNER)}"(local_id INTEGER PRIMARY KEY, server_id, create_time, '
+                 'local_type, real_sender_id, message_content, sort_seq)')
+    lab.insert(1,created=SINCE+1,text="before-selection")
+    lab.insert(2,created=SINCE+2,text="eligible")
+    with lab.session(enrollment,pointer["checkpoint"],recover_missing_history=True) as live:
+        cp=live.snapshot()["checkpoint"]
+        data=live.read_window(cp,live.freeze_window(cp))
+        assert [r["text"] for r in data["rows"]] == ["eligible"]
+    conn.execute(f'DROP TABLE "{message_table(OWNER)}"')
+    with lab.session(enrollment,data["next_checkpoint"],recover_missing_history=True) as lost:
+        cp=lost.snapshot()["checkpoint"]
+        data=lost.read_window(cp,lost.freeze_window(cp))
+        assert data["window_complete"] and not data["rows"]
+        assert data["history_status"]["owner_main"]["status"]=="incomplete"
+
+
+def test_returned_member_reports_missing_anchor_without_resetting_to_first_message(lab,monkeypatch):
+    kind = ["private"]
+    with lab.session() as session:
+        monkeypatch.setattr(session,"member_kind",lambda target:kind[0])
+        session._prepared.shards={lab.account/"db_storage/message"/name:db for name,db in lab.shards.items()}
+        lab.insert(1,created=SINCE,text="old")
+        lab.insert(2,created=SINCE+1,text="remaining")
+        first=session.member_window(OWNER,"private",SINCE,None,None,1)
+        assert not first["window_complete"]
+        assert [r["text"] for r in first["rows"]]==["old"]
+        kind[0]=None
+        assert session.member_window(OWNER,"private",SINCE,first["next_checkpoint"],None,1)=={"present":False}
+        lab.shards["message_0.db"].execute(f'DELETE FROM "{message_table(OWNER)}" WHERE local_id=1')
+        kind[0]="private"
+        resumed=session.member_window(OWNER,"private",SINCE,first["next_checkpoint"],None,1)
+        assert [r["text"] for r in resumed["rows"]]==["remaining"] and resumed["window_complete"]
+        assert list(resumed["history_status"].values())==[{"status":"incomplete","reasons":["checkpoint_unavailable"]}]
+
+
+def test_directory_pages_use_same_membership_as_exact_check_and_skip_ambiguous_ids(lab):
+    from contextlib import closing, nullcontext
+
+    with closing(sqlite3.connect(":memory:")) as contacts, lab.session() as session:
+        contacts.execute("CREATE TABLE contact(username, local_type, flag, delete_flag, verify_flag, "
+                         "is_in_chat_room, remark, nick_name)")
+        rows = [
+            ("a@chatroom", 2, 0, 0, 0, 0, "", "已退出"),
+            ("b@chatroom", 2, 0, 0, 0, 1, "", "在群"),
+            ("c@chatroom", 2, 0, 0, 0, 1, "", "重复"),
+            ("c@chatroom", 1, 1, 0, 0, 0, "", "冲突"),
+            ("d", 1, 3, 0, 0, 0, "备注", "昵称"),
+            ("e", 1, 1, 1, 0, 0, "", "已删除"),
+            (SELF, 1, 1, 0, 0, 0, "", "本人"),
+        ]
+        contacts.executemany("INSERT INTO contact VALUES(?,?,?,?,?,?,?,?)", rows)
+        session._prepared.open_contacts = lambda: nullcontext(contacts)
+        for kind, expected in [("group", [{"username": "b@chatroom", "name": "在群"}]),
+                               ("private", [{"username": "d", "name": "备注"}])]:
+            items, cursor = [], ""
+            while cursor is not None:
+                page = session.directory_page(kind, cursor, 1)
+                items.extend(page["items"])
+                assert page["next"] is None or page["next"] > cursor
+                cursor = page["next"]
+            assert items == expected
+            assert session.member_page(kind, None) == {"ids":[i["username"] for i in expected], "next":None}
+            assert {i["username"] for i in items} == {r[0] for r in rows if session.member_kind(r[0]) == kind}
+        contacts.execute("UPDATE contact SET is_in_chat_room=0 WHERE username='b@chatroom'")
+        assert session.directory_page("group", "", 100) == {"items": [], "next": None}
+
+
+def test_member_pages_use_one_snapshot_without_display_columns_and_expire_cursor(lab):
+    from contextlib import closing, nullcontext
+    with closing(sqlite3.connect(":memory:")) as contacts, lab.session() as session:
+        contacts.execute("CREATE TABLE contact(username,local_type,flag,delete_flag,verify_flag,is_in_chat_room)")
+        contacts.executemany("INSERT INTO contact VALUES (?,1,1,0,0,0)",[(f"id{i:04}",) for i in range(258)])
+        session._prepared.open_contacts = lambda: nullcontext(contacts)
+        first = session.member_page("private",None)
+        assert len(first["ids"]) == 256
+        contacts.execute("DELETE FROM contact WHERE username='id0257'")
+        assert session.member_page("private",first["next"]) == {"ids":["id0256","id0257"],"next":None}
+        with pytest.raises(ds.SourceError):
+            session.member_page("private",first["next"])
+        fresh = session.member_page("private",None)
+        assert session.member_page("private",fresh["next"]) == {"ids":["id0256"],"next":None}
+
+def test_worker_does_not_release_backfill_if_membership_changes_during_read(lab):
+    from contextlib import contextmanager, nullcontext
+    contacts=sqlite3.connect(":memory:")
+    contacts.execute("CREATE TABLE contact(username,local_type,flag,delete_flag,verify_flag,is_in_chat_room)")
+    contacts.execute("INSERT INTO contact VALUES (?,1,3,0,0,0)",(OWNER,))
+    lab.insert(1,created=SINCE,text="must-never-be-returned")
+    @contextmanager
+    def prepare(config,enrollment):
+        with lab.prepare(config,enrollment) as p:
+            p.targets=[t for t in p.targets if t.username==OWNER]
+            p.sources=[s for s in p.sources if s.target.username==OWNER]
+            p.open_contacts=lambda:nullcontext(contacts)
+            yield p
+    class Changing(ds.SourceSession):
+        def read(self,checkpoint,**kwargs):
+            result=super().read(self.snapshot()["checkpoint"],**kwargs)
+            contacts.execute("UPDATE contact SET delete_flag=1")
+            return result
+    def factory(cfg,enrol,cp,**kwargs):
+        return Changing(cfg,enrol,cp,prepare_fn=prepare,state_fn=lambda p:{"window_count":1},**kwargs)
+    account="wechat-db:"+hashlib.sha256(SELF.encode()).hexdigest()
+    commands=[{"id":1,"command":"open","config":{},"enrollment":None,"checkpoint":None,
+               "audience":{"account_id":account,"kind":"private","username":OWNER,"since":SINCE}},
+              {"id":2,"command":"read","checkpoint":{},"limit":100}]
+    output=io.StringIO()
+    try:
+        assert db_worker.serve(io.StringIO("".join(json.dumps(c)+"\n" for c in commands)),output,session_factory=factory)==2
+        rows=[json.loads(row) for row in output.getvalue().splitlines()]
+        assert rows[0]["ok"] and rows[1]["error"]=="source_identity_changed"
+        assert "must-never-be-returned" not in output.getvalue()
+    finally:
+        contacts.close()

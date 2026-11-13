@@ -81,6 +81,31 @@ def store(tmp_path):
     return value
 
 
+def test_restored_friend_rebases_only_its_cursor_preserving_unfinished_group_window(store):
+    from dataclasses import asdict
+
+    from companion_core.reply_authorization import PREFIX, ReplyScope
+    from tests_wechat.test_receiver_window import window
+
+    initial = snapshot()
+    _, latest = batch(initial, row(3), row(5,group=True))
+    initial["window"] = window(initial, latest)
+    receiver = DatabaseGateway(store, {}, fixed_windows=True, monitor_members=True)
+    receiver._initialize(initial)
+    scope = ReplyScope("wechat", initial["enrollment"]["account_id"], "private", OWNER)
+    store.set_state(PREFIX+scope.id, {"scope":asdict(scope),"id":scope.id,"enabled":True,
+                    "version":"new-permission","member_present":True,"messages_since":STAMP+6})
+    assert receiver._sync_member_positions()
+    changed = receiver._saved
+    assert changed["enrollment"]["target_since"] == {"owner_main":STAMP+6,"family":STAMP}
+    group_key = "message/message_0.db|family"
+    assert changed["window"]["sources"] == {group_key:initial["window"]["sources"][group_key]}
+    assert changed["checkpoint"]["sources"] == {group_key:initial["checkpoint"]["sources"][group_key]}
+    restarted = DatabaseGateway(store, {}, fixed_windows=True, monitor_members=True)
+    restarted._initialize(store.state(receiver.pointer_key))
+    assert restarted._saved == changed and not restarted._sync_member_positions()
+
+
 @pytest.mark.asyncio
 async def test_display_name_changes_preserve_identity_epoch_and_checkpoint(store):
     first = snapshot()

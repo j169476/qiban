@@ -50,6 +50,10 @@ def test_export_excludes_history_local_state_and_personal_material(tmp_path):
                  "docs/V8.2-bug-diagnosis-20261026.txt", "docs/V8.2-browser-test-report-20261026.txt",
                  "docs/V8.2-repair-progress-20261027.md",
                  "docs/V8.2-development.md", "docs/V0_9_DEVELOPMENT.md",
+                 "docs/QIBAN_STANDALONE_ACCEPTANCE.md", "docs/QIBAN_R8_INTERNAL_RECORD.md",
+                 "scripts/desktop_probe/obj/project.assets.json",
+                 "scripts/desktop_probe/obj/Release/probe.assets.cache",
+                 "scripts/desktop_probe/bin/Qiban.DesktopProbe.dll",
                  "plugins/qiban/runtime.json", "src/pkg/__pycache__/private.pyc"):
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,9 +86,14 @@ def test_nonempty_default_and_unreviewed_binary_block_release(tmp_path):
     with pytest.raises(release.ReleaseError, match="persona must be empty"):
         release.audit(root)
     path.write_bytes((ROOT / "src/companion_core/defaults.json").read_bytes())
-    (root / "src/private.png").write_bytes(b"synthetic-image")
-    with pytest.raises(release.ReleaseError, match="Unreviewed source file"):
-        release.audit(root)
+    for relative in ("src/private.png", "src/extra_probe.iss", "src/extra_probe.c",
+                     "src/companion_qq/native/LICENSE.Unreviewed"):
+        unreviewed = root / relative
+        unreviewed.parent.mkdir(parents=True, exist_ok=True)
+        unreviewed.write_bytes(b"confirmed text at an unconfirmed path\n")
+        with pytest.raises(release.ReleaseError, match="Unreviewed source file"):
+            release.audit(root)
+        unreviewed.unlink()
 
 
 def test_repository_is_exportable_with_empty_defaults():
@@ -93,7 +102,9 @@ def test_repository_is_exportable_with_empty_defaults():
     names = {item["path"] for item in report["manifest"]}
     assert "tests_core/fixtures/retrieval/cases.json" in names
     assert "src/companion_wechat/native/LICENSE.helper" in names
+    assert set(release.REVIEWED_TEXT) | set(release.REVIEWED_ASSETS) <= names
     assert not any(name.startswith(release.PRIVATE_PREFIXES) for name in names)
+    assert not any(name.startswith(release.LOCAL_BUILD_PREFIXES) for name in names)
 
 
 @pytest.mark.parametrize("connector", ["companion-qq", "companion-wechat"])
@@ -132,3 +143,20 @@ def test_public_attribution_does_not_allow_other_private_content(tmp_path):
     (root / "README.md").write_text(approved + "\n" + marker, encoding="utf-8")
     with pytest.raises(release.ReleaseError, match="README.md"):
         release.audit(root, (marker,))
+
+
+@pytest.mark.parametrize("relative", ["scripts/source_probe" + suffix for suffix in (".cjs", ".cs", ".csproj")]
+                         + sorted(release.REVIEWED_TEXT))
+def test_probe_source_is_exported_and_keeps_text_privacy_checks(tmp_path, relative):
+    root = synthetic_source(tmp_path)
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("module.exports = {};\n", encoding="utf-8")
+    payload, report = release.audit(root)
+    assert report["ok"] and payload[relative] == b"module.exports = {};\n"
+    path.write_text("// synthetic-private-value\n", encoding="utf-8")
+    with pytest.raises(release.ReleaseError, match="Private marker"):
+        release.audit(root, ("synthetic-private-value",))
+    path.write_bytes(b"binary\x00data")
+    with pytest.raises(release.ReleaseError, match="Binary source file"):
+        release.audit(root)

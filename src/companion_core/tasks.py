@@ -18,12 +18,17 @@ from .task_contracts import REQUESTS
 
 
 class ExplicitTasks:
-    def __init__(self, core, authority, *, authenticate, session_active, handler):
+    def __init__(self, core, authority, *, authenticate, session_active, handler, accepts=None, requests=None):
         self.core, self.store, self.authority = core, core.store, authority
         self.authenticate, self.session_active, self.handler = authenticate, session_active, handler
         self.repository = GovernanceRepository(self.store)
         self.access = AccessService(self.repository, authority)
         self.busy = False
+        self.accepts = accepts or (lambda data: True)
+        self.requests = requests or (lambda: self.store.records("task_requests")[0])
+
+    def _requests(self):
+        return [row for row in self.requests() if self.accepts(row["data"])]
 
     def _state(self, identifier):
         state = self.store.state("explicit-task:" + identifier)
@@ -70,7 +75,7 @@ class ExplicitTasks:
                 self.access.lease(request, ["task_requests/" + identifier])
                 return {"id": identifier, "duplicate": True}
             if sum(self._state(row["data"]["id"])["status"] in {"queued", "running"}
-                   for row in self.store.records("task_requests")[0]) >= 12:
+                   for row in self._requests()) >= 12:
                 raise AssistantError("task_queue_full", "待办任务最多 12 项")
             now = self.core.clock().isoformat()
             record = self.store.write("task_requests", {"schema_version": 1, "id": identifier, "actor": asdict(actor),
@@ -107,7 +112,8 @@ class ExplicitTasks:
 
     def listing(self, request):
         readable = self.repository.readable_resources(self.access, request)
-        rows = ReadView(self.store, readable).records("task_requests")[0]
+        rows = [row for row in ReadView(self.store, readable).records("task_requests")[0]
+                if self.accepts(row["data"])]
         rows.sort(key=lambda row: row["data"]["source"]["recorded_at"], reverse=True)
         result = []
         for row in rows[:50]:
@@ -128,6 +134,9 @@ class ExplicitTasks:
             if action == "cancel" and old["status"] in {"queued", "running"}:
                 return self._save(identifier, {**old, "status": "cancelled", "error": "user_cancelled"})
             if action == "retry" and old["status"] in {"failed", "cancelled"} and old["attempts"] < 3:
+                if sum(self._state(row['data']['id'])['status'] in {'queued', 'running'}
+                       for row in self._requests()) >= 12:
+                    raise AssistantError('task_queue_full', '待办任务最多 12 项')
                 if self.store.version("task_requests", identifier) != old["request_version"]:
                     raise AssistantError("task_request_changed", "原始要求已修改，请明确提交新任务")
                 run = self.core.guard()
@@ -140,7 +149,7 @@ class ExplicitTasks:
     def stop(self, reason, *, session=None):
         with self.store.lock, self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            for row in self.store.records("task_requests")[0]:
+            for row in self._requests():
                 identifier = row["data"]["id"]
                 old = self._state(identifier)
                 if old["status"] in {"queued", "running"} and (session is None or old["session"] == session):
@@ -151,7 +160,7 @@ class ExplicitTasks:
             return False
         self.busy = True
         try:
-            for record in self.store.records("task_requests")[0]:
+            for record in self._requests():
                 identifier = record["data"]["id"]
                 state = self._state(identifier)
                 if state["status"] == "running":

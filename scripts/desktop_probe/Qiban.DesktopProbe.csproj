@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.18362.0</SupportedOSPlatformVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Qiban.DesktopProbe</AssemblyName>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion>
+    <BaseOutputPath>../../.dev/refactor-r0/desktop/build/</BaseOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <EmbeddedResource Include="Assets/*" LogicalName="%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../src/companion_service/static/app.css" LogicalName="app.css" />
+    <EmbeddedResource Include="../../src/companion_service/static/qiban.css" LogicalName="qiban.css" />
+    <EmbeddedResource Include="../../src/companion_service/static/white-dragon-tea.png" LogicalName="white-dragon-tea.png" />
+  </ItemGroup>
+  <Target Name="PinWindowsSdkRuntime" BeforeTargets="ProcessFrameworkReferences">
+    <ItemGroup>
+      <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.14" />
+      <FrameworkReference Update="Microsoft.WindowsDesktop.App.WindowsForms" RuntimeFrameworkVersion="10.0.14" />
+    </ItemGroup>
+  </Target>
+  <Target Name="RemoveUnusedWebViewWpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+</Project>

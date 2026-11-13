@@ -29,6 +29,8 @@ class Model:
 
     async def generate(self, _instructions, context, _schema, _images=(), **_kwargs):
         self.calls.append(context)
+        if set(_schema.get('properties', {})) == {'queries'}:
+            return {'queries': ['synthetic recall']}
         return {"note": "", "action": {"capability": "message.reply", "arguments": {"text": "synthetic reply"}},
                 "memories": [], "identity_proposals": [], "relationship": None}
 

@@ -110,17 +110,31 @@
               "reference"
             ],
             "additionalProperties": false
+          },
+          "target": {
+            "const": "person"
           }
         },
         "required": [
-          "owner_uid",
           "owner_name",
           "addresses",
           "level",
           "description",
           "source"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "owner_uid"
+            ]
+          },
+          {
+            "required": [
+              "target"
+            ]
+          }
+        ]
       },
       "foundation_memories": {
         "type": "array",
@@ -1094,35 +1108,66 @@
         "type": "array",
         "maxItems": 12,
         "items": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "enum": [
-                "image",
-                "video_card",
-                "link_card"
-              ]
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "image",
+                    "video_card",
+                    "link_card"
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "bvid": {
+                  "type": "string",
+                  "pattern": "^(?:BV[0-9A-Za-z]{10})?$"
+                }
+              },
+              "required": [
+                "kind",
+                "url",
+                "title",
+                "bvid"
+              ],
+              "additionalProperties": false
             },
-            "url": {
-              "type": "string",
-              "maxLength": 2000
-            },
-            "title": {
-              "type": "string",
-              "maxLength": 500
-            },
-            "bvid": {
-              "type": "string",
-              "pattern": "^(?:BV[0-9A-Za-z]{10})?$"
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^qq-native-attachment-[0-9a-f]{40}$"
+                },
+                "kind": {
+                  "enum": [
+                    "image",
+                    "audio",
+                    "file"
+                  ]
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 199
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "position"
+              ],
+              "additionalProperties": false
             }
-          },
-          "required": [
-            "kind",
-            "url",
-            "title",
-            "bvid"
-          ],
-          "additionalProperties": false
+          ]
         }
       }
     },

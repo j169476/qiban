@@ -115,8 +115,8 @@ class Windows:
                 ptr(app) == base + app_table and ptr(context) == base + context_table, "account_changed")
         return value
 
-    def select(self, expected):
-        matches = []
+    def logged_in_sessions(self):
+        sessions = []
         for pid in self.api.process_ids():
             core = self.modules(pid).get("weixin.dll")
             if not core:
@@ -131,10 +131,13 @@ class Windows:
                     if str(exc) == "account_not_logged_in":
                         continue
                     raise
-                if account == expected:
-                    matches.append((pid, self.born(handle)))
+                sessions.append((account, pid, self.born(handle)))
             finally:
                 self.api.close(handle)
+        return sessions
+
+    def select(self, expected):
+        matches = [(pid, born) for account, pid, born in self.logged_in_sessions() if account == expected]
         require(len(matches) == 1, "source_not_unique")
         return matches[0]
 

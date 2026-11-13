@@ -1,4 +1,5 @@
 """Explicit verified bindings in the existing store; display names are not identities."""
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field, replace
 
 from companion_core.contracts import stable_key
@@ -45,9 +46,11 @@ class BindingRegistry:
             else:
                 require(data["identity"] == account_identity, "wechat_account_rebind")
 
-    def bind(self, binding, *, expected_revision=None):
-        with self.store.lock, self.store.db() as db:
-            db.execute("BEGIN IMMEDIATE")
+    def bind(self, binding, *, expected_revision=None, db=None):
+        owned = db is None
+        with self.store.lock, (self.store.db() if owned else nullcontext(db)) as db:
+            if owned:
+                db.execute("BEGIN IMMEDIATE")
             data = self.store.state(self.key, None, db)
             old = data["conversations"].get(binding.key)
             require((old["revision"] if old else None) == expected_revision, "wechat_binding_conflict")

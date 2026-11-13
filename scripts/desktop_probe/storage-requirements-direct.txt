@@ -1,0 +1,12 @@
+# Dedicated Windows x64 storage build; versions matched to the validated environment.
+PyInstaller==6.22.3
+PyYAML==6.0.3
+jsonschema==4.26.0
+filelock==3.32.7
+Pillow==13.0.0
+tzdata==2026.5
+psycopg[binary,pool]==3.3.6
+psycopg-pool==3.3.3
+cryptography==50.0.2
+keyring==25.7.0
+PyJWT==2.15.1

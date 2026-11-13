@@ -98,6 +98,174 @@ async def handle(env, raw):
     return [await env.core.handle(event) for event in batch]
 
 
+async def test_native_private_recovery_deduplicates_across_caches_and_reports_history(env):
+    from tests.test_qq_native_normalization import IDENTITY, raw
+
+    partial = {"status": "incomplete", "reasons": ["checkpoint_unavailable", "history_read_stalled"]}
+    for n in (1, 2):
+        env.module.accept_native(raw(n), identity=IDENTITY, history_status=partial)
+        env.module.accept_native({**raw(n), "msgId": str(999000 + n), "msgSeq": str(888 + n)},
+                                 identity=IDENTITY, history_status=partial)
+    assert len(env.store.state(env.module.queue_key)) == 2
+    anchor = (await env.module.runtime_poll())[0]
+    record = env.module.decision_batch(anchor)
+    assert len(record["members"]) == 2
+    assert record["history_status"] == partial
+    # A later complete report applies to subsequent batches without changing
+    # the report already frozen for the current model request.
+    env.module.accept_native(raw(1), identity=IDENTITY, history_status={"status": "complete", "reasons": []})
+    assert env.module.decision_batch(anchor)["history_status"] == partial
+    assert (await env.core.handle(anchor))["action"]["status"] == "succeeded"
+    assert env.model.calls[-1]["backlog"]["message_count"] == 2
+    assert env.model.calls[-1]["history_status"]["complete"] is False
+    assert env.store.state(record["key"])["coverage"]["history_status"] == partial
+    assert len(env.provider.sent) == 1
+    env.module.accept_native({**raw(2), "msgId": "9999999"}, identity=IDENTITY, history_status=partial)
+    assert await env.module.runtime_poll() == []
+    assert len(env.provider.sent) == 1
+
+
+async def test_native_merged_media_candidates_are_limited_before_model_and_not_claimed_read(env):
+    from tests.test_qq_native_normalization import IDENTITY, raw
+
+    for number in range(1, 9):
+        message = raw(number)
+        message['elements'].append({'elementType': 2, 'picElement': {}})
+        env.module.accept_native(message, identity=IDENTITY)
+    anchor = (await env.module.runtime_poll())[0]
+    assert len(env.module.decision_batch(anchor)['members']) == 8
+    result = await env.core.handle(anchor)
+    assert result['action']['status'] == 'succeeded'
+    material = env.model.calls[-1]['event_material']
+    budget = material['media_budget']
+    assert material['attachments_read'] == material['images_read'] == 0
+    assert len(budget['candidates']) == 3 and budget['unread'] == 8
+    assert {item['code']: item['count'] for item in budget['reasons']} == {'image_count': 5, 'unavailable': 3}
+    record = env.module.merged.for_event(anchor)
+    # The active batch is retired after the single reply, but its coverage
+    # receipt must retain the distinction between candidates and read content.
+    assert record is None
+    key = env.store.state('merged-anchor:' + anchor.id)
+    assert env.store.state(key)['coverage']['media_budget'] == budget
+    assert len(env.provider.sent) == 1
+
+
+async def test_incomplete_history_continues_with_frozen_reason_and_no_cross_thread_leak(env):
+    from companion_core import events
+    from companion_core.contracts import Event
+
+    env.module.accept(incoming(901, text="readable remainder"))
+    event = Event.from_dict(events.get(env.store, env.store.state(env.module.queue_key)[0])["event"])
+    partial = {"status": "incomplete", "reasons": ["checkpoint_unavailable"]}
+    env.module.merged.record_history(event, partial)
+    anchor = (await env.module.runtime_poll())[0]
+    record = env.module.decision_batch(anchor)
+    assert record["history_status"] == partial
+    env.module.merged.record_history(event, {"status": "complete", "reasons": []})
+    assert env.module.decision_batch(anchor)["history_status"] == partial
+    assert (await env.core.handle(anchor))["action"]["status"] == "succeeded"
+    assert env.model.calls[-1]["history_status"]["complete"] is False
+    assert env.store.state(record["key"])["coverage"]["history_status"] == partial
+    assert await env.module.runtime_poll() == []
+    assert len(env.provider.sent) == 1
+    env.module.accept(incoming(902, group=True, mention=True))
+    other = (await env.module.runtime_poll())[0]
+    assert (await env.core.handle(other))["action"]["status"] == "succeeded"
+    assert "history_status" not in env.model.calls[-1]
+
+
+async def test_new_arrivals_during_generation_stay_in_next_frozen_batch(env):
+    env.module.accept(incoming(201, text='first'))
+    env.module.accept(incoming(202, text='second'))
+    anchor = (await env.module.runtime_poll())[0]
+    original = env.model.generate
+    async def generate(*args, **kwargs):
+        env.module.accept(incoming(203, text='third-during-generation'))
+        again = await env.module.runtime_poll()
+        assert [event.id for event in again] == [anchor.id]
+        return await original(*args, **kwargs)
+    env.model.generate = generate
+    assert (await env.core.handle(anchor))['action']['status'] == 'succeeded'
+    assert env.model.calls[0]['backlog']['message_count'] == 2
+    assert 'third-during-generation' not in str(env.model.calls[0])
+    env.model.generate = original
+    following = await env.module.runtime_poll()
+    assert len(following) == 1 and following[0].id != anchor.id
+    assert (await env.core.handle(following[0]))['action']['status'] == 'succeeded'
+    assert env.model.calls[-1]['backlog']['message_count'] == 1
+    assert len(env.provider.sent) == 2
+
+
+async def test_confirmed_send_before_batch_receipt_is_recovered_without_model_or_resend(env, monkeypatch):
+    from companion_core import delivery
+    env.module.accept(incoming(211))
+    env.module.accept(incoming(212))
+    anchor = (await env.module.runtime_poll())[0]
+    def interrupted(*args, **kwargs):
+        raise RuntimeError('synthetic interruption after confirmed send')
+    with monkeypatch.context() as patch:
+        patch.setattr(delivery, 'finish', interrupted)
+        with pytest.raises(RuntimeError):
+            await env.core.handle(anchor)
+    assert len(env.provider.sent) == len(env.model.calls) == 1
+    assert await env.module.runtime_poll() == []
+    assert len(env.provider.sent) == len(env.model.calls) == 1
+    key = env.store.state('merged-anchor:' + anchor.id)
+    record = env.store.state(key)
+    assert record['status'] == 'completed' and record['outcome'] == 'succeeded'
+    assert all(env.store.state('merged-consumed:' + identifier)['coverage'] == 'complete'
+               for identifier, _ in record['members'])
+
+
+async def test_historical_group_flood_pins_trigger_cuts_before_model_and_replies_once(env):
+    from companion_core.context_budget import encoded
+    for index in range(40):
+        raw = incoming(300 + index, group=True, mention=index == 2, text=f'message-{index}:' + '水群' * 500)
+        raw['time'] = STAMP - 86400 + index
+        env.module.accept(raw)
+    anchor = (await env.module.runtime_poll())[0]
+    assert (await env.core.handle(anchor))['action']['status'] == 'succeeded'
+    decisions = [context for context in env.model.calls if 'backlog' in context]
+    assert len(decisions) == 1
+    context = decisions[0]
+    assert len(encoded({'units': context['backlog']['units']})) <= 12000
+    assert context['backlog']['selection']['trigger_id'] == anchor.id
+    assert context['backlog']['selection']['omitted_messages'] > 0
+    assert any(unit['id'] == anchor.id and not unit['truncated'] for unit in context['backlog']['units'])
+    assert len(env.provider.sent) == 1
+    assert all(len(call['query']) <= 12000 for call in env.model.calls if 'query' in call)
+    assert env.store.state(env.module.participation.window_key(env.module.scope(anchor))) is None
+    record = env.store.state(env.store.state('merged-anchor:' + anchor.id))
+    omitted = [identifier for identifier, _ in record['members']
+               if env.store.state('merged-consumed:' + identifier)['coverage'] == 'omitted']
+    assert omitted and all(env.store.state('core-processed:' + identifier) is None for identifier in omitted)
+    assert await env.module.runtime_poll() == []
+    env.module.accept(incoming(399, group=True))
+    assert await env.module.runtime_poll() == []
+
+
+async def test_source_correction_during_generation_invalidates_batch_before_send(env):
+    from dataclasses import replace
+
+    from companion_core import events
+    env.module.accept(incoming(401, text='before'))
+    anchor = (await env.module.runtime_poll())[0]
+    first = env.module.decision_batch(anchor)
+    original = env.model.generate
+    async def generate(*args, **kwargs):
+        events.ingest(env.store, replace(anchor, text='corrected'))
+        return await original(*args, **kwargs)
+    env.model.generate = generate
+    with pytest.raises(AssistantError):
+        await env.core.handle(anchor)
+    assert env.provider.sent == []
+    env.model.generate = original
+    current = (await env.module.runtime_poll())[0]
+    assert current.text == 'corrected'
+    assert env.store.state(first['key'])['status'] == 'superseded'
+    assert (await env.core.handle(current))['action']['status'] == 'succeeded'
+
+
 @pytest.mark.asyncio
 async def test_private_replies_dedupe_identical_bubbles_and_group_scope(env):
     assert (await handle(env, incoming(1)))[0]["action"]["status"] == "succeeded"
@@ -118,13 +286,16 @@ async def test_poll_batches_different_conversations_without_overtaking_same_chat
     from companion_qq.normalization import normalize
 
     assert [event.id for event in batch] == [normalize(raw, OPTIONS, sent_reference=lambda *_: False).id
-        for raw in (incoming(101), incoming(103, group=True, mention=True))]
+        for raw in (incoming(102), incoming(103, group=True, mention=True))]
     assert len({event.thread for event in batch}) == 2
     await handle_batch(env.core, batch)
     following = await env.module.runtime_poll()
-    assert [event.id for event in following] == [normalize(incoming(102), OPTIONS, sent_reference=lambda *_: False).id]
+    assert following == []
+    assert len(env.provider.sent) == 2
+    private = next(context for context in env.model.calls if context['event']['visibility'] == 'private')
+    assert private['backlog']['message_count'] == 2
     await handle_batch(env.core, following)
-    assert len(env.provider.sent) == 3
+    assert len(env.provider.sent) == 2
 
 
 @pytest.mark.asyncio
@@ -190,7 +361,7 @@ async def test_default_denial_and_revocation_before_submit(env):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("group", [False, True])
-async def test_restart_restores_fresh_private_queue_but_group_requires_new_wake(env, tmp_path, group):
+async def test_restart_resumes_frozen_batch_and_group_catches_up_once(env, tmp_path, group):
     env.module.accept(incoming(1, group=group, mention=group))
     first = (await env.module.runtime_poll())[0]
     env.core.stop("restart-test")
@@ -200,18 +371,15 @@ async def test_restart_restores_fresh_private_queue_but_group_requires_new_wake(
     core.start()
     try:
         remaining = await replacement.runtime_poll()
-        if group:
-            assert remaining == []
-            replacement.accept(incoming(2, group=True))
-            assert await replacement.runtime_poll() == []
-            replacement.accept(incoming(3, group=True, mention=True))
-            remaining = await replacement.runtime_poll()
-            assert remaining[0].id != first.id
-        else:
-            assert remaining[0].id == first.id
+        assert remaining[0].id == first.id
         assert (await core.handle(remaining[0]))["action"]["status"] == "succeeded"
         assert await replacement.runtime_poll() == []
         assert len(env.provider.sent) == 1
+        if group:
+            replacement.accept(incoming(2, group=True))
+            assert await replacement.runtime_poll() == []
+            replacement.accept(incoming(3, group=True, mention=True))
+            assert len(await replacement.runtime_poll()) == 1
     finally:
         core.stop()
         await replacement.close()

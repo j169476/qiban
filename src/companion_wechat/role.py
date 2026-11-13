@@ -142,6 +142,9 @@ class RoleSession:
         require(self._now() < datetime.fromisoformat(record["deadline_at"]), "wechat_role_expired")
         return record
 
+    def _save_record(self, record, db):
+        self.store.set_state(self.key, record, db)
+
     def validate_run(self, run):
         """Called by core.guard, without recursively invoking that guard."""
         require(self.core is not None and run.get("status") == "active"
@@ -160,7 +163,7 @@ class RoleSession:
             if self._generation is None:
                 require(record["generation"] is None, "wechat_role_generation")
                 record.update(generation=generation, status="active")
-                self.store.set_state(self.key, record, db)
+                self._save_record(record, db)
                 self._generation = generation
             require(record["generation"] == generation, "wechat_role_generation")
 
@@ -220,7 +223,7 @@ class RoleSession:
             record["admissions"][event.conversation] = {"event_id": event.id, "version": version}
             changed = True
         if changed:
-            self.store.set_state(self.key, record, db)
+            self._save_record(record, db)
 
     def check_event(self, event, *, db=None):
         if db is None:
@@ -271,7 +274,7 @@ class RoleSession:
         record = self._request_record(request, db)
         if request.conversation not in record["reservations"]:
             record["reservations"][request.conversation] = request.action_id
-            self.store.set_state(self.key, record, db)
+            self._save_record(record, db)
 
     def admitted_pending(self):
         record, run = self._active()
@@ -323,7 +326,7 @@ class RoleSession:
             record = self.store.state(self.key, {}, db)
             if record.get("id") == self._id:
                 record["status"] = "revoked"
-                self.store.set_state(self.key, record, db)
+                self._save_record(record, db)
 
     def close(self):
         if self._closed:

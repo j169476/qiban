@@ -13,6 +13,7 @@ from companion_core.temporal_facts import FACT as PERSONAL_FACT
 from .errors import AssistantError
 
 ACTIONS = ("comment", "reply", "dm_reply", "dynamic", "like", "favorite", "follow", "coin", "comment_like")
+FOLDER_ACTIONS = ("favorite_create", "favorite_move")
 CONFIG = ("manifest", "persona", "preferences", "policy", "companion")
 MEMORY_COLLECTIONS = ("memories", "knowledge", "relationships", "diaries", "skills", "interest_signals")
 COLLECTIONS = (*MEMORY_COLLECTIONS, "conversation_turns", "emotion_events",
@@ -269,7 +270,7 @@ SCHEMAS = {
                             "daily_limit": {"type": "integer", "minimum": 0, "maximum": 1000},
                         }
                     )
-                    for a in ACTIONS
+                    for a in (*ACTIONS, *FOLDER_ACTIONS)
                 }, [a for a in ACTIONS if a != "comment_like"]
             ),
         }
@@ -497,6 +498,10 @@ SCHEMAS["persona"]["properties"].update({
         })},
     }),
 })
+_relation = SCHEMAS["persona"]["properties"]["relationship_baseline"]
+_relation["properties"]["target"] = {"const": "person"}
+_relation["required"].remove("owner_uid")
+_relation["oneOf"] = [{"required": ["owner_uid"]}, {"required": ["target"]}]
 SCHEMAS["companion"]["properties"].update({
     "inbox_poll_seconds": {"type": "integer", "minimum": 15, "maximum": 3600},
     "inbox_timeout_seconds": {"type": "integer", "minimum": 20, "maximum": 600},
@@ -528,7 +533,9 @@ VIDEO_WINDOW = obj({
     "mode": {"enum": ["text", "visual"]}, "reason": {"type": "string", "maxLength": 1000},
 })
 SCHEMAS["video_progress"] = document({
-    "id": ID, "account_uid": UID, "owner": ID,
+    "id": ID, "account_uid": UID,
+    "owner": {"anyOf": [ID, {"type": "string",
+        "pattern": r"^qiban-run:[a-f0-9]{32}:(bilibili|manual-video)$"}]},
     "bvid": {"type": "string", "pattern": "^BV[A-Za-z0-9]{10}$"},
     "page_index": {"type": "integer", "minimum": 0}, "cid": {"type": "string", "maxLength": 30},
     "duration_seconds": {"type": "number", "minimum": 0}, "title": STR, "owner_uid": {"type": "string"},

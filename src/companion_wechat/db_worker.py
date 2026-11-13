@@ -33,9 +33,25 @@ _RETRY = {"source_catalog_changed", "source_pending_at_enrollment", "database_bu
 _MAX_LINE = 262144
 
 
+def logged_accounts():
+    from .db_probe import ProbeError
+    from .native.protocol import ProbeFailure
+    from .native.windows import Windows
+
+    try:
+        accounts = sorted(row[0] for row in Windows().logged_in_sessions())
+    except ProbeFailure as exc:
+        code = "client_version_unsupported" if str(exc).startswith("unsupported_") else "client_identity_changed"
+        raise ProbeError(code) from None
+    if len(set(accounts)) != len(accounts):
+        raise SourceError("source_identity_changed")
+    return {"accounts": accounts}
+
+
 def serve(stdin, stdout, *, session_factory=SourceSession, receipt_factory=ReceiptHandles):
     session = None
     receipts = None
+    audience = None
     try:
         while True:
             raw = stdin.readline(_MAX_LINE + 1)
@@ -51,14 +67,60 @@ def serve(stdin, stdout, *, session_factory=SourceSession, receipt_factory=Recei
                     raise SourceError("source_configuration_invalid")
                 request_id = value["id"]
                 command = value.get("command")
-                if command == "open":
-                    if set(value) != {"id", "command", "config", "enrollment", "checkpoint"}:
+                if audience and session and command not in ("close","open") and session.member_kind(audience["username"]) != audience["kind"]:
+                    raise SourceError("source_identity_changed")
+                if command == "logged_accounts" and set(value) == {"id", "command"} and session is None:
+                    result = logged_accounts()
+                elif command == "setup_directory" and set(value) == {"id","command","login","kind","after"} and session is None:
+                    from .db_setup import browse
+                    result = browse(value["login"], value["kind"], value["after"])
+                elif command in ("setup_verify","setup_save_check") and set(value) == {"id","command","login","targets"} and session is None:
+                    from .db_setup import verify
+                    result = verify(value["login"], value["targets"], include_directory=command=="setup_save_check")
+                elif command == "open":
+                    required = {"id", "command", "config", "enrollment", "checkpoint"}
+                    if not required <= set(value) or set(value) - required - {"recover_missing_history","audience"}:
                         raise SourceError("source_configuration_invalid")
                     if session is not None:
                         raise SourceError("source_configuration_invalid")
-                    session = session_factory(value["config"], value["enrollment"], value["checkpoint"])
+                    options = {"recover_missing_history": value["recover_missing_history"]} if "recover_missing_history" in value else {}
+                    audience = value.get("audience")
+                    if audience is not None:
+                        if (not isinstance(audience,dict) or set(audience)!={"account_id","kind","username","since"}
+                                or audience["kind"] not in ("private","group") or type(audience["since"]) is not int
+                                or audience["since"]<=0):
+                            raise SourceError("source_configuration_invalid")
+                        # A first sighting starts at consent, whereas reconnect uses the committed cursor.
+                        if value["enrollment"] is None:
+                            options["authorized_since"] = audience["since"]
+                    session = session_factory(value["config"], value["enrollment"], value["checkpoint"], **options)
                     session.__enter__()
                     result = session.snapshot()
+                    if audience is not None:
+                        enrollment=result["enrollment"]
+                        if (enrollment["account_id"]!=audience["account_id"] or enrollment["since"]!=audience["since"]
+                                or list(enrollment["targets"].values()) != [{"kind":audience["kind"],"username":audience["username"]}]):
+                            raise SourceError("source_identity_changed")
+                elif command == "enrolled_members" and set(value) == {"id","command"} and session is not None:
+                    result = session.enrolled_members()
+                elif command == "member_page" and set(value) == {"id","command","kind","cursor"} and session is not None and audience is None:
+                    result = session.member_page(value["kind"], value["cursor"])
+                elif command == "chat_member_page" and set(value) == {"id","command","kind","cursor"} and session is not None and audience is None:
+                    result = session.member_page(value["kind"], value["cursor"], find_chats=True)
+                elif command == "member_window" and set(value) == {"id","command","username","kind","since","checkpoint","window","limit"} and session is not None and audience is None:
+                    result = session.member_window(**{k:v for k,v in value.items() if k not in ("id","command")})
+                elif command == "member_kind" and set(value) == {"id", "command", "username"}:
+                    if session is None:
+                        raise SourceError("source_closed")
+                    result = {"kind":session.member_kind(value["username"])}
+                elif command == "directory_page" and set(value) == {"id", "command", "kind", "after", "limit"}:
+                    if session is None or audience is not None:
+                        raise SourceError("source_configuration_invalid")
+                    result = session.directory_page(value["kind"], value["after"], value["limit"])
+                elif command == "resolve_alias" and set(value) == {"id", "command", "hint"}:
+                    if session is None:
+                        raise SourceError("source_closed")
+                    result = session.resolve_alias(value["hint"])
                 elif command == "snapshot" and set(value) == {"id", "command"}:
                     if session is None:
                         raise SourceError("source_closed")
@@ -67,12 +129,22 @@ def serve(stdin, stdout, *, session_factory=SourceSession, receipt_factory=Recei
                     if session is None:
                         raise SourceError("source_closed")
                     result = session.read(value["checkpoint"], limit=value["limit"])
-                elif command == "receipt_begin" and set(value) == {"id", "command", "action_id", "target_ref"}:
+                elif command == "freeze_window" and set(value) == {"id", "command", "checkpoint"}:
+                    if session is None:
+                        raise SourceError("source_closed")
+                    result = session.freeze_window(value["checkpoint"])
+                elif command == "read_window" and set(value) == {"id", "command", "checkpoint", "window", "limit"}:
+                    if session is None:
+                        raise SourceError("source_closed")
+                    result = session.read_window(value["checkpoint"], value["window"], limit=value["limit"])
+                elif command == "receipt_begin" and (set(value) == {"id", "command", "action_id", "target_ref"}
+                        or audience is None and set(value) == {"id","command","action_id","target_ref","kind","since"}):
                     if session is None:
                         raise SourceError("source_closed")
                     if receipts is None:
                         receipts = receipt_factory(session)
-                    result = receipts.begin(value["action_id"], value["target_ref"])
+                    options = {k:value[k] for k in ("kind","since") if k in value}
+                    result = receipts.begin(value["action_id"], value["target_ref"], **options)
                 elif command == "receipt_check" and set(value) == {"id", "command", "action_id", "handle", "text"}:
                     if session is None or receipts is None:
                         raise SourceError("source_closed")
@@ -91,6 +163,8 @@ def serve(stdin, stdout, *, session_factory=SourceSession, receipt_factory=Recei
                     result = {"closed": True}
                 else:
                     raise SourceError("source_configuration_invalid")
+                if audience and session and command != "close" and session.member_kind(audience["username"]) != audience["kind"]:
+                    raise SourceError("source_identity_changed")
                 output = {"id": request_id, "ok": True, "result": result}
                 rendered = json.dumps(output, ensure_ascii=False, allow_nan=False)
                 if len(rendered.encode("utf-8")) > 2 * 1024 * 1024:

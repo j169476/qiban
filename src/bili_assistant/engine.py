@@ -13,9 +13,10 @@ from companion_core.execution import ActionExecution
 from companion_core.lifecycle import RunLifecycle
 from companion_core.relationships import RelationshipUpdates
 
+from .action_quota import daily_usage
 from .errors import AssistantError
 from .mentions import validate_mentions
-from .schema import ACTIONS, CONFIG
+from .schema import ACTIONS, CONFIG, FOLDER_ACTIONS
 from .storage import Store, utcnow
 
 
@@ -98,7 +99,7 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
 
             result["growth"] = self.store.read("growth")
             baseline = result["persona_state"]["relationship_baseline"]
-            result["context"] = self.store.context(uids=[baseline["owner_uid"]] if baseline else [])
+            result["context"] = self.store.context(uids=[baseline["owner_uid"]] if baseline and baseline.get("owner_uid") else [])
             result["guided_interests"] = interest_profile(self.store)
             account = result["config"]["manifest"]["data"]["account_uid"]
             result["conversation"] = context(self.store, account, thread_id(account, "codex", self.identity()))
@@ -144,13 +145,7 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
         manifest = self.store.read("manifest")["data"]
         day = self.clock().astimezone(ZoneInfo(policy["data"]["timezone"])).date().isoformat()
         with self.store.db() as db:
-            rows = db.execute(
-                """SELECT kind, SUM(units) used FROM actions
-                WHERE account=? AND day=? AND status IN ('dispatching','succeeded','uncertain')
-                GROUP BY kind""",
-                (manifest["account_uid"], day),
-            ).fetchall()
-            used = {r["kind"]: r["used"] for r in rows}
+            used = daily_usage(db,manifest["account_uid"],day)
             recent = [
                 dict(r)
                 for r in db.execute(
@@ -232,8 +227,11 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
         return result
 
     def _payload(self, kind, payload):
-        if kind not in ACTIONS or not isinstance(payload, dict):
+        if kind not in (*ACTIONS, *FOLDER_ACTIONS) or not isinstance(payload, dict):
             raise AssistantError("invalid_action", "不支持此动作")
+        if kind in FOLDER_ACTIONS:
+            from .favorite_actions import validate_payload
+            return validate_payload(kind, payload)
         allowed = {
             "comment": {"bvid", "text"},
             "reply": {"event_id", "text"},
@@ -246,6 +244,10 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
             "coin": {"bvid", "units"},
         }[kind]
         optional = {"mentions"} if kind in ("comment", "reply") else set()
+        if kind == "favorite":
+            optional = {"folder_id"}
+            if "folder_id" in payload and (type(payload["folder_id"]) is not int or payload["folder_id"] <= 0):
+                raise AssistantError("invalid_payload", "需要有效的收藏夹 ID")
         if kind == "dynamic":
             optional = {"mentions", "bvid", "images"}
         if not allowed <= set(payload) or set(payload) - allowed - optional:
@@ -286,6 +288,9 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
             raise AssistantError("action_disabled", "本次为平台只读运行，禁止账号互动")
         payload = self._payload(kind, payload)
         target = payload.get("event_id") or payload.get("bvid") or payload.get("uid")
+        if kind in FOLDER_ACTIONS:
+            from .favorite_actions import action_target
+            target = action_target(kind, payload)
         if not target:
             content = payload["text"].strip()
             if payload.get("images"):
@@ -345,6 +350,9 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
         ).fetchone()
         if row[0] + action["units"] > action_policy["daily_limit"]:
             raise AssistantError("quota_exhausted", f"{kind} 当日额度不足")
+        if kind in FOLDER_ACTIONS:
+            from .favorite_actions import require_no_unknown_overlap
+            require_no_unknown_overlap(self.store, db, run["account"], kind, payload)
         last = db.execute(
             "SELECT MAX(dispatched) FROM actions WHERE account=?", (run["account"],)
         ).fetchone()[0]
@@ -499,7 +507,7 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
         from .persona import participant
 
         persona = self.store.read("persona")["data"]
-        events = [{**event, "relationship_context": participant(event, persona)} for event in events]
+        events = [{**event, "relationship_context": participant(event, persona, self.store)} for event in events]
         return {"events": events, "new_count": inserted} if report else events
 
     def conversation_context(self, event_id=None):

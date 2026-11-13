@@ -191,28 +191,23 @@ def test_background_tasks_do_not_inherit_startup_trace():
     assert [row["stage"] for row in trace.snapshot()["stages"]] == ["service_open"]
 
 
-@pytest.mark.parametrize("mode", ["timeout", "denied", "serve"])
-def test_plugin_launcher_bounds_control_without_timing_out_mcp(tmp_path, monkeypatch, capsys, mode):
+@pytest.mark.parametrize("mode", ["serve", "call"])
+def test_retired_plugin_launcher_starts_no_legacy_service(tmp_path, monkeypatch, capsys, mode):
     root = Path(__file__).resolve().parents[1]
     script = tmp_path / "scripts/run.py"
     script.parent.mkdir()
     shutil.copy(root / "plugins/qiban/scripts/run.py", script)
-    (tmp_path / "runtime.json").write_text(json.dumps({"python": sys.executable, "project": str(tmp_path), "data": str(tmp_path)}))
-    monkeypatch.setattr(sys, "argv", [str(script), "serve" if mode == "serve" else "call", "service_resume"])
+    # A runtime.json the old launcher consumed must stay unused: no process starts.
+    (tmp_path / "runtime.json").write_text(json.dumps({"python": sys.executable,
+                                                       "project": str(tmp_path), "data": str(tmp_path)}))
+    monkeypatch.setattr(sys, "argv", [str(script), mode, "service_resume"])
 
-    def invoke(args, **kwargs):
-        assert kwargs["timeout"] == (None if mode == "serve" else 120)
-        if mode == "timeout":
-            raise subprocess.TimeoutExpired(args, 120)
-        if mode == "denied":
-            raise PermissionError("sensitive-runtime-path")
-        return SimpleNamespace(returncode=0)
+    def invoke(*args, **kwargs):
+        raise AssertionError("retired launcher must not start another process")
 
     monkeypatch.setattr(subprocess, "run", invoke)
     with pytest.raises(SystemExit) as exit_value:
         runpy.run_path(str(script), run_name="__main__")
-    output = capsys.readouterr().out
-    assert exit_value.value.code == (0 if mode == "serve" else 2)
-    assert "sensitive-runtime-path" not in output
-    if mode != "serve":
-        assert json.loads(output)["error"] == ("plugin_control_timeout" if mode == "timeout" else "execution_denied")
+    captured = capsys.readouterr()
+    assert exit_value.value.code == 2
+    assert "Qiban.exe" in captured.out + captured.err

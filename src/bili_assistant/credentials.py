@@ -131,13 +131,14 @@ async def credential_lock(store):
         lock.release()
 
 
-async def maintain(store, account, now=None):
+async def maintain(store, account, now=None, *, provider=None):
     """Use the pinned SDK's refresh protocol; never store tokens in runtime state."""
     from bilibili_api import user
 
     now = now or datetime.now(timezone.utc)
-    health_key = f"credential-health:{account}"
     async with credential_lock(store):
+        revision = provider.revision() if provider is not None else None
+        health_key = f"credential-health:{account}" if revision is None else f"credential-health:{account}:{revision}"
         manifest = store.read("manifest")
         if manifest["data"]["account_uid"] != account:
             raise AssistantError("account_changed", "登录检查时发现绑定账号已改变")
@@ -148,7 +149,7 @@ async def maintain(store, account, now=None):
         if previous.get("next_check_at"):
             if now < datetime.fromisoformat(previous["next_check_at"]):
                 return previous
-        credential = load(store)
+        credential = load(store) if provider is None else provider.load(expected=revision)
 
         async def verify():
             try:
@@ -182,7 +183,10 @@ async def maintain(store, account, now=None):
                 with store.lock:
                     if store.read("manifest")["version"] != manifest["version"]:
                         raise AssistantError("account_changed", "续期过程中账号配置被修改")
-                    _save(store, credential)
+                    if provider is None:
+                        _save(store, credential)
+                    else:
+                        provider.save_refresh(credential,revision)
             except Exception:
                 store.set_state(health_key, {"status": "refresh_uncertain", "at": utcnow()})
                 # A refresh POST might have succeeded; retrying an old token is unsafe.

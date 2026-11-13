@@ -16,7 +16,7 @@ from companion_wechat.receiver import DatabaseGateway
 from companion_wechat.receiver_transport import WorkerError
 from companion_wechat.session import RuntimeSession
 from tests_postgres.test_wechat_role import Host, Model, enqueue
-from tests_wechat.test_receiver import STAMP, Factory, Worker, batch, row, snapshot
+from tests_wechat.test_receiver import GROUP, OWNER, STAMP, Factory, Worker, batch, row, snapshot
 
 
 class Driver:
@@ -24,6 +24,7 @@ class Driver:
 
     def __init__(self):
         self.sent = []
+        self.members = {GROUP, OWNER}
         self.closed = self.revoked = False
         self.before = lambda: None
 
@@ -34,6 +35,10 @@ class Driver:
     def inspect(self, request):
         return NativeProof(request.account_identity, request.target_ref, "synthetic-native-session",
                            request.fingerprint, 1, True)
+
+    async def verify_membership(self, request):
+        if request.target_ref not in self.members:
+            raise AssistantError("wechat_target_no_longer_member", "测试成员关系已解除")
 
     def submit_once(self, request, proof):
         from companion_wechat.live_sender import DriverOutcome
@@ -68,6 +73,76 @@ async def compose(store, *, family=False, account="synthetic-continuous", clock=
                            sender=sender, adapter=adapter, core=core, model=core.decisions.model)
 
 
+async def test_group_exit_during_reply_preparation_blocks_native_send(pg_store):
+    env = await compose(pg_store, family=True)
+    try:
+        env.core.start()
+        enqueue(env, row(1, group=True) | {"trigger": "mention"})
+        event, = await env.adapter.collect_once()
+        env.driver.before = lambda: env.driver.members.remove(GROUP)
+        result = await env.core.handle(event)
+        assert result["action"]["status"] == "cancelled"
+        assert len(env.model.calls) == 1 and env.driver.sent == []
+    finally:
+        env.core.stop()
+        await env.adapter.close()
+
+
+@pytest.mark.asyncio
+async def test_historical_wechat_group_merges_once_without_live_window(pg_store):
+    env = await compose(pg_store, family=True)
+    try:
+        env.core.start()
+        source = [row(index, group=True, text=f'old-{index}') for index in range(1, 5)]
+        for item in source:
+            item['occurred_at'] = datetime.fromtimestamp(STAMP - 86400, timezone.utc).isoformat()
+        source[1]['trigger'] = 'mention'
+        enqueue(env, *source)
+        pending = await env.adapter.collect_once()
+        assert len(pending) == 1
+        anchor = pending[0]
+        assert (await env.core.handle(anchor))['action']['status'] == 'succeeded'
+        assert len(env.model.calls) == len(env.driver.sent) == 1
+        context = env.model.calls[0]
+        assert context['event_material']['media_budget']['limits']['audio_seconds'] == 120
+        assert context['event_material']['media_budget']['read'] == 0
+        assert context['backlog']['message_count'] == 4
+        assert context['backlog']['selection']['trigger_id'] == anchor.id
+        record, _ = env.session._active()
+        scope = env.session.reply_scope(record, anchor.conversation)
+        assert pg_store.state(env.session.participation.window_key(scope)) is None
+        assert env.adapter.admitted_pending() == []
+        enqueue(env, row(5, group=True))
+        assert await env.adapter.collect_once() == []
+    finally:
+        env.core.stop()
+        await env.adapter.close()
+
+
+async def test_wechat_partial_history_reaches_final_reply_context(pg_store, monkeypatch):
+    env = await compose(pg_store)
+    try:
+        env.core.start()
+        partial = {"status": "incomplete", "reasons": ["history_unavailable"]}
+        original = env.session.merged.freeze
+
+        def freeze(incoming, **kwargs):
+            env.session.merged.record_history(incoming[0], partial)
+            return original(incoming, **kwargs)
+
+        monkeypatch.setattr(env.session.merged, "freeze", freeze)
+        enqueue(env, row(1, text="available message"))
+        anchor = (await env.adapter.collect_once())[0]
+        assert (await env.core.handle(anchor))["action"]["status"] == "succeeded"
+        notice = env.model.calls[-1]["history_status"]
+        assert notice["complete"] is False
+        assert notice["reasons"][0]["code"] == "history_unavailable"
+        assert len(env.driver.sent) == 1
+    finally:
+        env.core.stop()
+        await env.adapter.close()
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("family", [False, True])
 async def test_continuous_ordinary_messages_identical_bubbles_and_group_optin(pg_store, family):
@@ -83,7 +158,8 @@ async def test_continuous_ordinary_messages_identical_bubbles_and_group_optin(pg
                 assert result["action"]["status"] == "succeeded", result
                 handled.append(event)
             incoming = env.adapter.admitted_pending()
-        assert len(handled) == (4 if family else 2)
+        assert len(handled) == (2 if family else 1)
+        assert all(context['backlog']['message_count'] == 2 for context in env.model.calls)
         assert len({event.id for event in handled}) == len(handled)
         assert len(env.driver.sent) == len(handled)
         enqueue(env, row(3, text="next ordinary message"))
@@ -130,8 +206,9 @@ async def test_continuous_slow_guards_do_not_expire_unsent_permission(pg_store, 
                 result = await env.core.handle(event)
                 assert result['action']['status'] == 'succeeded', result
             incoming = env.adapter.admitted_pending()
-        assert len(env.driver.sent) == 2 and len(issued) == 2
-        assert issued[0] > 2 and issued[1] - issued[0] > 2
+        assert len(env.driver.sent) == 1 and len(issued) == 1
+        assert issued[0] > 2
+        assert env.model.calls[0]['backlog']['message_count'] == 2
         assert env.sender.permits.lifetime_seconds == 2.0
     finally:
         env.core.stop()
@@ -146,7 +223,9 @@ async def test_restart_resumes_unsent_admission_and_cursor_without_resending_com
     incoming = await env.adapter.collect_once()
     assert (await env.core.handle(incoming[0]))["action"]["status"] == "succeeded"
     assert len(incoming) == 1
-    pending = env.adapter.admitted_pending()
+    assert env.adapter.admitted_pending() == []
+    enqueue(env, row(3), row(4))
+    pending = await env.adapter.collect_once()
     assert len(pending) == 1 and pending[0].id != incoming[0].id
     checkpoint, epoch = env.receiver._saved, env.receiver.inbox.epoch
     env.core.stop("synthetic-restart")
@@ -170,15 +249,18 @@ async def test_restart_resumes_unsent_admission_and_cursor_without_resending_com
 
 
 @pytest.mark.asyncio
-async def test_no_historical_or_nonowner_message_reaches_model(pg_store):
+async def test_historical_authorized_private_is_merged_but_unapproved_group_is_not(pg_store):
     env = await compose(pg_store)
     try:
         env.core.start()
         old = row(1)
         old["occurred_at"] = datetime.fromtimestamp(STAMP - 60, timezone.utc).isoformat()
         enqueue(env, old, row(1, group=True), row(2, group=True, sender="synthetic-other"))
-        assert await env.adapter.collect_once() == []
-        assert env.model.calls == env.driver.sent == []
+        pending = await env.adapter.collect_once()
+        assert len(pending) == 1 and pending[0].visibility == 'private'
+        assert (await env.core.handle(pending[0]))['action']['status'] == 'succeeded'
+        assert len(env.model.calls) == len(env.driver.sent) == 1
+        assert env.model.calls[0]['backlog']['message_count'] == 1
     finally:
         env.core.stop()
         await env.adapter.close()
@@ -201,13 +283,14 @@ async def test_group_batch_order_caps_rewake_and_separate_private_quota(pg_store
             seen.append(pending[0].native_id)
             assert (await env.core.handle(pending[0]))["action"]["status"] == "succeeded"
             pending = env.adapter.admitted_pending()
-        assert len(seen) == 4 and len(set(seen)) == 4
+        assert len(seen) == 1
+        assert env.model.calls[0]['backlog']['message_count'] == 6
         enqueue(env, row(1))
         private = await env.adapter.collect_once()
         assert (await env.core.handle(private[0]))["action"]["status"] == "succeeded"
         enqueue(env, row(2))
         assert await env.adapter.collect_once() == []
-        assert len(env.driver.sent) == 5
+        assert len(env.driver.sent) == 2
     finally:
         env.core.stop()
         await env.adapter.close()
