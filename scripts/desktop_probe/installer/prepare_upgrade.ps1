@@ -324,10 +324,80 @@ function Test-Carrier {
     return ((Get-Digest (Join-Path $Directory $IdentityName)) -eq $Identity)
 }
 
+# The way back is a shortcut in the Start Menu group of this application, and that group has a
+# Chinese name. WScript.Shell converts the .lnk path through the ANSI code page, so it cannot write
+# that entry on a Windows installation whose code page is not Chinese; the shell's own Unicode
+# interface writes it everywhere. A failure here is still reported as recovery_link_failed.
+$ShortcutSource = @'
+using System;
+using System.Runtime.InteropServices;
+
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
+ Guid("000214F9-0000-0000-C000-000000000046")]
+public interface IShellLinkW
+{
+    void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszFile, int cch,
+                 IntPtr pfd, uint fFlags);
+    void GetIDList(out IntPtr ppidl);
+    void SetIDList(IntPtr pidl);
+    void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszName,
+                        int cch);
+    void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+    void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszDir,
+                             int cch);
+    void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+    void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszArgs,
+                      int cch);
+    void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+    void GetHotkey(out short pwHotkey);
+    void SetHotkey(short wHotkey);
+    void GetShowCmd(out int piShowCmd);
+    void SetShowCmd(int iShowCmd);
+    void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszIconPath,
+                         int cch, out int piIcon);
+    void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+    void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, uint dwReserved);
+    void Resolve(IntPtr hwnd, uint fFlags);
+    void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+}
+
+public static class QibanShortcut
+{
+    private static readonly Guid ShellLinkClass = new Guid("00021401-0000-0000-C000-000000000046");
+
+    private static object Open()
+    {
+        return Activator.CreateInstance(Type.GetTypeFromCLSID(ShellLinkClass, true));
+    }
+
+    public static void Write(string linkPath, string targetPath, string arguments,
+                             string workingDirectory)
+    {
+        object link = Open();
+        try
+        {
+            var shellLink = (IShellLinkW)link;
+            shellLink.SetPath(targetPath);
+            shellLink.SetArguments(arguments);
+            shellLink.SetWorkingDirectory(workingDirectory);
+            shellLink.SetDescription("Qiban upgrade recovery");
+            shellLink.SetIconLocation(targetPath, 0);
+            shellLink.SetShowCmd(1);
+            ((System.Runtime.InteropServices.ComTypes.IPersistFile)link).Save(linkPath, true);
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(link);
+        }
+    }
+}
+'@
+
 function Set-RecoveryLink {
     # The recorded way back: one Start Menu shortcut to the verified carrier program.
     # It is only ever written after a `staged` transaction was verified, and an existing
-    # shortcut is left untouched when anything before that failed.
+    # shortcut is left untouched when anything before that failed. What it points at, and with
+    # which arguments, is read back by the installer tests, not checked again here.
     param([string]$LinkPath, [string]$CarrierDirectory, [string]$Root, [string]$App)
     if ($LinkPath -eq '' -or $Root -eq '' -or $App -eq '') { return $false }
     if ($Root.Contains('"') -or $App.Contains('"') -or $LinkPath.Contains('"')) { return $false }
@@ -340,23 +410,16 @@ function Set-RecoveryLink {
     if ($parent -and -not (Test-Path -LiteralPath $parent -PathType Container)) {
         New-Item -ItemType Directory -Force -Path $parent | Out-Null
     }
-    $shell = $null
     try {
-        $shell = New-Object -ComObject WScript.Shell
-        $shortcut = $shell.CreateShortcut($LinkPath)
-        $shortcut.TargetPath = $target
-        $shortcut.Arguments = '--upgrade-recovery "' + $Root + '" "' + $App + '"'
-        $shortcut.WorkingDirectory = $CarrierDirectory
-        $shortcut.IconLocation = $target + ',0'
-        $shortcut.Description = 'Qiban upgrade recovery'
-        $shortcut.WindowStyle = 1
-        $shortcut.Save()
+        # Compiled on first use only, by the .NET Framework C# compiler every Windows installation
+        # ships with - the host needs nothing installed. If it cannot be written, the caller refuses.
+        if (([System.Management.Automation.PSTypeName]'QibanShortcut').Type -eq $null) {
+            Add-Type -TypeDefinition $ShortcutSource -Language CSharp -ErrorAction Stop
+        }
+        [QibanShortcut]::Write($LinkPath, $target,
+                               '--upgrade-recovery "' + $Root + '" "' + $App + '"', $CarrierDirectory)
     } catch {
         return $false
-    } finally {
-        if ($shell -ne $null) {
-            [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell)
-        }
     }
     return (Test-Path -LiteralPath $LinkPath -PathType Leaf)
 }

@@ -12,6 +12,8 @@ The backend maintenance verbs, the upgrade journal and the native recovery windo
 here; another batch owns them. The setup script itself is only checked statically, plus one
 optional compile with the bundled Inno Setup compiler.
 """
+import codecs
+import ctypes
 import hashlib
 import json
 import os
@@ -168,24 +170,61 @@ def run_glue(tmp_path, mode, *, app, root, target, manifest, link, worker=None):
     return finished.returncode, read_result(result), finished
 
 
+def ansi_unrepresentable_character():
+    """One character this machine's ANSI code page cannot express, or ``None``.
+
+    The recorded way back lives in the Start Menu group of this application, and that group has a
+    Chinese name. A Windows installation with an English code page - GitHub's runners among them -
+    therefore has to write a shortcut path its ANSI code page cannot express, while a machine with
+    a Chinese code page never sees that shape unless a fixture asks for it. The character is
+    derived from the code page of the machine that runs the test, so the check is real everywhere.
+    """
+    if sys.platform != 'win32':
+        return None
+    try:
+        code_page = f'cp{ctypes.windll.kernel32.GetACP()}'
+        codecs.lookup(code_page)
+    except (AttributeError, OSError, LookupError):
+        return None
+    for character in ('\u0e01', '\u6816', '\u05d0', '\u0905'):  # Thai, 栖, Hebrew, Devanagari
+        try:
+            if character.encode(code_page).decode(code_page) != character:
+                return character
+        except UnicodeEncodeError:
+            return character
+    return None
+
+
+SHORTCUT_READER = r'''
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$full = [System.IO.Path]::GetFullPath($args[0])
+$shell = New-Object -ComObject Shell.Application
+$folder = $shell.NameSpace([System.IO.Path]::GetDirectoryName($full))
+$link = $folder.ParseName([System.IO.Path]::GetFileName($full)).GetLink
+[Console]::Out.WriteLine($link.Path)
+[Console]::Out.WriteLine($link.Arguments)
+'''
+
+
 def read_shortcut(tmp_path, shortcut):
-    """What one .lnk really contains, read back through the same COM object the glue used."""
+    """What one .lnk really contains, read the way Explorer reads it: the shell's own automation.
+
+    ``WScript.Shell`` converts a shortcut path through the ANSI code page, so on a machine with an
+    English code page it reports an empty target for the group name a real installation uses and
+    would silently prove nothing. The shell namespace is Unicode, so this read is real everywhere.
+    """
     script = Path(tmp_path)/'read-shortcut.ps1'
-    script.write_text('\n'.join([
-        '$shell = New-Object -ComObject WScript.Shell',
-        '$link = $shell.CreateShortcut($args[0])',
-        '[Console]::Out.WriteLine($link.TargetPath)',
-        '[Console]::Out.WriteLine($link.Arguments)',
-        '',
-    ]), encoding='ascii')
+    script.write_text(SHORTCUT_READER + '\n', encoding='ascii')
     finished = subprocess.run([str(POWERSHELL), '-NoProfile', '-NonInteractive',
                                '-ExecutionPolicy', 'Bypass', '-File', str(script),
                                str(shortcut)],
-                              capture_output=True, text=True, timeout=120,
+                              capture_output=True, text=True, encoding='utf-8', timeout=120,
                               creationflags=CREATE_NO_WINDOW)
-    lines = [line.strip() for line in finished.stdout.splitlines() if line.strip()]
+    lines = [line for line in finished.stdout.splitlines() if line.strip()]
     assert finished.returncode == 0, finished.stderr
-    return lines[0], lines[1]
+    assert len(lines) >= 2, finished.stdout
+    return lines[0].strip(), lines[1]
 
 
 @pytest.fixture
@@ -273,6 +312,34 @@ def test_repair_keeps_the_recorded_way_back(workspace):
     assert result['status'] == 'ready' and result['branch'] == 'repair'
     assert result['open'] == '1', 'a repair over a switched transaction finishes that upgrade'
     target, arguments = read_shortcut(workspace.tmp, workspace.link)
+    assert Path(target) == carrier/SERVICE_EXE
+    assert arguments == f'--upgrade-recovery "{workspace.root}" "{workspace.app}"'
+
+
+def test_the_way_back_is_written_below_a_path_the_ansi_codepage_cannot_express(workspace):
+    """The real entry sits in a Chinese Start Menu group, whatever code page the machine has.
+
+    GitHub's Windows runners use an English code page (1252) that cannot express "栖伴", and a glue
+    that wrote the entry through ``WScript.Shell`` failed there with ``recovery_link_failed`` while
+    passing on a Chinese machine: a real upgrade would have been refused on every English Windows.
+    The group name is derived from this machine's own code page, so the same shape is exercised on
+    a machine whose code page does express the Chinese group name as well.
+    """
+    hostile = ansi_unrepresentable_character()
+    if hostile is None:
+        pytest.skip('this machine expresses every test character in its ANSI code page')
+    identity = write_program(workspace.app, program_files())
+    carrier, carrier_identity = carrier_of(workspace.space)
+    write_installation(workspace.root)
+    write_transaction(workspace.root, phase='staged', target=identity, carrier=carrier_identity)
+    link = workspace.space/'start-menu'/(hostile + 'group')/(hostile + 'upgrade-recovery.lnk')
+    code, result, finished = run_glue(workspace.tmp, 'Prepare', app=workspace.app,
+                                      root=workspace.root, target=identity,
+                                      manifest=workspace.app/IDENTITY, link=link)
+    assert code == 0, (result, finished.stderr)
+    assert result['status'] == 'ready' and result['branch'] == 'repair'
+    assert result['open'] == '1'
+    target, arguments = read_shortcut(workspace.tmp, link)
     assert Path(target) == carrier/SERVICE_EXE
     assert arguments == f'--upgrade-recovery "{workspace.root}" "{workspace.app}"'
 
