@@ -198,21 +198,77 @@ def ansi_unrepresentable_character():
 SHORTCUT_READER = r'''
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$full = [System.IO.Path]::GetFullPath($args[0])
-$shell = New-Object -ComObject Shell.Application
-$folder = $shell.NameSpace([System.IO.Path]::GetDirectoryName($full))
-$link = $folder.ParseName([System.IO.Path]::GetFileName($full)).GetLink
-[Console]::Out.WriteLine($link.Path)
-[Console]::Out.WriteLine($link.Arguments)
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+[ComImport, InterfaceType(ComInterfaceType.InterfaceIsIUnknown),
+ Guid("000214F9-0000-0000-C000-000000000046")]
+public interface IReadShellLinkW
+{
+    void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszFile, int cch,
+                 IntPtr pfd, uint fFlags);
+    void GetIDList(out IntPtr ppidl);
+    void SetIDList(IntPtr pidl);
+    void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszName,
+                        int cch);
+    void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+    void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszDir,
+                             int cch);
+    void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+    void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszArgs,
+                      int cch);
+    void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+    void GetHotkey(out short pwHotkey);
+    void SetHotkey(short wHotkey);
+    void GetShowCmd(out int piShowCmd);
+    void SetShowCmd(int iShowCmd);
+    void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszIconPath,
+                         int cch, out int piIcon);
+    void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+    void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, uint dwReserved);
+    void Resolve(IntPtr hwnd, uint fFlags);
+    void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+}
+
+public static class RecoveryShortcutReader
+{
+    public static string[] Read(string linkPath)
+    {
+        object link = Activator.CreateInstance(Type.GetTypeFromCLSID(
+            new Guid("00021401-0000-0000-C000-000000000046"), true));
+        try
+        {
+            ((System.Runtime.InteropServices.ComTypes.IPersistFile)link).Load(linkPath, 0);
+            var shellLink = (IReadShellLinkW)link;
+            var path = new System.Text.StringBuilder(32768);
+            var arguments = new System.Text.StringBuilder(32768);
+            shellLink.GetPath(path, path.Capacity, IntPtr.Zero, 0);
+            shellLink.GetArguments(arguments, arguments.Capacity);
+            return new[] { path.ToString(), arguments.ToString() };
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(link);
+        }
+    }
+}
+'@
+$values = [RecoveryShortcutReader]::Read($args[0])
+if ($values.Count -lt 2 -or $values[0] -eq '') { exit 3 }
+[Console]::Out.WriteLine($values[0])
+[Console]::Out.WriteLine($values[1])
 '''
 
 
 def read_shortcut(tmp_path, shortcut):
-    """What one .lnk really contains, read the way Explorer reads it: the shell's own automation.
+    """What one .lnk really contains, read through ``IShellLinkW`` into a caller-sized buffer.
 
-    ``WScript.Shell`` converts a shortcut path through the ANSI code page, so on a machine with an
-    English code page it reports an empty target for the group name a real installation uses and
-    would silently prove nothing. The shell namespace is Unicode, so this read is real everywhere.
+    Both older readers hid a value from this check: ``WScript.Shell`` converts the shortcut path
+    through the ANSI code page and reports nothing for the Chinese group a real installation uses,
+    and the ``Shell.Application`` automation truncates ``Arguments`` at 259 characters
+    (MAX_PATH - 1) although the file stores it in full. ``GetArguments`` fills the buffer the caller
+    hands it, so the recorded value comes back whole at any length.
     """
     script = Path(tmp_path)/'read-shortcut.ps1'
     script.write_text(SHORTCUT_READER + '\n', encoding='ascii')
@@ -242,13 +298,14 @@ def workspace(tmp_path):
     })()
 
 
-def carrier_of(space, files=None):
+def carrier_of(space, files=None, root=None):
     """One recorded previous-build copy: its directory is named by its own published identity.
 
     The upgrade record carries that identity, and the glue checks the carrier's own
     ``qiban-payload.json`` against it, so a fixture may never use a made-up digest here.
     """
-    programs = space/'profile'/'data'/'installation'/'upgrade'/'programs'
+    programs = (Path(root) if root is not None
+                else space/'profile'/'data'/'installation')/'upgrade'/'programs'
     staging = programs/'staging'
     digest = write_program(staging, files or program_files())
     carrier = programs/digest
@@ -342,6 +399,32 @@ def test_the_way_back_is_written_below_a_path_the_ansi_codepage_cannot_express(w
     target, arguments = read_shortcut(workspace.tmp, link)
     assert Path(target) == carrier/SERVICE_EXE
     assert arguments == f'--upgrade-recovery "{workspace.root}" "{workspace.app}"'
+
+
+def test_the_recorded_arguments_are_not_capped_at_the_shell_string_limit(workspace):
+    """The way back names both paths in full, whatever their length.
+
+    The .lnk file stores the arguments well past MAX_PATH, but reading them back through the
+    ``Shell.Application`` automation returns only their first 259 characters - a truncating reader
+    is how a >260 character recovery command stayed unnoticed on a runner whose temporary paths are
+    long. This fixture builds them that long on purpose and asserts the whole recorded value.
+    """
+    app = workspace.space/'programs'/('c' * 60)/'Qiban'
+    identity = write_program(app, program_files())
+    root = workspace.space/'profile'/'data'/'installation'
+    carrier, carrier_identity = carrier_of(workspace.space, root=root)
+    write_installation(root)
+    write_transaction(root, phase='staged', target=identity, carrier=carrier_identity)
+    expected = f'--upgrade-recovery "{root}" "{app}"'
+    assert len(expected) > 260, f'the fixture has to pass the shell limit, got {len(expected)}'
+    code, result, finished = run_glue(workspace.tmp, 'Prepare', app=app, root=root,
+                                      target=identity, manifest=app/IDENTITY,
+                                      link=workspace.link)
+    assert code == 0, (result, finished.stderr)
+    assert result['status'] == 'ready' and result['branch'] == 'repair'
+    target, arguments = read_shortcut(workspace.tmp, workspace.link)
+    assert Path(target) == carrier/SERVICE_EXE
+    assert arguments == expected
 
 
 def test_repair_with_a_transaction_for_another_target_is_refused(workspace):

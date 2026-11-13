@@ -30,6 +30,10 @@ def test_guard_cancellation_survives_child_cleanup():
 
 
 def test_timeout_is_explicit_not_a_successful_empty_document():
+    # timeout=0 is the deterministic budget: Windows reports time.monotonic() through
+    # GetTickCount64, whose tick is 15.6ms, so a deadline of "now + 1e-6" can still be in the
+    # future on the very next reading and the parser would be given a poll window instead. A zero
+    # budget is already due at the first check, so the child can never answer first.
     with pytest.raises(AssistantError) as error:
-        parse_file('sample.txt', b'sample', guard=lambda: None, timeout=.000001)
+        parse_file('sample.txt', b'sample', guard=lambda: None, timeout=0)
     assert error.value.code == 'file_process_timeout'
