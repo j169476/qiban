@@ -244,6 +244,28 @@ def emit(value):
     print(json.dumps(value), flush=True)
 
 
+def desktop_models(broker, route):
+    """The model slots one assembly hands every platform: both name one instance or none.
+
+    The released desktop route is SIWC validation, where one subscription broker and one
+    locally installed Codex executable serve local, Bilibili, QQ and WeChat. ``DesktopRuntime`` reads the
+    generic slot for QQ/WeChat and the room slot for local/Bilibili, so both slots must hold
+    the same owned instance: one executor, one admission slot, one account snapshot per turn.
+    The plain Codex route keeps injecting no model, and a missing executable only leaves the
+    platforms unready -- the store and local management must still start.
+    """
+    model = None
+    if route == 'siwc-validation':
+        from qiban.desktop_codex import executable
+        from qiban.desktop_model import DesktopModel
+        try:
+            model = DesktopModel(broker, executable=executable())
+        except AssistantError as error:
+            if error.code != 'model_unavailable':
+                raise
+    return {'model': model, 'room_model': model}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upgrade-host", nargs=3, metavar=("ROOT", "APP", "VERB"))
@@ -443,17 +465,8 @@ def main():
 
             management.wechat_resources = Path(sys.executable).parent.parent / "wechat"
             wechat = wechat_adapter(store, config["installation"], management.wechat_resources)
-            room_model = None
-            if args.authentication_route == 'siwc-validation':
-                from qiban.desktop_codex import executable
-                from qiban.desktop_model import DesktopModel
-                try:
-                    room_model = DesktopModel(codex, executable=executable())
-                except AssistantError as error:
-                    if error.code != 'model_unavailable':
-                        raise
             runtime = DesktopRuntime(management,args.application_session,
-                                     room_model=room_model,
+                                     **desktop_models(codex,args.authentication_route),
                                      adapters=tuple(item for item in (bili_adapter(management.bili),qq,wechat,management.room) if item is not None))
             runtime.reconcile()
             runtime.open()

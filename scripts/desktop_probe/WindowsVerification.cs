@@ -48,7 +48,7 @@ internal static class WindowsVerification
         "NotConfiguredForUser"=>"请先在 Windows 登录选项中设置 PIN、人脸或指纹，再重设应用密码。",
         "DisabledByPolicy"=>"Windows 策略不允许身份验证，应用密码未改变。",
         "RetriesExhausted"=>"Windows 验证尝试次数已用尽，请稍后再试。",
-        "UnsupportedWindows"=>"当前系统不支持此桌面验证入口；应用密码未改变。",
+        "UnsupportedWindows"=>"当前系统不支持此 Windows 身份验证方式；应用密码未改变。",
         _=>"Windows 身份验证未完成，应用密码未改变。"
     };
 
@@ -69,7 +69,7 @@ internal static class WindowsVerification
         "DeviceBusy"=>"Windows 验证设备正忙，没有执行回退，请稍后再试。",
         "DisabledByPolicy"=>"Windows 策略不允许身份验证，没有执行回退。",
         "RetriesExhausted"=>"Windows 验证尝试次数已用尽，没有执行回退，请稍后再试。",
-        "UnsupportedWindows"=>"当前系统不支持此桌面验证入口，没有执行回退。",
+        "UnsupportedWindows"=>"当前系统不支持此 Windows 身份验证方式，没有执行回退。",
         _=>"Windows 身份验证未完成，没有执行回退，程序与资料都未改变。"
     };
 }

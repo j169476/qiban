@@ -165,7 +165,7 @@ internal sealed class ProbeWindow : Form
     readonly WebView2 view = new() { Dock = DockStyle.Fill };
     readonly Label fallback = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
         Text = "正在准备栖伴窗口……", Font = new Font("Microsoft YaHei UI", 14) };
-    readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Text = "栖伴 · 桌面验证", Visible = true };
+    readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Text = "栖伴 Qiban", Visible = true };
     readonly System.Windows.Forms.Timer poll = new() { Interval = 500 };
     readonly CancellationTokenSource lifetime = new();
     readonly Stopwatch clock = Stopwatch.StartNew();
@@ -208,7 +208,7 @@ internal sealed class ProbeWindow : Form
             PublishService();
             if(journalStarted && component.State=="failed") journal.Abnormal();
         };
-        Text = "栖伴 Qiban · 桌面验证";
+        Text = "栖伴 Qiban";
         if(Program.ShutdownInspect)Text="栖伴 · 退出流程验证（合成进程，无真实资料）";
         ClientSize = new Size(1080, 850); MinimumSize = new Size(560, 500);
         StartPosition = FormStartPosition.CenterScreen;
@@ -218,7 +218,7 @@ internal sealed class ProbeWindow : Form
         forceExit.Click+=(_,_)=>ForceExit();
         var menu = new ContextMenuStrip();
         menu.Items.Add("打开栖伴", null, (_, _) => RestoreWindow());
-        menu.Items.Add("退出验证应用", null, (_, _) => Exit());
+        menu.Items.Add("退出栖伴", null, (_, _) => Exit());
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => RestoreWindow();
         FormClosing += (_, e) =>
@@ -405,7 +405,7 @@ internal sealed class ProbeWindow : Form
                 case "record-export": await ExportRecord(message.RootElement); break;
                 case "record-import": await ImportRecord(message.RootElement); break;
                 case "pick":
-                    using (var dialog = new OpenFileDialog { Title="选择本地测试文件（不读取内容）", CheckFileExists=true, Multiselect=false })
+                    using (var dialog = new OpenFileDialog { Title="检查文件选择对话框（不读取内容）", CheckFileExists=true, Multiselect=false })
                     { bool selected=dialog.ShowDialog(this)==DialogResult.OK; Post(new {type="file",name=selected?Path.GetFileName(dialog.FileName):null});Log("file_dialog_closed",new {selected}); }
                     break;
                 default: Log("unknown_action_rejected"); break;

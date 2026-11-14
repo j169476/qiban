@@ -2,19 +2,23 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 
 function page(){
- const nodes=new Map(),events={},requests=[];let inbound,sequence=0;
+ const nodes=new Map(),events={},requests=[],documentListeners={};let inbound,sequence=0;
  function node(){return {value:'',textContent:'',children:[],open:false,disabled:false,
   append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},
-  addEventListener(){},setAttribute(){},showModal(){this.open=true;},close(){this.open=false;}};}
+  addEventListener(){},setAttribute(){},removeAttribute(){},show(){this.open=true;this.viaShow=true;},showModal(){this.open=true;this.viaModal=true;},
+  close(){this.open=false;},focus(){},scrollIntoView(){}};}
  const id=name=>{if(!nodes.has(name))nodes.set(name,node());return nodes.get(name);};
  const webview={postMessage:req=>requests.push(req),postMessageWithAdditionalObjects:(req,files)=>requests.push({...req,files}),
   addEventListener:(_,fn)=>{inbound=fn;}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/room.js'),'utf8'),{
-  document:{getElementById:id,createElement:node},window:{chrome:{webview},addEventListener:(name,fn)=>events[name]=fn},
+  document:{getElementById:id,createElement:node,addEventListener:(name,fn)=>{documentListeners[name]=fn;}},
+  window:{chrome:{webview},addEventListener:(name,fn)=>events[name]=fn},
   crypto:{randomUUID:()=>String(++sequence).padStart(32,'0'),subtle:require('node:crypto').webcrypto.subtle},setTimeout(){},clearTimeout(){},setInterval(){},clearInterval(){}
  });
  return {el:name=>id('room-'+name),requests,
   state:session=>events['qiban-management-state']({detail:{ready:true,locked:!session,roomSession:session,lockEnabled:true}}),
+  nav:()=>events['qiban-nav-change']({detail:{page:'model'}}),
+  keydown:event=>documentListeners.keydown(event),
   fail(request){inbound({data:{type:'management',request_id:request.request_id,response:{ok:false,message:'请重试'}}});},
   async reply(request,result){inbound({data:{type:'management',request_id:request.request_id,response:{ok:true,result}}});await new Promise(r=>setImmediate(r));}};
 }
@@ -82,4 +86,32 @@ test('cancel targets only the selected pending reply; a late response cannot reo
  assert.equal(button.disabled,true);await button.onclick();assert.equal(p.requests.at(-1),cancel);
  p.state(null);await p.reply(cancel,{cancelled:true});await click;
  assert.equal(el('dialog').open,false);assert.equal(el('notice').textContent,'');
+});
+
+test('room opens inside the shell without a modal, and Esc closes and resets it',async()=>{
+ const p=page(),el=p.el;p.state('owner');el('open').onclick();
+ // 非模态显示：分区导航和外壳仍可用，输入框拿到焦点。
+ assert.equal(el('dialog').open,true);assert.equal(el('dialog').viaShow,true);assert.notEqual(el('dialog').viaModal,true);
+ el('text').value='未发送的草稿🙂';el('text').oninput();
+ p.keydown({key:'Escape',preventDefault(){}});
+ assert.equal(el('dialog').open,false);
+ assert.equal(el('text').value,'');
+ assert.equal(el('history').children.length,0);
+ assert.equal(el('queue').open,false);
+ // 没有打开的会客室时，Esc 不产生任何请求。
+ const before=p.requests.length;p.keydown({key:'Escape',preventDefault(){}});
+ assert.equal(p.requests.length,before);
+});
+
+test('leaving the section closes the room through the original close/reset path',async()=>{
+ const p=page(),el=p.el;p.state('owner');el('open').onclick();
+ el('text').value='切换分区前的草稿';el('text').oninput();
+ await p.reply(p.requests.at(-1),{messages:[{speaker:'user',text:'旧消息'}],next:''});
+ assert.equal(el('history').children.length,1);
+ p.nav();
+ assert.equal(el('dialog').open,false);
+ assert.equal(el('text').value,'');
+ assert.equal(el('history').children.length,0);
+ assert.equal(el('notice').textContent,'');
+ assert.equal(el('send').disabled,true);
 });

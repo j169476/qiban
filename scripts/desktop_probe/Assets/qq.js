@@ -91,8 +91,9 @@
  }
  async function perform(operation){
   if(!allowed||submitting)return;submitting=true;const current=++epoch;render();
+  const notice=el(operation==='directory'||operation.startsWith('targets.')?'qq-targets-notice':'qq-notice');
   try{
-   el('qq-notice').textContent='';
+   notice.textContent='';
    const args=operation==='select'?{account:el('qq-selection').value,expected:state.revision}:
     operation==='targets.verify'?{...editedTargets(),expected:state.revision}:
     operation==='targets.save'?{token:state.preview.token,expected:state.revision}:
@@ -100,10 +101,10 @@
    await call(operation,args);
    if(!allowed||current!==epoch)return;
    await refresh();
-   if(operation==='select')el('qq-notice').textContent='账号选择已保存。此操作不会启动角色或发送消息。';
-   if(operation==='targets.save')el('qq-notice').textContent='回复会话已保存，未启动 QQ 运行。';
-   if(operation==='cancel')el('qq-notice').textContent='已请求取消，正在结束当前 QQ 账号操作。';
-  }catch(error){if(allowed&&current===epoch)el('qq-notice').textContent=error.message;}
+   if(operation==='select')notice.textContent='账号选择已保存。此操作不会启动角色或发送消息。';
+   if(operation==='targets.save')notice.textContent='回复会话已保存，未启动 QQ 运行。';
+   if(operation==='cancel')notice.textContent='已请求取消，正在结束当前 QQ 账号操作。';
+  }catch(error){if(allowed&&current===epoch)notice.textContent=error.message;}
   finally{submitting=false;render();}
  }
  for(const name of ['login','refresh','cancel','select'])el('qq-'+name).onclick=()=>perform(name);
@@ -119,7 +120,7 @@
     const draft=numbers(input);
     const updated=op==='add'?[...new Set([...draft,...ids])]:draft.filter(id=>!ids.has(id));
     el(input).value=updated.join('\n');
-    el('qq-notice').textContent='待保存范围已更新，请核验并保存。';
+    el('qq-targets-notice').textContent='待保存范围已更新，请核验并保存。';
     render();
    };
   }
@@ -135,7 +136,7 @@
  window.addEventListener('qiban-management-state',({detail})=>{
   const changed=allowed!==(detail.ready&&!detail.locked);allowed=detail.ready&&!detail.locked;
   el('qq-panel').hidden=el('management-panel').hidden;
-  if(!allowed){state=null;epoch++;el('qq-notice').textContent='';}
+  if(!allowed){state=null;epoch++;el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
   render();if(allowed&&changed)void refresh();
  });
  window.chrome.webview.addEventListener('message',({data})=>{

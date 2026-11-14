@@ -1,9 +1,15 @@
+// 表情包库：中间栏只有“选择这张表情”的入口，名称/标签/启用状态只在一处编辑（右栏），
+// 只有一个“保存更改”，一次提交一个 stickers.configure 请求，未保存输入跨选择与心跳保留。
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function page(){
  const nodes=new Map(),events={},requests=[],listeners=[];
- const create=()=>({textContent:'',hidden:false,disabled:false,value:'',children:[],style:{},
-  setAttribute(){},replaceChildren(){this.children=[];},append(...children){this.children.push(...children);}});
+ const create=()=>({textContent:'',hidden:false,disabled:false,value:'',checked:false,src:'',className:'',attributes:{},children:[],
+  setAttribute(name,value){this.attributes[name]=String(value);},
+  getAttribute(name){return this.attributes[name];},
+  removeAttribute(name){delete this.attributes[name];if(name==='src')this.src='';},
+  replaceChildren(...items){this.children=items;},
+  append(...items){this.children.push(...items);}});
  const node=id=>{if(!nodes.has(id))nodes.set(id,create());return nodes.get(id);};
  let sequence=0;
  const webview={addEventListener(_,fn){listeners.push(fn);},postMessage(request){requests.push(request);}};
@@ -15,75 +21,96 @@ function page(){
  async function reply(request,result,ok=true){for(const fn of listeners)fn({data:{type:'management',request_id:request.request_id,response:ok?{ok:true,result}:{ok:false,message:result}}});await new Promise(resolve=>setImmediate(resolve));}
  return {node,requests,update,reply};
 }
-function find(root,id){if(root.id===id)return root;for(const child of root.children||[]){const result=find(child,id);if(result)return result;}}
-const item={id:'one',revision:'v1',name:'<img onerror=evil>快乐',tags:['开心'],enabled:false,frames:1,preview:'data:image/png;base64,fixture'};
+const item={id:'one',revision:'v1',name:'快乐',tags:['开心'],enabled:false,frames:1,preview:'data:image/png;base64,fixture'};
+const other={...item,id:'two',revision:'w1',name:'生气',tags:['不爽'],enabled:true};
+function saveLabels(list){return list.children.map(button=>button.children.map?button.children.map(child=>child.textContent).join(' '):'');}
 test('native import reloads and displays explicit feedback; no path supplied by page',async()=>{
  const p=page();p.update(true);await p.reply(p.requests[0],{items:[]});
  p.node('sticker-name').value='快乐';p.node('sticker-tags').value='问候，开心';
  const work=p.node('sticker-import').onclick(),request=p.requests.at(-1);
- assert.equal(request.action,'sticker-import');assert.equal(request.path,undefined);assert.equal(request.tags.length,2);
+ assert.equal(request.action,'sticker-import');assert.equal(request.path,undefined);assert.equal(request.tags.join(','),'问候,开心');
  await p.reply(request,{duplicate:false,item});await p.reply(p.requests.at(-1),{items:[item]});await work;
  assert.match(p.node('sticker-notice').textContent,/已导入.*停用/);
- assert.equal(p.node('sticker-items').children[0].children[1].textContent,item.name+' · 已停用 · 静态图片');
+ assert.match(p.node('sticker-items').children[0].children[1].textContent,/快乐.*已停用.*静态图片/);
 });
-test('enable and editing carry displayed revision, without frequency parameters',async()=>{
+test('one edit place and one 保存更改 sends name, tags and enable state in a single request',async()=>{
  const p=page();p.update(true);await p.reply(p.requests[0],{items:[item]});
- const card=p.node('sticker-items').children[0];find(card,'sticker-edit-name-one').value='新名称';
- const work=find(card,'sticker-toggle-one').onclick(),request=p.requests.at(-1);
- assert.equal(request.operation,'stickers.configure');assert.equal(request.arguments.expected,'v1');
- assert.equal(request.arguments.enabled,true);assert.equal(request.arguments.name,'新名称');
- assert.equal(request.arguments.cooldown,undefined);
- await p.reply(request,{...item,enabled:true,revision:'v2'});await p.reply(p.requests.at(-1),{items:[{...item,enabled:true,revision:'v2'}]});await work;
- assert.match(p.node('sticker-notice').textContent,/已启用/);
+ p.node('sticker-items').children[0].onclick();
+ assert.equal(p.node('sticker-detail-name').value,'快乐');
+ assert.equal(p.node('sticker-detail-save').disabled,true,'没有改动时保存不可用');
+ // 列表里的每张卡片只是选择入口，自身不带编辑框或保存按钮。
+ for(const button of p.node('sticker-items').children)
+  assert.match(button.getAttribute('aria-label'),/^选择表情：/);
+ p.node('sticker-detail-name').value='新名称';p.node('sticker-detail-name').oninput();
+ p.node('sticker-detail-tags').value='头像，自拍';p.node('sticker-detail-tags').oninput();
+ p.node('sticker-detail-enabled').checked=true;p.node('sticker-detail-enabled').onchange();
+ assert.match(p.node('sticker-detail-feedback').textContent,/未保存的更改/);
+ assert.equal(p.node('sticker-detail-save').disabled,false);
+ const before=p.requests.length;
+ const work=p.node('sticker-detail-save').onclick(),request=p.requests.at(-1);
+ assert.equal(p.requests.length,before+1,'保存只发一个请求');
+ assert.equal(request.operation,'stickers.configure');
+ const args=request.arguments;
+ assert.equal(args.identifier,'one');
+ assert.equal(args.name,'新名称');
+ assert.equal(args.tags.join(','),'头像,自拍');
+ assert.equal(args.enabled,true);
+ assert.equal(args.expected,'v1');
+ await p.reply(request,{...item,enabled:true,revision:'v2'});
+ await p.reply(p.requests.at(-1),{items:[{...item,enabled:true,revision:'v2',name:'新名称',tags:['头像','自拍']}]});await work;
+ assert.match(p.node('sticker-notice').textContent,/更改已保存，表情已启用/);
+ assert.equal(p.node('sticker-detail-save').disabled,true,'保存完成后不再显示未保存');
 });
-test('cancel preserves library and lock clears previews and ignores late responses',async()=>{
- const p=page();p.update(true);await p.reply(p.requests[0],{items:[item]});
- const work=p.node('sticker-import').onclick();await p.reply(p.requests.at(-1),'已取消导入，表情库未改变。',false);await work;
- assert.match(p.node('sticker-notice').textContent,/已取消/);assert.equal(p.node('sticker-items').children.length,1);
- const refresh=p.node('sticker-refresh').onclick(),request=p.requests.at(-1);p.update(false);
- await p.reply(request,{items:[item]});await refresh;
- assert.equal(p.node('sticker-items').children.length,0);assert.equal(p.node('sticker-name').value,'');
- assert.equal(p.node('sticker-import').disabled,true);
+test('unsaved edits survive switching the selected sticker and unchanged heartbeats',async()=>{
+ const p=page();p.update(true);await p.reply(p.requests[0],{items:[item,other]});
+ let picks=p.node('sticker-items').children;
+ picks[0].onclick();
+ p.node('sticker-detail-name').value='快乐二';p.node('sticker-detail-name').oninput();
+ picks[1].onclick();
+ assert.equal(p.node('sticker-detail-name').value,'生气');
+ p.node('sticker-detail-enabled').checked=false;p.node('sticker-detail-enabled').onchange();
+ const before=p.requests.length;
+ for(let i=0;i<6;i++)p.update(true);
+ assert.equal(p.requests.length,before,'心跳不重新读取、也不覆盖草稿');
+ assert.equal(p.node('sticker-items').children[0],picks[0]);
+ picks[0].onclick();
+ assert.equal(p.node('sticker-detail-name').value,'快乐二');
+ picks[1].onclick();
+ assert.equal(p.node('sticker-detail-enabled').checked,false);
+ assert.match(p.node('sticker-detail-feedback').textContent,/未保存的更改/);
 });
-
-test('unchanged backend heartbeats preserve input nodes, edits and button identity',async()=>{
+test('a failed save keeps the unsaved fields and shows the error next to the selected sticker',async()=>{
  const p=page();p.update(true);await p.reply(p.requests[0],{items:[item]});
- const card=p.node('sticker-items').children[0],name=find(card,'sticker-edit-name-one'),tags=find(card,'sticker-edit-tags-one'),button=find(card,'sticker-toggle-one');
- tags.value='头像，自拍';tags.oninput();name.value='新的名称';name.oninput();
- for(let i=0;i<8;i++)p.update(true);
- assert.equal(p.node('sticker-items').children[0],card);assert.equal(find(card,'sticker-edit-tags-one'),tags);
- assert.equal(tags.value,'头像，自拍');assert.equal(button.disabled,false);assert.equal(p.requests.length,1);
- const work=button.onclick(),request=p.requests.at(-1);
- assert.equal(request.arguments.tags.join(','),'头像,自拍');assert.equal(request.arguments.name,'新的名称');
- assert.match(find(card,'sticker-feedback-one').textContent,/正在启用/);assert.equal(button.disabled,true);
- p.update(true);assert.equal(p.node('sticker-items').children[0],card);
- await p.reply(request,{...item,enabled:true});
- assert.match(find(card,'sticker-feedback-one').textContent,/已启用/);
- await p.reply(p.requests.at(-1),{items:[{...item,enabled:true,name:'新的名称',tags:['头像','自拍']}]});await work;
- assert.match(find(p.node('sticker-items').children[0],'sticker-feedback-one').textContent,/已启用/);
-});
-test('edit error preserves unsaved tags and shows the error beside the selected sticker',async()=>{
- const p=page();p.update(true);await p.reply(p.requests[0],{items:[item]});
- const card=p.node('sticker-items').children[0],tags=find(card,'sticker-edit-tags-one');
- tags.value='新标签';tags.oninput();const work=find(card,'sticker-save-one').onclick();
- await p.reply(p.requests.at(-1),'资料已改变，请重新读取。',false);await work;p.update(true);
- assert.equal(p.node('sticker-items').children[0],card);assert.equal(tags.value,'新标签');assert.equal(tags.disabled,false);
- assert.match(find(card,'sticker-feedback-one').textContent,/资料已改变/);
+ p.node('sticker-items').children[0].onclick();
+ p.node('sticker-detail-tags').value='新标签';p.node('sticker-detail-tags').oninput();
+ const work=p.node('sticker-detail-save').onclick();
+ await p.reply(p.requests.at(-1),'资料已改变，请重新读取。',false);await work;
+ assert.equal(p.node('sticker-detail-tags').value,'新标签');
+ assert.equal(p.node('sticker-detail-tags').disabled,false);
+ assert.match(p.node('sticker-detail-feedback').textContent,/资料已改变/);
+ assert.equal(p.node('sticker-detail-save').disabled,false);
 });
 test('manual reload keeps an unsaved draft instead of silently replacing it',async()=>{
  const p=page();p.update(true);await p.reply(p.requests[0],{items:[item]});
- const tags=find(p.node('sticker-items').children[0],'sticker-edit-tags-one');tags.value='待保存';tags.oninput();
- const work=p.node('sticker-refresh').onclick();await p.reply(p.requests.at(-1),{items:[{...item,revision:'v2'}]});await work;
- assert.equal(find(p.node('sticker-items').children[0],'sticker-edit-tags-one').value,'待保存');
+ p.node('sticker-items').children[0].onclick();
+ p.node('sticker-detail-name').value='待保存';p.node('sticker-detail-name').oninput();
+ const work=p.node('sticker-refresh').onclick();
+ await p.reply(p.requests.at(-1),{items:[{...item,revision:'v2'}]});await work;
+ assert.equal(p.node('sticker-detail-name').value,'待保存');
+ assert.equal(p.node('sticker-detail-save').disabled,false);
 });
-
-
-test('completed list reads clear progress, and reload errors retain successful mutation feedback',async()=>{
+test('lock clears drafts and previews and ignores a late list answer',async()=>{
  const p=page();p.update(true);await p.reply(p.requests[0],{items:[item]});
- assert.equal(p.node('sticker-notice').textContent,'表情列表已更新。');
- const card=p.node('sticker-items').children[0],work=find(card,'sticker-toggle-one').onclick();
- await p.reply(p.requests.at(-1),{...item,enabled:true,revision:'v2'});
- await p.reply(p.requests.at(-1),'后台暂时无法读取。',false);await work;
- assert.match(find(card,'sticker-feedback-one').textContent,/表情已启用。.*列表刷新未完成/);
- assert.equal(find(card,'sticker-toggle-one').disabled,false);
+ p.node('sticker-items').children[0].onclick();
+ p.node('sticker-detail-name').value='未保存';p.node('sticker-detail-name').oninput();
+ const work=p.node('sticker-refresh').onclick(),request=p.requests.at(-1);
+ p.update(false);
+ assert.equal(p.node('sticker-items').children.length,0);
+ assert.equal(p.node('sticker-detail-name').value,'');
+ assert.equal(p.node('sticker-detail-save').disabled,true);
+ assert.equal(p.node('sticker-detail-preview').hidden,true);
+ await p.reply(request,{items:[item]});await work;
+ assert.equal(p.node('sticker-items').children.length,0);
+ assert.equal(p.node('sticker-detail-preview').hidden,true);
+ assert.deepEqual(saveLabels(p.node('sticker-items')),[]);
 });

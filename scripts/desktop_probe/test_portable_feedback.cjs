@@ -13,7 +13,8 @@ const previewResult={token:'synthetic-preview-token',expires_in_seconds:600,reco
 const switchedResult={switched:true,restart_required:true,preservation,backend:'stopped',
  message:'便携恢复已切换完成，已停止旧后台。'};
 function page(){
- const nodes=new Map(),listeners=[],requests=[],specials={};let sequence=0,locked=false;
+ const nodes=new Map(),listeners=[],requests=[],specials={},events={},body={dataset:{tabBackup:'portable'}};
+ let sequence=0,locked=false;
  const create=()=>({textContent:'',value:'',children:[],dataset:{},disabled:false,hidden:false,open:false,
   append(...items){this.children.push(...items);},replaceChildren(){this.children=[];},showModal(){this.open=true;},close(){this.open=false;}});
  const node=id=>{if(!nodes.has(id))nodes.set(id,create());return nodes.get(id);};
@@ -41,7 +42,8 @@ function page(){
     error=>listeners.forEach(f=>f({data:{type:'management',request_id:request.request_id,response:{ok:false,message:error.message}}})));
   }};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/management.js'),'utf8'),{
-  document:{getElementById:node,createElement:create,createTextNode:text=>({textContent:text})},window:{chrome:{webview},dispatchEvent(){}},
+  document:{body,getElementById:node,createElement:create,createTextNode:text=>({textContent:text})},
+  window:{chrome:{webview},dispatchEvent(){},addEventListener:(name,handler)=>{events[name]=handler;}},
   CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
   crypto:{randomUUID:()=>String(++sequence)},Date:{now:()=>10000},setTimeout:()=>sequence,clearTimeout(){}
  });
@@ -50,10 +52,31 @@ function page(){
  const special=(action,handler)=>{specials[action]=handler;};
  const portable=()=>requests.filter(request=>request.action&&request.action!=='management');
  const fill=(password,confirm)=>{node('portable-password').value=password;node('portable-confirm').value=confirm??password;};
- return {node,replies,requests,specials,special,portable,fill,update,settle,
+ function selectSource(target){
+  body.dataset.tabBackup=target;
+  events['qiban-tab-change']({detail:{group:'backup',target}});
+ }
+ return {node,replies,requests,specials,special,portable,fill,update,settle,selectSource,
   lock:async()=>{node('lock-now').onclick();await settle();}};
 }
 const password='Synthetic-Portable-Recovery-2026';
+test('switching to a different backup source hides and disarms the previous confirmation',async()=>{
+ const p=page();p.special('portable-preview',()=>({ok:true,result:previewResult}));
+ p.special('portable-cancel',()=>({ok:true,result:{cancelled:true}}));
+ await p.update(true);p.fill(password);await p.node('portable-import').onclick();
+ assert.equal(p.node('portable-preview-view').hidden,false);
+ p.selectSource('preserved');
+ assert.equal(p.node('portable-preview-view').hidden,true);
+ assert.equal(p.node('portable-empty').hidden,false);
+ await p.node('portable-restore').onclick();
+ await p.node('portable-cancel').onclick();
+ assert.deepEqual(p.portable().map(request=>request.action),['portable-preview']);
+ p.selectSource('portable');
+ assert.equal(p.node('portable-preview-view').hidden,false);
+ assert.equal(p.node('portable-cancel').disabled,false);
+ await p.node('portable-cancel').onclick();
+ assert.deepEqual(p.portable().map(request=>request.action),['portable-preview','portable-cancel']);
+});
 test('export shows the real pair names, sizes and counts and clears both fields',async()=>{
  const p=page();
  p.special('portable-export',()=>({ok:true,result:structuredClone(exportResult)}));

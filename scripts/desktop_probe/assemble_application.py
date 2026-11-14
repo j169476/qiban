@@ -64,7 +64,18 @@ def main():
 
         verify_runtime(args.qq_runtime)
         prepare_local_runtime(args.qq_runtime, output/'resources/qq')
-    (output/'README.txt').write_text('栖伴桌面开发验证版\n这是本机构建的开发验证版本，不是正式发布。\n双击 Qiban.exe；首次启动会在个人资料目录内完成初始化。\n安装、升级与卸载能力以随包说明为准。\ndesktop-build.json 与 desktop-sources.zip 记录本包桌面外壳的源码与清单。\n必须保留整个应用目录，不能只复制 EXE。\n',encoding='utf8')
+    (output/'README.txt').write_text(
+        '栖伴 Qiban\n'
+        '双击 Qiban.exe 启动；首次启动会在个人资料目录内完成初始化，并自动准备本机后台（数据库与加密资料后台）。\n'
+        '右上角「应用设置」可以启动或停止应用后台、收至托盘、打开应用使用说明和退出应用。\n'
+        '关闭窗口只会收至托盘，双击托盘图标即回到原窗口。\n'
+        '使用模型前请在本机安装 Codex，并在「模型与用量」中登录 ChatGPT 账号；不需要创建 Codex 聊天或填写 API Key。\n'
+        'QQ、微信与 B 站请在「平台与会话」中配置；微信还需保持电脑微信登录。登录后按需授权会话并启动平台。\n'
+        '安装、升级与卸载请使用配套安装包，默认装到 Windows 用户资料目录下的 Programs\\Qiban；具体流程见安装向导结束页的说明。\n'
+        '个人资料、备份与凭据不在程序目录内，安装与卸载都不会读取或删除它们。\n'
+        '必须保留整个应用目录，不能只复制 EXE。\n'
+        'desktop-build.json 与 desktop-sources.zip 记录本包桌面外壳的源码与清单。\n',
+        encoding='utf8')
     print(json.dumps({'application':str(output/'Qiban.exe'),'bytes':sum(p.stat().st_size for p in output.rglob('*') if p.is_file())}))
 
 

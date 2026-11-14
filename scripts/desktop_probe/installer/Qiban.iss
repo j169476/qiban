@@ -93,12 +93,12 @@
 AppId={{9C1F0A53-2C4E-4A7B-9B1E-6D2F8A5C1E74}
 AppName={#AppName}
 AppVersion={#Version}
-AppVerName={#AppName} {#Version} 开发构建
+AppVerName={#AppName} {#Version}
 AppPublisher=栖伴
 VersionInfoVersion={#Version}
 VersionInfoProductVersion={#Version}
 VersionInfoProductName={#AppName}
-VersionInfoDescription={#AppName} 安装程序（开发构建）
+VersionInfoDescription={#AppName} 安装程序
 ; Current user only: no elevation, no machine-wide state, no Program Files.
 PrivilegesRequired=lowest
 SetupArchitecture=x64

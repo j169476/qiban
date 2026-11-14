@@ -61,7 +61,10 @@
   if(locked||!ready){profileEpoch++;profileBusy=false;persona=null;fillProfile();element('profile-notice').textContent='';}
   profileControls();
   element('management-panel').dataset.locked=String(locked);
-  element('backup-panel').hidden=element('management-panel').hidden;
+  element('management-unavailable').hidden=ready||!element('management-panel').hidden;
+  // LAYOUT-172 · 页面壳把身份/资料/锁/通知/备份预览拆到不同栏位，这些容器仍然只在后台
+  // 就绪时出现，和原来的 management-panel 同步 hidden；显示层不新增任何可用性变化。
+  for(const id of ['backup-panel','lock-panel','profile-panel','notification-panel','backup-rail-local','backup-rail-source'])element(id).hidden=element('management-panel').hidden;
   for(const id of ['backup-create','backup-refresh','backup-selection','backup-preview'])element(id).disabled=!ready||locked||backupBusy||recovering;
   element('backup-restore').disabled=!ready||locked||backupBusy||recovering||!backupPreview;
   if(locked||!ready){backupPreview=null;element('backup-selection').replaceChildren();element('backup-effect').textContent='';element('backup-notice').textContent='';}
@@ -72,6 +75,7 @@
   for(const id of ['portable-export','portable-import','portable-password','portable-confirm'])element(id).disabled=portableBlocked;
   element('portable-restore').disabled=portableBlocked||!portablePreview;
   element('portable-cancel').disabled=portableBlocked||!portablePreview;
+  renderPortableSource();
   element('preserved-list').disabled=portableBlocked;
   element('preserved-more').disabled=portableBlocked||!preservedCursor;
   element('preserved-preview').disabled=portableBlocked||!preservedSelection;
@@ -212,7 +216,19 @@
  // switch: the window owns the pickers, and the only switch request it makes follows a
  // verified Windows prompt. Passwords are read here, cleared immediately and are never
  // written to a notice, the source summary or the feedback dialog.
- const portableSay=text=>{element('portable-notice').textContent=text;};
+ const activeBackupSource=()=>document.body?.dataset.tabBackup??portableKind;
+ function renderPortableSource(){
+  const matches=activeBackupSource()===portableKind;
+  element('portable-preview-view').hidden=!matches;
+  element('portable-empty').hidden=matches&&(!!portablePreview||!!element('portable-notice').textContent);
+ }
+ const portableSay=text=>{
+  element('portable-notice').textContent=text;
+  renderPortableSource();
+ };
+ window.addEventListener('qiban-tab-change',({detail})=>{
+  if(detail.group==='backup')renderPortableSource();
+ });
  function clearPortable(){
   portableEpoch++;portablePreview=null;portableBusy=false;portableKind='portable';
   preservedItems=[];preservedCursor='';preservedSelection='';
@@ -319,7 +335,7 @@
   const chosen=element('preserved-selection').value||'';
   if(chosen===preservedSelection){render();return;}
   preservedSelection=chosen;
-  if(portablePreview){
+ if(portablePreview&&portableKind==='preserved'){
    portablePreview=null;portableKind='preserved';
    element('portable-source').textContent='';
    portableSay('已更改选择，请重新查看这份保全资料的预览后再确认。');
@@ -362,7 +378,7 @@
  // window stops the old backend on success, so a ready->false transition must not swallow
  // the outcome (or the no-retry rule for an unknown one).
  element('portable-restore').onclick=async()=>{
-  if(portableBusy||recovering||!portablePreview||!ready||identity?.locked)return;
+  if(portableBusy||recovering||!portablePreview||!ready||identity?.locked||activeBackupSource()!==portableKind)return;
   const token=portablePreview.token,preserved=portableKind==='preserved';
   portablePreview=null;element('portable-source').textContent='';
   portableBusy=true;render();
@@ -385,12 +401,12 @@
    ?`${done}${preservation?`恢复前的资料已保全为 ${preservation}。`:''}后台已停止，请点击上方『启动应用后台』重新启动后台后检查会客室与角色；角色保持停止。`
    :unknown?`${result.message||'切换步骤可能已提交，结果未知。'}恢复前的资料已保全${preservation?`为 ${preservation}`:''}；已停止后台且不会重复提交，请点击『启动应用后台』重新启动后台后核对资料。`
    :(result&&result.message?result.message:'后台未完成切换，当前资料未改变；请重新预览后再试。');
-  portableSay(message);
+  portableKind=preserved?'preserved':'portable';portableSay(message);
   feedback(failure||!switched&&!unknown?(preserved?'本机保全资料恢复未完成':'便携恢复未完成')
    :switched?(preserved?'本机保全资料恢复完成':'便携恢复完成'):'便携恢复结果未知',message);
  };
  element('portable-cancel').onclick=()=>portableWork(async epoch=>{
-  if(!portablePreview)return;
+  if(!portablePreview||activeBackupSource()!==portableKind)return;
   portablePreview=null;element('portable-source').textContent='';render();
   portableSay('正在取消本次导入……');
   const result=await call('',{},'portable-cancel');
@@ -411,24 +427,28 @@
    const platforms=element('runtime-platforms');platforms.replaceChildren();
    const names={qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机会客室'};
    for(const item of state.platforms){
-    const row=document.createElement('div'),title=document.createElement('h3'),status=document.createElement('p');
+    const row=document.createElement('div'),summary=document.createElement('div'),actions=document.createElement('div');
+    const title=document.createElement('h3'),status=document.createElement('p');
+    summary.className='runtime-summary';actions.className='runtime-actions';
+    row.dataset.platform=item.platform;
     title.textContent=names[item.platform];
     status.textContent=item.scheduler_error?'后台任务调度已停止，请重启应用后台':state.handoff_pending?'账号交接未完成，任务保持停止':state.tasks_blocked?'后台任务已停止':item.stopping?'正在停止，请稍候':!item.available?'连接器尚未接入':item.status==='active'?(item.busy?'正在处理任务':'运行中'):item.held?'本次已停止':!item.model_ready?'等待模型就绪':'已停止';
     const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=item.autorun;
     toggle.disabled=!item.available&&!item.autorun;
     toggle.onchange=()=>runtimeAction('runtime.preference',{platform:item.platform,enabled:toggle.checked,expected:state.preference_revision});
-    label.append(toggle,document.createTextNode('打开栖伴时自动运行（保存偏好，不立即启动）'));
+    label.append(toggle,document.createTextNode('下次打开时自动运行'));
+    label.title='保存偏好，勾选后下次打开栖伴时检查是否可运行。';
     const start=document.createElement('button'),stop=document.createElement('button');start.textContent='启动';stop.textContent='停止本次运行';stop.className='secondary';
     start.disabled=state.tasks_blocked||item.stopping||!!item.scheduler_error||!item.available||!item.model_ready||item.status==='active';stop.disabled=item.stopping||(item.status!=='active'&&(!item.autorun||item.held));
     start.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'start'});stop.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'stop'});
-    row.append(title,status,label,start);
+    summary.append(title,status);actions.append(start);
     if(item.platform==='bilibili'){
      const readOnly=document.createElement('button');readOnly.textContent='只读启动';readOnly.className='secondary';
      readOnly.disabled=start.disabled;readOnly.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'start_read_only'});
      if(item.status==='active'&&item.read_only)status.textContent+='（只读）';
-     row.append(readOnly);
+     actions.append(readOnly);
     }
-    row.append(stop);platforms.append(row);
+    actions.append(stop);row.append(summary,actions,label);platforms.append(row);
    }
    element('notification-title').textContent=`应用通知 · ${notices.unread} 条未读`;
    const list=element('notification-items');list.replaceChildren();

@@ -32,6 +32,8 @@
  function close(){
   reset();
   if(el('dialog').open)el('dialog').close();
+  el('open').removeAttribute('aria-current');
+  if(document.body)delete document.body.dataset.roomOpen;
  }
  function call(operation,args,files){
   const id=crypto.randomUUID().replaceAll('-','');
@@ -57,6 +59,7 @@
    displayed=signature;
    const rows=data.messages.map(message=>{
     const row=document.createElement('article'),label=document.createElement('strong'),body=document.createElement('p');
+    row.className=message.speaker==='assistant'?'room-answer':'room-message';
     label.textContent=message.speaker==='assistant'?'栖伴':'我';body.textContent=message.text;
     row.append(label,body);
     for(const [index,attachment] of (message.attachments||[]).entries()){
@@ -85,11 +88,30 @@
  }
  el('open').onclick=()=>{
   if(!session||el('dialog').open)return;
-  reset();el('dialog').showModal();void history();
+  reset();
+  if(document.body)document.body.dataset.roomOpen='true';
+  el('open').setAttribute('aria-current','page');
+  el('dialog').show();
+  if(typeof window.scrollTo==='function')window.scrollTo({top:0,behavior:'instant'});
+  el('queue').open=true;
+  void history();
   timer=setInterval(()=>{if(!reading&&!posting)void history(before,true);if(el('queue').open)void queue();},5000);
  };
- el('close').onclick=close;
- el('dialog').addEventListener('cancel',event=>{event.preventDefault();close();});
+ function returnToManagement(){
+  close();
+  el('open').focus?.();
+ }
+ el('close').onclick=returnToManagement;
+ el('dialog').addEventListener('cancel',event=>{event.preventDefault();returnToManagement();});
+ // 非模态 dialog 不派发 cancel，Esc 由这里按原来的 close/reset 处理；菜单开着时 navigation.js
+ // 已在捕获阶段消费这次 Esc，所以只会收起菜单。
+ if(typeof document.addEventListener==='function')document.addEventListener('keydown',event=>{
+  if(event.key!=='Escape'&&event.key!=='Esc')return;
+  if(event.defaultPrevented||!el('dialog').open)return;
+  event.preventDefault();returnToManagement();
+ });
+ // 离开分区时按原 close/reset 关闭，避免后台隐藏的输入继续接收。
+ window.addEventListener('qiban-nav-change',()=>{if(el('dialog').open)close();});
  el('lock').onclick=()=>document.getElementById('lock-now').click();
  el('older').onclick=()=>{if(next)void history(next);};
  el('latest').onclick=()=>{query='';el('query').value='';void history();};

@@ -49,6 +49,13 @@
   el('accounts').hidden=true;el('accounts').textContent='';
   el('status').textContent=el('notice').textContent='';render();
  }
+ window.addEventListener('qiban-tab-change',({detail:{group,target}})=>{
+  if(group!=='platforms'||target==='bilibili'||target===el('platform').value)return;
+  el('platform').value=target;
+  // Preserve the WeChat directory draft, but never carry an account's scope or confirmation into the other tab.
+  epoch++;busy=false;state=null;clearPreview();
+  el('status').textContent=el('notice').textContent='';render();
+ });
  function call(op,args){
   const request_id=crypto.randomUUID().replaceAll('-','');
   return new Promise((resolve,reject)=>{
@@ -187,6 +194,7 @@
  window.addEventListener('qiban-management-state',({detail})=>{
   const now=detail.ready&&!detail.locked;
   document.getElementById('audience-panel').hidden=document.getElementById('management-panel').hidden;
+  document.getElementById('audience-scope-panel').hidden=!now;
   if(now!==allowed){allowed=now;reset();}
  });
  window.chrome.webview.addEventListener('message',({data})=>{

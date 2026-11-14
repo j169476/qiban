@@ -45,7 +45,8 @@ function page(){
     error=>listeners.forEach(f=>f({data:{type:'management',request_id:request.request_id,response:{ok:false,message:error.message}}})));
   }};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/management.js'),'utf8'),{
-  document:{getElementById:node,createElement:create,createTextNode:text=>({textContent:text})},window:{chrome:{webview},dispatchEvent(){}},
+  document:{getElementById:node,createElement:create,createTextNode:text=>({textContent:text})},
+  window:{chrome:{webview},dispatchEvent(){},addEventListener(){}},
   CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
   crypto:{randomUUID:()=>String(++sequence)},Date:{now:()=>10000},setTimeout:()=>sequence,clearTimeout(){}
  });

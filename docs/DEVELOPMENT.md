@@ -2,7 +2,7 @@
 
 ## 当前重构工作区
 
-独立 EXE 重构以 0.9.4（00d3367a）为基线，使用本仓库作为唯一开发与构建源码；当前分支为 codex/standalone-exe。父目录中的旧开发文件保留作历史核对，不参与新构建。日常安装与本仓库分离。
+独立 EXE 重构以 0.9.4（00d3367a）为基线，使用本仓库作为唯一开发与构建源码；当前分支为 main。父目录中的旧开发文件保留作历史核对，不参与新构建。日常安装与本仓库分离。
 
 所有命令从本仓库根目录执行；本仓库自己的 .venv 用于常规开发，.dev 存放已忽略的测试证据和临时资源，dist 存放生成产物。临时借用其他虚拟环境时，必须明确设置本仓库 src 为导入路径并核查实际加载位置，避免误测旧版。
 
@@ -31,6 +31,22 @@ $env:COMPANION_REQUIRE_POSTGRES = '1'
 `ci_postgres.py` 可通过 `--bin` 使用已准备的 PostgreSQL 二进制目录。测试在独立 schema 中运行；结束后停止测试实例。CI 配置位于 `.github/workflows/tests.yml`。微信原生模拟测试运行 `scripts/test_wechat_native.cmd`，不加载真实客户端。
 
 检索评测的合成夹具位于 `tests_core/fixtures/retrieval/` 和 `tests/fixtures/`，评测脚本包括 `evaluate_algorithm_routing.py`、`evaluate_postgres_governance.py`。这些数据不是基础记忆，也不会由安装器导入用户资料。
+
+## 当前应用界面结构
+
+独立应用不做网页管理页：左侧导航切换分区，中间是当前分区的操作区，右侧显示该分区的说明与限制，应用设置集中在顶部。保存由一个统一入口提交，结果与错误在对应控件附近反馈，不再分散到独立保存页。
+
+## 独立应用构建与产物
+
+正式构建必须同时带托管应用与应用自己的授权两个开关：
+
+```powershell
+./scripts/desktop_probe/build.ps1 -ManagedApplication -SubscriptionValidation -OutputDirectory .dev/managed-desktop-new
+```
+
+历史内部开关名 `SubscriptionValidation` 对应应用独立走 ChatGPT 授权：0.9.4 使用 `gpt-6.1-terra` 与 low 推理档位，不需要 API Key，也不经过 Codex 聊天窗口，但仍要求本机有可用的 Codex 可执行文件。QQ 与微信的回复模型接线复用应用的本地模型组件 `DesktopModel`；本轮只补齐接线，没有重新实测真实平台或在线模型。
+
+本轮实际产出的完整程序位于 `dist/Qiban-0.9.4/Qiban.exe`，安装器位于 `dist/Qiban-0.9.4-Installer/Qiban-Setup-0.9.4.177.exe`。`dist` 只在本机保留：不上传仓库、不当作发布附件，也不创建 GitHub Release；安装器与完整程序都未做代码签名。
 
 ## 无历史发布副本
 
