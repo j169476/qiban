@@ -36,6 +36,7 @@ def main():
     parser.add_argument('--growth-check',action='store_true')
     parser.add_argument('--documents-check',action='store_true')
     parser.add_argument('--snapshot-check',action='store_true')
+    parser.add_argument('--uninstall-check',action='store_true')
     parser.add_argument('--exe',type=Path,required=True)
     parser.add_argument('--evidence',type=Path,required=True)
     args=parser.parse_args()
@@ -269,6 +270,20 @@ def main():
         assert json.loads(vault.get_password(VAULT,state['installation']))==credential
         assert not (root/'database/postmaster.pid').exists()
         report['abnormal_exit_detected_recovery_checked_and_clean_exit_recorded']=True
+        if args.uninstall_check:
+            scope.close()
+            scope=ProcessScope()
+            process=subprocess.Popen([str(exe),'--uninstall','--uninstall-smoke','--data-dir',str(profile)],
+                cwd=evidence,env=env,stdin=subprocess.DEVNULL,creationflags=subprocess.CREATE_NO_WINDOW|0x4)
+            scope.attach(process)
+            scope.resume()
+            assert process.wait(timeout=180)==0
+            result=read(profile/'result.json')
+            assert result['passed']
+            report['uninstall_checks']=[e['name'] for e in result['events'] if e['name'].startswith('check_')]
+            assert 'check_uninstall_real_encrypted_backup_without_platform_or_model_pass' in report['uninstall_checks']
+            assert not (root/'database/postmaster.pid').exists()
+            assert json.loads(vault.get_password(VAULT,state['installation']))==credential
         report['passed']=True
     finally:
         try:

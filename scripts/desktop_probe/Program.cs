@@ -39,10 +39,26 @@ internal static class Program
     internal static bool ShutdownInspect;
     internal static bool ShutdownSmoke;
     internal static bool RecoveryCheckSmoke;
+    // This process is the uninstall preparation page (started by uninstall.exe or from the
+    // window's own "卸载栖伴" entry). Every child it starts is a preparation backend: no model, no
+    // platform connector and no automatic run.
+    internal static bool UninstallPrepare;
+    internal static bool BackupOnly;
+    internal static bool UninstallSmoke;
     [STAThread]
     static int Main(string[] args)
     {
+        // Two fixed internal modes and the published alias are decided before anything else, so
+        // neither of them can ever reach the window, a profile or a database. A helper waits for
+        // exactly one process id and then performs one fixed action from its own directory.
+        if(args.Length==2 && UninstallRule.IsHelper(args[0]) && int.TryParse(args[1],out int waited))
+            return UninstallHelper.Run(args[0],waited);
+        if(args.Length==3 && args[0]==UninstallRule.OpenPreparationHelper && int.TryParse(args[1],out int profileWait))
+            return UninstallHelper.Run(args[0],profileWait,Path.GetFullPath(args[2]));
+        if(UninstallRule.IsAlias(Path.GetFileName(Environment.ProcessPath)))
+            return UninstallRule.StartPreparationPage(Path.GetDirectoryName(Environment.ProcessPath!)!) ? 0 : 1;
         if(args.Length==2 && args[0]=="--shutdown-tests")return ShutdownTests.Run(args[1]);
+        if(args.Length==2 && args[0]=="--uninstall-tests")return UninstallTests.Run(args[1]);
         if(args.Length==2 && args[0]=="--webview-runtime-tests")return WebViewRuntimeTests.Run(args[1]);
         if(args.Length==3 && args[0]=="--webview-signature-check")return WebViewRuntimeDiagnostics.SignatureCheck(args[1],args[2]);
         if(args.Contains("--webview-runtime-inspect"))return WebViewRuntimeInspect.Run(args);
@@ -87,6 +103,10 @@ internal static class Program
             catch(Exception error){Console.Error.WriteLine("database_test_host_failed:"+error.GetType().Name);return 1;}
         }
         if(args.Length==4 && args[0]=="--storage-worker")return StorageComponent.Run(args[1],args[2],int.Parse(args[3])).GetAwaiter().GetResult();
+        // The uninstall preparation backend: the same worker, without a model, a platform connector,
+        // the scheduler or any automatic run (see StorageComponent.BackupOnlyArgument).
+        if(args.Length==5 && args[0]=="--storage-worker" && args[4]==StorageComponent.BackupOnlyArgument)
+            return StorageComponent.Run(args[1],args[2],int.Parse(args[3]),backupOnly:true).GetAwaiter().GetResult();
         if(args.Length==3 && args[0]=="--stack-host")return StorageComponent.Host(args[1],args[2]).GetAwaiter().GetResult();
         if(args.Length==6 && args[0]=="--installation-worker")return InstallationComponent.Run(args[1],args[2],args[3],args[4],int.Parse(args[5])).GetAwaiter().GetResult();
         if(args.Length==5 && args[0]=="--install-host")return InstallationComponent.Host(args[1],args[2],args[3],args[4]).GetAwaiter().GetResult();
@@ -102,6 +122,21 @@ internal static class Program
         // program started anywhere else only hands the request over to that carrier (see
         // UpgradeRecovery.Run) instead of running maintenance from the directory being replaced.
         if(args.Length==3 && args[0]=="--upgrade-recovery")return UpgradeRecovery.Run(args[1],args[2]);
+        // The preparation page never coexists with a running application: the installer's own
+        // uninstaller refuses to run while the marker exists, and this program never ends that
+        // process for it. The person exits normally from inside the window and reopens the entry.
+        UninstallPrepare=args.Contains(UninstallRule.PreparationSwitch);
+        UninstallSmoke=UninstallPrepare && args.Contains("--uninstall-smoke") && args.Contains("--data-dir");
+        if(UninstallPrepare && Mutex.TryOpenExisting(RunningMarker,out Mutex? running))
+        {
+            running.Dispose();
+            MessageBox.Show(@"栖伴正在运行，因此现在不能打开卸载准备。" + "\n\n"
+                + "请先回到栖伴窗口，用界面或托盘中的正常退出流程关闭栖伴"
+                + "（不要强制结束进程，也不要停止数据库），然后再打开卸载入口。" + "\n\n"
+                + "卸载没有开始，程序和资料都保持原样。", "栖伴 · 卸载准备",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return 0;
+        }
         // Only the normal GUI entry holds the running marker: the automated test and worker modes
         // above never create it, and the per-profile activation mutex below still separates profiles.
         using Mutex runningMarker = new(false, RunningMarker);
@@ -181,6 +216,10 @@ internal sealed class ProbeWindow : Form
     bool journalStarted;
     Process? backend => component.Process;
     bool exiting, shutdownComplete, checking, loaded;
+    // Set before Exit when this run must, after a successful shutdown only, let one fixed internal
+    // helper reopen the preparation page or start the registered uninstaller.
+    string? helperMode;
+    UninstallSession? preparation;
     int activations;
     readonly SemaphoreSlim control = new(1,1);
     long controlEpoch;
@@ -191,7 +230,9 @@ internal sealed class ProbeWindow : Form
     internal int Result = 0;
     readonly Dictionary<string, string> resources = new()
     {
-        ["/"]="index.html", ["/manual"]="manual.html", ["/probe.css"]="probe.css", ["/probe.js"]="probe.js",
+        ["/"]="index.html", ["/manual"]="manual.html", ["/uninstall"]="uninstall.html",
+        ["/uninstall.js"]="uninstall.js",
+        ["/probe.css"]="probe.css", ["/probe.js"]="probe.js",
         ["/management.js"]="management.js",["/room.js"]="room.js",["/tasks.js"]="tasks.js",["/model.js"]="model.js",["/bili.js"]="bili.js",["/qq.js"]="qq.js",["/audience.js"]="audience.js",["/reply_quota.js"]="reply_quota.js",["/reply_trace.js"]="reply_trace.js",["/media.js"]="media.js",["/stickers.js"]="stickers.js",["/files.js"]="files.js",["/growth.js"]="growth.js",["/memories.js"]="memories.js",["/baseline.js"]="baseline.js",["/relationship.js"]="relationship.js",["/sharing.js"]="sharing.js",["/relation-claims.js"]="relation-claims.js",["/navigation.js"]="navigation.js",["/static/app.css"]="app.css", ["/static/qiban.css"]="qiban.css",
         ["/static/white-dragon-tea.png"]="white-dragon-tea.png"
     };
@@ -209,6 +250,17 @@ internal sealed class ProbeWindow : Form
             if(journalStarted && component.State=="failed") journal.Abnormal();
         };
         Text = "栖伴 Qiban";
+        if(Program.UninstallPrepare)
+        {
+            // One session for this preparation run. Nothing is started, backed up or removed here:
+            // the page asks for each step, and only a registered uninstaller can ever be started.
+            Text = "栖伴 · 卸载准备";
+            Program.BackupOnly = true;
+            bool ready = Program.ManagedInstall && File.Exists(Path.Combine(Program.Paths.Data,"installation","installation.json"));
+            preparation = new UninstallSession(Program.Paths.ApplicationDirectory, Program.Paths.Root,
+                UninstallRule.ResolveUninstaller(Program.Paths.ApplicationDirectory, UninstallRule.RegisteredUninstaller),
+                ready, ready ? "" : "本机资料目录里还没有已就绪的安装，因此没有可备份的资料。");
+        }
         if(Program.ShutdownInspect)Text="栖伴 · 退出流程验证（合成进程，无真实资料）";
         ClientSize = new Size(1080, 850); MinimumSize = new Size(560, 500);
         StartPosition = FormStartPosition.CenterScreen;
@@ -223,6 +275,8 @@ internal sealed class ProbeWindow : Form
         tray.DoubleClick += (_, _) => RestoreWindow();
         FormClosing += (_, e) =>
         {
+            if(Program.UninstallPrepare && !exiting && e.CloseReason==CloseReason.UserClosing)
+            {e.Cancel=true;Exit();return;}
             if (!exiting && e.CloseReason == CloseReason.UserClosing)
             { e.Cancel = true; Hide(); Log("hidden_to_tray"); tray.ShowBalloonTip(2000, "栖伴仍在托盘", "双击托盘图标即可重新打开；退出请使用托盘菜单。", ToolTipIcon.Info); }
             else if (!shutdownComplete) { e.Cancel = true; Exit(); }
@@ -266,9 +320,10 @@ internal sealed class ProbeWindow : Form
             {
                 if (!e.IsSuccess) { fallback.Text = "页面未能加载，请退出后重新打开。"; fallback.BringToFront(); return; }
                 loaded = true; await CheckService();
+                if(Program.UninstallPrepare)PostUninstall();
             };
             core.ProcessFailed += (_, e) => { Log("renderer_failed", e.ProcessFailedKind.ToString()); fallback.Text="页面暂时不可用，请退出后重新打开。";fallback.BringToFront(); };
-            view.Visible = true; view.BringToFront(); core.Navigate(Origin + "/");
+            view.Visible = true; view.BringToFront(); core.Navigate(Origin + (Program.UninstallPrepare ? "/uninstall" : "/"));
             if(recoveryStatus.Visible)recoveryStatus.BringToFront();
             Log("webview_ready", new { version=environment.BrowserVersionString, dpi=DeviceDpi });
             poll.Start();
@@ -277,6 +332,15 @@ internal sealed class ProbeWindow : Form
                 while (WaitHandle.WaitAny([activate, lifetime.Token.WaitHandle]) == 0)
                     if (!IsDisposed && IsHandleCreated) BeginInvoke(RestoreWindow);
             });
+            if(Program.UninstallPrepare)
+            {
+                // The preparation page starts nothing by itself: the backend runs only when the
+                // person asks for a backup, and no platform or model is ever opened here.
+                Log("uninstall_preparation_ready", new {registered=preparation!.Registered,
+                    backup_available=preparation.BackupAvailable});
+                if(Program.UninstallSmoke)await UninstallBackupSmoke();
+                return;
+            }
             if(Program.ShutdownInspect)
             {
                 await StartBackend();
@@ -324,7 +388,7 @@ internal sealed class ProbeWindow : Form
         {
             Result = 1; Log("startup_failed", new { type=error.GetType().Name, error.Message });
             fallback.Text = "窗口组件未能启动。请查看本机诊断记录。"; fallback.BringToFront();
-            if (Program.Smoke || Program.ModelCancelSmoke || Program.AccountPickerSmoke || Program.RecoveryCheckSmoke || Program.ShutdownSmoke) { SaveResult(false); Exit(); }
+            if (Program.Smoke || Program.UninstallSmoke || Program.ModelCancelSmoke || Program.AccountPickerSmoke || Program.RecoveryCheckSmoke || Program.ShutdownSmoke) { SaveResult(false); Exit(); }
         }
     }
     static bool Allowed(string uri) => Uri.TryCreate(uri, UriKind.Absolute, out var u) &&
@@ -349,7 +413,10 @@ internal sealed class ProbeWindow : Form
             {
                 case "recover-lock": await RecoverLock(message.RootElement); break;
                 case "restore-backup": await RestoreBackup(message.RootElement); break;
-                case "portable-export": await PortableExport(message.RootElement); break;
+                case "portable-export":
+                    if(preparation is not null)await UninstallPortableBackup(message.RootElement);
+                    else await PortableExport(message.RootElement);
+                    break;
                 case "portable-preview": await PortablePreview(message.RootElement); break;
                 case "portable-preserved-list": await PortablePreservedList(message.RootElement); break;
                 case "portable-preserved-preview": await PortablePreservedPreview(message.RootElement); break;
@@ -398,6 +465,14 @@ internal sealed class ProbeWindow : Form
                 case "status": _ = CheckService(); break;
                 case "start": if (!exiting) await StartBackend(); break;
                 case "stop": if (!exiting) await StopBackend(); break;
+                // Uninstall preparation. The page never removes anything and never starts the
+                // installer's uninstaller on its own: it asks, and this window answers from one
+                // session that only a real backup success (or the person's own skip) unlocks.
+                case "uninstall": BeginUninstallPreparation(); break;
+                case "uninstall-status": PostUninstall(); break;
+                case "uninstall-backup": await UninstallBackup(); break;
+                case "uninstall-skip": SkipBackup(); break;
+                case "uninstall-continue": ContinueUninstall(); break;
                 case "tray": Close(); break;
                 case "exit": Exit(); break;
                 case "sticker-import": await ImportSticker(message.RootElement); break;
@@ -685,32 +760,35 @@ internal sealed class ProbeWindow : Form
     static JsonElement PortableSessionStatus()=>JsonSerializer.SerializeToElement(new{
         action="management",operation="session.status",arguments=new{},request_id=Guid.NewGuid().ToString("N")});
     static bool PortableUsable(Process? server)=>Program.ManagedInstall && server is {HasExited:false};
-    async Task PortableExport(JsonElement message)
+    // Returns the reply it also posted, so an uninstall preparation run can record a real exported
+    // pair as this run's backup without reading anything back from the page.
+    async Task<JsonElement> PortableExport(JsonElement message)
     {
-        if(!DesktopPortable.TryPassword("portable-export",message,out var id,out var password)){Log("invalid_message_rejected");return;}
-        if(portableBusy || recovering){PortableReply(id,NativeError("portable_busy","上一项便携备份操作尚未完成，请稍后再试。"));return;}
+        if(!DesktopPortable.TryPassword("portable-export",message,out var id,out var password)){Log("invalid_message_rejected");return default;}
+        if(portableBusy || recovering){var busy=NativeError("portable_busy","上一项便携备份操作尚未完成，请稍后再试。");PortableReply(id,busy);return busy;}
         var expected=backend;
         if(exiting || !PortableUsable(expected) || component.State!="ready")
-        {PortableReply(id,NativeError("management_unavailable","后台尚未就绪，暂时无法导出便携备份。"));return;}
+        {var missing=NativeError("management_unavailable","后台尚未就绪，暂时无法导出便携备份。");PortableReply(id,missing);return missing;}
         long epoch=controlEpoch;
         DesktopPortable.Exchange exchange=(operation,arguments)=>PortableSend(expected!,epoch,DesktopPortable.Envelope(operation,arguments));
         portableBusy=true;
         try
         {
             var status=await PortableSend(expected!,epoch,PortableSessionStatus());
-            if(!DesktopPortable.Ok(status)){PortableReply(id,status);return;}
+            if(!DesktopPortable.Ok(status)){PortableReply(id,status);return status;}
             if(!DesktopPortable.Unlocked(status))
-            {PortableReply(id,NativeError("desktop_locked","栖伴已锁定，请先解锁再导出便携备份。"));return;}
+            {var locked=NativeError("desktop_locked","栖伴已锁定，请先解锁再导出便携备份。");PortableReply(id,locked);return locked;}
             using var dialog=new SaveFileDialog{Title="导出便携备份（.ccbackup 与同名 .cckey 必须成对保管）",
                 Filter="栖伴便携备份|*.ccbackup|所有文件|*.*",DefaultExt="ccbackup",AddExtension=true,OverwritePrompt=true,
                 FileName="qiban-便携备份-"+DateTime.Now.ToString("yyyyMMdd-HHmm")};
             if(dialog.ShowDialog(this)!=DialogResult.OK)
-            {PortableReply(id,NativeError("cancelled","已取消导出，当前资料未改变。"));return;}
+            {var cancelled=NativeError("cancelled","已取消导出，当前资料未改变。");PortableReply(id,cancelled);return cancelled;}
             var response=await DesktopPortable.Export(exchange,dialog.FileName,password,dialog.FileName);
             Log("portable_export_completed",new{ok=DesktopPortable.Ok(response)});
             PortableReply(id,response);
+            return response;
         }
-        catch(IOException){PortableReply(id,NativeError("management_unavailable","管理连接暂时不可用，请重试。"));}
+        catch(IOException){var failed=NativeError("management_unavailable","管理连接暂时不可用，请重试。");PortableReply(id,failed);return failed;}
         finally{portableBusy=false;}
     }
     async Task PortablePreview(JsonElement message)
@@ -1522,6 +1600,202 @@ internal sealed class ProbeWindow : Form
         using var screenshot=File.Create(Path.Combine(Program.Data,"management-preview.png"));
         await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,screenshot);
     }
+    // ------------------------------------------------------------------ uninstall preparation
+    // The in-app entry never starts the uninstaller itself: this window exits normally first, and
+    // one helper opens the preparation page once the running marker and the database are gone.
+    void BeginUninstallPreparation()
+    {
+        if(exiting || helperMode is not null)return;
+        Log("uninstall_preparation_requested");
+        helperMode = UninstallRule.OpenPreparationHelper;
+        Exit();
+    }
+    void SkipBackup()
+    {
+        if(exiting || preparation is null || helperMode is not null)return;
+        try { preparation.SkipBackup(); Log("uninstall_backup_skipped"); }
+        catch (InvalidOperationException) { Log("uninstall_skip_rejected"); }
+        PostUninstall();
+    }
+    // The one backup the preparation page can create: the same local encrypted backup the ordinary
+    // settings area saves (backups.create), started only because the person asked for it. The
+    // backend is the preparation backend, so no model and no platform is opened and no automatic
+    // run can start; a profile without local data never reaches here and never gets a database.
+    async Task UninstallBackup()
+    {
+        var session = preparation;
+        if(session is null || exiting || helperMode is not null || session.Busy)return;
+        if(!session.BackupAvailable){PostUninstall();return;}
+        session.BeginBackup();
+        PostUninstall();
+        try
+        {
+            if(component.State!="ready")await StartBackend();
+            if(component.State!="ready" || backend is null)
+            {
+                session.BackupFailed(component.Detail??"backend_unavailable","准备后台没有启动，因此没有创建备份。");
+                Log("uninstall_backup_unavailable", new {detail=component.Detail??""});
+                return;
+            }
+            JsonElement response;
+            await control.WaitAsync(lifetime.Token);
+            try
+            {
+                if(exiting || backend is null || component.State!="ready")throw new IOException("backup_backend_changed");
+                response=await StorageComponent.Call(pipeName+"-storage",backend,JsonSerializer.SerializeToElement(new{
+                    action="management",operation="backups.create",arguments=new{},request_id=Guid.NewGuid().ToString("N")}));
+            }
+            finally{control.Release();}
+            if(response.GetProperty("ok").GetBoolean())
+            {
+                string name=response.TryGetProperty("result",out var result)&&result.TryGetProperty("name",out var value)
+                    ? value.GetString()??"" : "";
+                if(string.IsNullOrWhiteSpace(name))throw new IOException("backup_receipt_missing");
+                session.BackupSucceeded(name);
+                Log("uninstall_backup_completed", new {name});
+            }
+            else
+            {
+                string code=DesktopPortable.Read(response,"error")??"backup_failed";
+                session.BackupFailed(code,DesktopPortable.Read(response,"message")??"");
+                Log("uninstall_backup_failed", new {code});
+            }
+        }
+        catch(Exception error) when(error is IOException or OperationCanceledException or JsonException or InvalidOperationException)
+        {
+            session.BackupFailed("management_unavailable","管理连接暂时不可用，没有创建备份。");
+            Log("uninstall_backup_failed", new {code="management_unavailable"});
+        }
+        finally{PostUninstall();}
+    }
+    async Task UninstallPortableBackup(JsonElement message)
+    {
+        if(!DesktopPortable.TryPassword("portable-export",message,out var id,out _))return;
+        var session=preparation!;
+        if(session.Busy || exiting || !session.BackupAvailable)
+        {PortableReply(id,NativeError("backup_unavailable","资料尚未就绪或上一项备份仍在进行。"));return;}
+        session.BeginBackup();PostUninstall();
+        try
+        {
+            if(component.State!="ready")await StartBackend();
+            RecordPortableBackup(await PortableExport(message));
+        }
+        catch(Exception error) when(error is IOException or OperationCanceledException or JsonException or InvalidOperationException)
+        {
+            session.BackupFailed("backup_unavailable","便携备份没有完成，请重新检查后台状态。");
+            PortableReply(id,NativeError("backup_unavailable",session.BackupDetail));
+        }
+        finally{PostUninstall();}
+    }
+    // A successful portable export is this run's backup as well: the same pair of files the existing
+    // backup area writes, with the same password rules. A cancelled or failed export changes nothing
+    // it did not change before, and never counts as a success.
+    void RecordPortableBackup(JsonElement response)
+    {
+        var session = preparation;
+        if(session is null || !Program.UninstallPrepare || helperMode is not null)return;
+        bool ok=response.ValueKind==JsonValueKind.Object&&response.TryGetProperty("ok",out var flag)&&flag.GetBoolean();
+        if(ok)
+        {
+            string name=response.TryGetProperty("result",out var result)&&result.TryGetProperty("backup",out var value)
+                ? value.GetString()??"" : "";
+            if(string.IsNullOrWhiteSpace(name))throw new IOException("backup_receipt_missing");
+            session.BackupSucceeded(name);
+            Log("uninstall_portable_backup_completed", new {name});
+        }
+        else
+        {
+            string code=DesktopPortable.Read(response,"error")??"backup_failed";
+            session.BackupFailed(code,DesktopPortable.Read(response,"message")??"");
+            Log("uninstall_portable_backup_failed", new {code});
+        }
+        PostUninstall();
+    }
+    // Only the person's explicit continue reaches here; the uninstaller itself is started by one
+    // helper after this window, its marker and its database have closed.
+    void ContinueUninstall()
+    {
+        var session = preparation;
+        if(session is null || exiting || helperMode is not null)return;
+        string refusal = session.ContinueRefusal();
+        if(refusal != "")
+        {
+            Log("uninstall_continue_refused", new { code=refusal });
+            PostUninstall();
+            return;
+        }
+        Log("uninstall_continue_confirmed", new { backup=session.Backup.ToString(), name=session.BackupName,
+            entry=Path.GetFileName(session.UninstallerPath!) });
+        helperMode = UninstallRule.FinishHelper;
+        Exit();
+    }
+    // One state document for the preparation page: what the entry is, what the last real result
+    // was, whether continuing is allowed right now, and where personal data and backups live.
+    string UninstallBackupFolder()
+    {
+        string config=Path.Combine(Program.Paths.Data,"installation","storage-config.json");
+        if(!File.Exists(config))return "";
+        try
+        {
+            using var document=JsonDocument.Parse(File.ReadAllText(config));
+            string? data=document.RootElement.TryGetProperty("data",out var value) && value.ValueKind==JsonValueKind.String?value.GetString():null;
+            return string.IsNullOrWhiteSpace(data)?"":Path.Combine(data,"history","backups");
+        }
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or JsonException){return "";}
+    }
+    async Task UninstallBackupSmoke()
+    {
+        await Until(()=>Task.FromResult(loaded));
+        await Until(()=>JsBool("document.querySelector('#uninstall-retention').textContent.length>10 && !document.querySelector('#backup-create').disabled"));
+        if(component.State=="ready" || backend is not null)throw new IOException("uninstall_auto_started_backend");
+        Log("check_uninstall_no_automatic_backend_pass");
+        await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#backup-create').click()");
+        Log("uninstall_smoke_clicked",new{page=await view.CoreWebView2.ExecuteScriptAsync("JSON.stringify({status:document.querySelector('#uninstall-status').textContent,notice:document.querySelector('#backup-notice').textContent,handler:typeof document.querySelector('#backup-create').onclick})")});
+        await Until(()=>Task.FromResult(preparation!.Backup is UninstallBackupState.Succeeded or UninstallBackupState.Failed),120000);
+        if(preparation!.Backup!=UninstallBackupState.Succeeded)throw new IOException(preparation.BackupDetail);
+        if(!File.Exists(Path.Combine(UninstallBackupFolder(),preparation.BackupName)))throw new IOException("backup_file_missing");
+        var status=await StorageComponent.Call(pipeName+"-storage",backend!,JsonSerializer.SerializeToElement(new{
+            action="management",operation="runtime.status",arguments=new{},request_id=Guid.NewGuid().ToString("N")}));
+        foreach(var platform in status.GetProperty("result").GetProperty("platforms").EnumerateArray())
+            if(platform.GetProperty("model_ready").GetBoolean() || platform.GetProperty("available").GetBoolean()
+                || platform.GetProperty("status").GetString()=="active")throw new IOException("backup_opened_business_runtime");
+        Log("check_uninstall_real_encrypted_backup_without_platform_or_model_pass");
+        await Task.Delay(300);
+        using(var picture=File.Create(Path.Combine(Program.Data,"uninstall-preview.png")))
+            await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,picture);
+        SaveResult(true);Exit();
+    }
+    void PostUninstall()
+    {
+        var session = preparation;
+        Post(new { type="uninstall", state=new {
+            mode=Program.UninstallPrepare?"prepare":"closed",
+            registered=session?.Registered??false,
+            uninstaller=session?.UninstallerPath??"",
+            entry=session?.UninstallerPath is string path ? Path.GetFileName(path) : "",
+            application=Program.Paths.ApplicationDirectory,
+            profile=Program.Paths.Root,
+            backup_folder=UninstallBackupFolder(),
+            backup_available=session?.BackupAvailable??false,
+            backup_reason=session?.BackupUnavailableReason??"",
+            backup=session?.Backup.ToString().ToLowerInvariant()??"none",
+            backup_name=session?.BackupName??"",
+            backup_detail=session?.BackupDetail??"",
+            continue_refusal=session?.ContinueRefusal()??"uninstaller_missing",
+            handed_off=session?.HandedOff??false,
+            guidance=UninstallRule.PortableDirectoryGuidance,
+            backend=component.State, detail=component.Detail??"" } });
+    }
+    bool StartHelper(string mode)
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!)
+            { UseShellExecute=false, WorkingDirectory=Program.Paths.ApplicationDirectory };
+        start.ArgumentList.Add(mode);start.ArgumentList.Add(Environment.ProcessId.ToString());
+        if(mode==UninstallRule.OpenPreparationHelper)start.ArgumentList.Add(Program.Paths.Root);
+        try { using var process=Process.Start(start); return process is not null; }
+        catch (Exception error) when (error is System.ComponentModel.Win32Exception
+            or InvalidOperationException or ObjectDisposedException or IOException) { return false; }
+    }
     async void Exit()
     {
         if (exiting) return;
@@ -1532,18 +1806,31 @@ internal sealed class ProbeWindow : Form
         shutdownPanel.Visible=true;shutdownPanel.BringToFront();
         using var finished=new CancellationTokenSource();
         _ = ShowForceExit(finished.Token);
+        bool graceful=false;
         try
         {
             if(journalStarted)journal.Closing();
             if(portablePending || portableBusy || portableActive)await PortableCancelOnExit();
             await StopBackend();
             Log("shutdown_completed", new {state=component.State, detail=component.Detail});
-            bool graceful=component.Detail=="graceful_stop";
+            graceful=component.Detail=="graceful_stop";
             if(!graceful)Result=1;
             if(journalStarted)journal.Complete(graceful);
         }
         catch (Exception error) { Result=1;if(journalStarted)journal.Abnormal(); Log("shutdown_failed", new {error.Message}); }
-        finally { finished.Cancel();shutdownComplete=true; Close(); }
+        finally
+        {
+            // The uninstaller is never started by this window: only a successful normal shutdown
+            // lets one helper start it, after the running marker and the database are gone. A
+            // forced exit, a failed close or a cancel therefore never starts an uninstall.
+            if(graceful && helperMode is not null)
+            {
+                preparation?.MarkHandedOff();
+                if(StartHelper(helperMode))Log("uninstall_helper_started", new {mode=helperMode});
+                else{Result=1;Log("uninstall_helper_failed", new {mode=helperMode});}
+            }
+            finished.Cancel();shutdownComplete=true; Close();
+        }
     }
     async Task ShowForceExit(CancellationToken token)
     {

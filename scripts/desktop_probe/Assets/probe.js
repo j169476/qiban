@@ -1,6 +1,6 @@
 'use strict';
 const send=action=>window.chrome.webview.postMessage({action});
-for(const action of ['start','stop','pick','tray','exit']) document.getElementById(action).onclick=()=>send(action);
+for(const action of ['start','stop','pick','tray','exit','uninstall']) document.getElementById(action).onclick=()=>send(action);
 window.chrome.webview.addEventListener('message',({data})=>{
  if(data.type==='service') {
   document.getElementById('component-title').textContent=data.component==='postgresql'?'本地数据库':'应用后台';

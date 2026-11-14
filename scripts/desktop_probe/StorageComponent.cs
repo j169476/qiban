@@ -10,6 +10,9 @@ internal sealed record StackSpec(string PostgresSpecPath,string StorageSpecPath)
 
 internal static class StorageComponent
 {
+    // One fixed argument that turns the same worker into the uninstall preparation backend: the
+    // store and local management open, but no model, platform connector, scheduler or automatic run.
+    internal const string BackupOnlyArgument = "--backup-only";
     static bool BackupOperation(JsonElement request)=>request.TryGetProperty("action",out var action) &&
         (action.GetString()=="desktop-restore" || action.GetString()=="management" && request.TryGetProperty("operation",out var operation)
          && operation.ValueKind==JsonValueKind.String && operation.GetString()!.StartsWith("backups.",StringComparison.Ordinal));
@@ -51,7 +54,9 @@ internal static class StorageComponent
                     if(!Path.IsPathFullyQualified(file)||!File.Exists(file))throw new IOException("storage_runtime_missing");
                 if(!Path.IsPathFullyQualified(spec.LogDirectory))throw new IOException("storage_spec_invalid");
                 RuntimeBundle.Validate(spec.WorkerExecutable);
-                return OwnedProcess.Start(Environment.ProcessPath!,"--storage-worker",path,pipe,Environment.ProcessId.ToString());
+                return Program.BackupOnly
+                    ? OwnedProcess.Start(Environment.ProcessPath!,"--storage-worker",path,pipe,Environment.ProcessId.ToString(),BackupOnlyArgument)
+                    : OwnedProcess.Start(Environment.ProcessPath!,"--storage-worker",path,pipe,Environment.ProcessId.ToString());
             },
             ExitReason=process=>
             {
@@ -70,7 +75,7 @@ internal static class StorageComponent
             Definition(spec.StorageSpecPath,pipe+"-storage"));
     }
 
-    internal static async Task<int> Run(string path,string pipeName,int parentId)
+    internal static async Task<int> Run(string path,string pipeName,int parentId,bool backupOnly=false)
     {
         using var parent=Process.GetProcessById(parentId);
         _ = parent.Handle;
@@ -80,6 +85,7 @@ internal static class StorageComponent
         {UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,
          RedirectStandardError=true,WorkingDirectory=Path.GetDirectoryName(spec.WorkerExecutable)!};
         info.ArgumentList.Add("--config");info.ArgumentList.Add(spec.ConfigurationPath);
+        if(backupOnly)info.ArgumentList.Add("--backup-only");
 #if QIBAN_SIWC_VALIDATION
         info.ArgumentList.Add("--authentication-route");info.ArgumentList.Add("siwc-validation");
 #endif

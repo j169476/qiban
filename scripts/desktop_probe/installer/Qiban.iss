@@ -68,6 +68,14 @@
 
 #define AppName "栖伴"
 #define AppExeName "Qiban.exe"
+; UNINSTALL: the published uninstall entry. It is one byte-identical copy of AppExeName (verified by
+; assemble_application.py and again by build_installer.py) and only forwards to
+; "Qiban.exe --uninstall", the application's own preparation page.
+#define UninstallAliasName "uninstall.exe"
+#define PreparationSwitch "--uninstall"
+; The one fixed internal parameter the preparation page adds when it starts this setup's uninstaller
+; again after the application and its database were closed. Nothing else may mean "already prepared".
+#define PreparedParameter "QIBANPREPARED"
 #define BuildRecordName "desktop-build.json"
 #define PayloadIdentityName "qiban-payload.json"
 ; UPGRADE-177: the embedded maintenance glue and the directory shape of one installed profile.
@@ -154,7 +162,10 @@ Source: "{#OutputDir}\{#PayloadManifestName}"; Flags: dontcopy
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{group}\卸载{#AppName}"; Filename: "{uninstallexe}"
+; UNINSTALL: the Start Menu entry is the stable published alias (one byte-identical copy of the
+; program), which only forwards to the application's own preparation page. The Windows application
+; list still runs this setup's uninstaller, which opens that same page first (see InitializeUninstall).
+Name: "{group}\卸载{#AppName}"; Filename: "{app}\{#UninstallAliasName}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
@@ -172,6 +183,9 @@ const
   BuildRecordName = '{#BuildRecordName}';
   PayloadIdentityName = '{#PayloadIdentityName}';
   AppExeName = '{#AppExeName}';
+  UninstallAliasName = '{#UninstallAliasName}';
+  PreparationSwitch = '{#PreparationSwitch}';
+  PreparedParameter = '{#PreparedParameter}';
   ExpectedRecordSha256 = '{#ExpectedBuildRecordSha256}';
   ExpectedIdentitySha256 = '{#ExpectedPayloadIdentitySha256}';
   GlueScriptName = '{#GlueScriptName}';
@@ -567,14 +581,56 @@ begin
 end;
 
 function InitializeUninstall: Boolean;
+var
+  Application: String;
+  ResultCode: Integer;
 begin
   Result := True;
-  if CheckForMutexes(RunningMutexName) then
+  // A silent uninstall keeps exactly its previous rules: it never opens the interactive preparation
+  // page and never waits on a dialog, and it still refuses while the application is running.
+  if UninstallSilent then
   begin
-    // Suppressed during a silent uninstall so an unattended run can never wait on a dialog;
-    // returning False aborts the uninstallation either way.
-    SuppressibleMsgBox(RunningRefusal + #13#10 + #13#10 +
-      '卸载没有开始，程序和资料都保持原样。', mbError, MB_OK, IDOK);
-    Result := False;
+    if CheckForMutexes(RunningMutexName) then
+    begin
+      SuppressibleMsgBox(RunningRefusal + #13#10 + #13#10 +
+        '卸载没有开始，程序和资料都保持原样。', mbError, MB_OK, IDOK);
+      Result := False;
+    end;
+    Exit;
   end;
+  // Only the application's own preparation page may continue into the real uninstallation: it
+  // starts this same uninstaller with the one fixed internal parameter, and only after the person
+  // made an explicit choice there and the application (with its database) was closed normally.
+  if CompareText(ExpandConstant('{param:' + PreparedParameter + '|}'), '1') = 0 then
+  begin
+    if CheckForMutexes(RunningMutexName) then
+    begin
+      SuppressibleMsgBox(RunningRefusal + #13#10 + #13#10 +
+        '卸载没有开始，程序和资料都保持原样。', mbError, MB_OK, IDOK);
+      Result := False;
+    end;
+    Exit;
+  end;
+  // An ordinary interactive uninstall (Start Menu entry or the Windows application list) first
+  // opens the preparation page and then stops here. The page decides about the backup, closes the
+  // application and comes back with the parameter above; it is never started in a loop from here,
+  // because this branch only runs for a run that did not carry that parameter.
+  Application := AddBackslash(ExpandConstant('{app}')) + AppExeName;
+  if FileExists(Application) then
+  begin
+    if not Exec(Application, PreparationSwitch, ExpandConstant('{app}'), SW_SHOWNORMAL, ewNoWait,
+                ResultCode) then
+      SuppressibleMsgBox(
+        '无法打开栖伴的卸载准备页，因此这次没有开始卸载。' + #13#10 + #13#10 +
+        '程序、个人资料、备份与凭据都保持原样。请重新运行本卸载程序再试一次。',
+        mbError, MB_OK, IDOK);
+    Result := False;
+    Exit;
+  end;
+  // The program directory is already damaged. Say what can no longer happen and keep the ordinary
+  // uninstallation: it only removes the recorded program files and shortcuts.
+  SuppressibleMsgBox(
+    '程序目录里没有可用于准备页的栖伴主程序，因此这次无法先备份。' + #13#10 + #13#10 +
+    '卸载将继续，只删除安装器登记的程序文件和快捷方式；个人资料、备份与凭据仍然保留。',
+    mbInformation, MB_OK, IDOK);
 end;

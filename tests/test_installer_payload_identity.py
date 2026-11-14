@@ -60,10 +60,14 @@ def payload(tmp_path):
     """A minimal assembled application directory that passes every existing check_payload rule."""
     root = tmp_path/'app'
     root.mkdir()
-    generated = {installer.APP_EXE, installer.MANIFEST, 'desktop-sources.zip', installer.MANAGED}
+    generated = {installer.APP_EXE, installer.ALIAS_EXE, installer.MANIFEST, 'desktop-sources.zip',
+                 installer.MANAGED}
     for name in sorted(installer.ROOT_FILES - generated):
         (root/name).write_bytes(f'fixture {name}\n'.encode('utf8'))
     (root/installer.APP_EXE).write_bytes(SHELL)
+    # The published uninstall entry is one byte-identical copy of the program (see
+    # assemble_application.write_alias); build_installer refuses anything else.
+    (root/installer.ALIAS_EXE).write_bytes(SHELL)
     (root/installer.MANAGED).write_text('{"mode": "managed", "format": 1}', encoding='utf8')
     write_shell_records(root)
     write_component(root/'resources'/'storage', 'Qiban.Storage.exe',

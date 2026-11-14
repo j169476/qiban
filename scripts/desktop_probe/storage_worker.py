@@ -272,6 +272,10 @@ def main():
     parser.add_argument("--config")
     parser.add_argument("--application-session")
     parser.add_argument("--authentication-route", choices=('codex', 'siwc-validation'), default='codex')
+    # UNINSTALL: the preparation page's own backend. It opens the store and local management (so the
+    # existing backup business works) but builds no model, no platform connector and no scheduler
+    # and never reconciles, so an uninstall preparation cannot run a platform or a model turn.
+    parser.add_argument("--backup-only", action="store_true")
     parser.add_argument("--check-resources", action="store_true")
     parser.add_argument("--verify-bili-binding", action="store_true")
     parser.add_argument("--verify-bili-favorites", action="store_true")
@@ -411,65 +415,72 @@ def main():
         if config.get("desktop_management") is True:
             from install_windows import user_sid
 
-            from qiban.desktop_bili import DesktopBili
-            from qiban.desktop_codex import DesktopCodex
             from qiban.desktop_management import DesktopManagement
-            from qiban.desktop_qq import DesktopQQ
             from qiban.desktop_runtime import DesktopRuntime
 
             management = DesktopManagement(store,config["installation"],user_sid())
-            management.bili = DesktopBili(management,Path(args.config).resolve().parent)
-            if args.verify_bili_binding or args.verify_bili_favorites:
-                import asyncio
-
-                from bilibili_api import BILIBILI_API_VERSION
-
-                from qiban.desktop_bili_connector import adapter
-
-                management.authority.require(management.request(), administrator=True)
-                binding = adapter(management.bili)
-                if not binding or store.state("core-run:bilibili",{}).get("status")=="active":
-                    raise AssistantError("bili_check_unavailable","需已绑定且角色已停止。")
-                async def verify_bound():
-                    try:
-                        actual = await binding.engine.adapter.me()
-                        matches = actual["uid"] == binding.account
-                        result = {"verified":matches,"sdk":BILIBILI_API_VERSION}
-                        if args.verify_bili_favorites and matches:
-                            tools = binding.engine.adapter.favorite_tools(
-                                lambda: management.authority.require(management.request(), administrator=True))
-                            listing = await tools.list()
-                            default = await tools.default()
-                            result.update(folder_count=listing["total"],default_identified=bool(default),read_only=True)
-                        return result
-                    finally:
-                        await binding.close()
-                result = asyncio.run(verify_bound())
-                matches = result["verified"]
-                emit(result)
-                return 0 if matches else 1
-            if args.authentication_route == 'siwc-validation':
-                from qiban.desktop_siwc_accounts import DesktopSiwcAccounts
-
-                codex = DesktopSiwcAccounts(Path(args.config).resolve().parent/'siwc-account', store)
+            if args.backup_only:
+                # UNINSTALL: the preparation backend opens the store, local management and the
+                # existing backup business only. No platform connector and no model is built, and
+                # the runtime is minimal: it is never reconciled and its scheduler is never opened.
+                runtime = DesktopRuntime(management,args.application_session)
             else:
-                codex = DesktopCodex(Path(args.config).resolve().parent/'codex-account')
-            management.codex = codex
-            management.qq = DesktopQQ(store, config.get('qq_runtime', str(Path(sys.executable).parent.parent/'qq')),
-                                      Path(args.config).resolve().parent/'qq-account')
-            from qiban.desktop_bili_connector import adapter as bili_adapter
-            from qiban.desktop_qq_targets import adapter as qq_adapter
+                from qiban.desktop_bili import DesktopBili
+                from qiban.desktop_codex import DesktopCodex
+                from qiban.desktop_qq import DesktopQQ
 
-            qq = qq_adapter(management.qq)
-            from qiban.desktop_wechat import adapter as wechat_adapter
+                management.bili = DesktopBili(management,Path(args.config).resolve().parent)
+                if args.verify_bili_binding or args.verify_bili_favorites:
+                    import asyncio
 
-            management.wechat_resources = Path(sys.executable).parent.parent / "wechat"
-            wechat = wechat_adapter(store, config["installation"], management.wechat_resources)
-            runtime = DesktopRuntime(management,args.application_session,
-                                     **desktop_models(codex,args.authentication_route),
-                                     adapters=tuple(item for item in (bili_adapter(management.bili),qq,wechat,management.room) if item is not None))
-            runtime.reconcile()
-            runtime.open()
+                    from bilibili_api import BILIBILI_API_VERSION
+
+                    from qiban.desktop_bili_connector import adapter
+
+                    management.authority.require(management.request(), administrator=True)
+                    binding = adapter(management.bili)
+                    if not binding or store.state("core-run:bilibili",{}).get("status")=="active":
+                        raise AssistantError("bili_check_unavailable","需已绑定且角色已停止。")
+                    async def verify_bound():
+                        try:
+                            actual = await binding.engine.adapter.me()
+                            matches = actual["uid"] == binding.account
+                            result = {"verified":matches,"sdk":BILIBILI_API_VERSION}
+                            if args.verify_bili_favorites and matches:
+                                tools = binding.engine.adapter.favorite_tools(
+                                    lambda: management.authority.require(management.request(), administrator=True))
+                                listing = await tools.list()
+                                default = await tools.default()
+                                result.update(folder_count=listing["total"],default_identified=bool(default),read_only=True)
+                            return result
+                        finally:
+                            await binding.close()
+                    result = asyncio.run(verify_bound())
+                    matches = result["verified"]
+                    emit(result)
+                    return 0 if matches else 1
+                if args.authentication_route == 'siwc-validation':
+                    from qiban.desktop_siwc_accounts import DesktopSiwcAccounts
+
+                    codex = DesktopSiwcAccounts(Path(args.config).resolve().parent/'siwc-account', store)
+                else:
+                    codex = DesktopCodex(Path(args.config).resolve().parent/'codex-account')
+                management.codex = codex
+                management.qq = DesktopQQ(store, config.get('qq_runtime', str(Path(sys.executable).parent.parent/'qq')),
+                                          Path(args.config).resolve().parent/'qq-account')
+                from qiban.desktop_bili_connector import adapter as bili_adapter
+                from qiban.desktop_qq_targets import adapter as qq_adapter
+
+                qq = qq_adapter(management.qq)
+                from qiban.desktop_wechat import adapter as wechat_adapter
+
+                management.wechat_resources = Path(sys.executable).parent.parent / "wechat"
+                wechat = wechat_adapter(store, config["installation"], management.wechat_resources)
+                runtime = DesktopRuntime(management,args.application_session,
+                                         **desktop_models(codex,args.authentication_route),
+                                         adapters=tuple(item for item in (bili_adapter(management.bili),qq,wechat,management.room) if item is not None))
+                runtime.reconcile()
+                runtime.open()
         if args.verify_bili_binding or args.verify_bili_favorites:
             raise AssistantError("bili_check_unavailable","需桌面开发安装。")
         portable = None
@@ -487,7 +498,8 @@ def main():
             if message == {"action": "stop"}:
                 if management is not None:
                     management.runtime.close()
-                    management.qq.close()
+                    if management.qq is not None:
+                        management.qq.close()
                     runtime = None
                 if codex is not None:
                     codex.close()

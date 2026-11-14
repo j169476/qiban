@@ -82,6 +82,9 @@ TARGET_MANIFEST = 'qiban-target-payload.json'
 IDENTITY_FORMAT = 1
 FORMAT = 1
 APP_EXE = 'Qiban.exe'
+# The published uninstall entry. assemble_application.py writes it as one byte-identical copy of
+# APP_EXE, it is checked again below, and it is installed with the rest of the payload unchanged.
+ALIAS_EXE = 'uninstall.exe'
 MANAGED = 'managed-application.json'
 MANIFEST_NAME = 'runtime-manifest.json'
 MANAGED_RECORD = {'mode': 'managed', 'format': 1}
@@ -91,7 +94,7 @@ ROOT_FILES = frozenset({
     'Qiban-LICENSE.txt', 'Qiban.exe', 'README.txt', 'WebView2-SDK.txt', 'Windows-SDK.rtf',
     'desktop-build.json', 'desktop-sources.zip', 'dotnet-desktop-LICENSE.txt',
     'dotnet-runtime-LICENSE.txt', 'dotnet-runtime-THIRD-PARTY-NOTICES.txt',
-    'managed-application.json'})
+    'managed-application.json', 'uninstall.exe'})
 ROOT_DIRECTORIES = frozenset({'resources'})
 RESOURCE_NAMES = frozenset({'storage', 'postgres', 'speech', 'wechat', 'qq'})
 REQUIRED_RESOURCES = ('storage', 'postgres')
@@ -270,6 +273,11 @@ def check_payload(directory):
     if json.loads((payload/MANAGED).read_text(encoding='utf-8-sig')) != MANAGED_RECORD:
         raise BuildError('installer_payload_managed', '应用目录不是托管应用构建（managed-application.json 不符）。')
     verify_desktop_build(payload, payload/APP_EXE)
+    # The uninstall entry is the same program under its own name, never a second build: a copy that
+    # differs by one byte is refused here, so the installed alias cannot be something else.
+    if _digest(payload/ALIAS_EXE) != _digest(payload/APP_EXE):
+        raise BuildError('installer_payload_alias',
+                         '卸载入口 uninstall.exe 与主程序 Qiban.exe 不是同一份程序文件。')
     # Registered files only: the manifest must account for every file the component ships.
     for name, entrypoint in MANIFEST_RESOURCES:
         resource = payload/'resources'/name
@@ -297,6 +305,7 @@ def check_payload(directory):
     files = [payload/path for path in present]
     summary = {'files': len(files), 'bytes': sum(path.stat().st_size for path in files),
                'exe_sha256': _digest(payload/APP_EXE),
+               'alias_sha256': _digest(payload/ALIAS_EXE),
                'build_record_sha256': _digest(payload/MANIFEST),
                'present_resources': sorted(name for name in RESOURCE_NAMES
                                            if (payload/'resources'/name).is_dir())}
@@ -375,7 +384,7 @@ def main(argv=None):
         identity_sha256 = hashlib.sha256(document).hexdigest()
         report = {'payload': str(payload), 'version': args.version, 'output': str(output),
                   'payload_files': summary['files'], 'payload_bytes': summary['bytes'],
-                  'exe_sha256': summary['exe_sha256'],
+                  'exe_sha256': summary['exe_sha256'], 'alias_sha256': summary['alias_sha256'],
                   'build_record_sha256': summary['build_record_sha256'],
                   'present_resources': summary['present_resources'],
                   'identity_file': IDENTITY, 'identity_sha256': identity_sha256}
@@ -391,7 +400,7 @@ def main(argv=None):
                   'setup': {'file': setup.name, 'bytes': setup_bytes, 'sha256': setup_sha256},
                   'payload': {'directory': payload.relative_to(REPO).as_posix()
                               if payload.is_relative_to(REPO) else payload.name,
-                              'exe': APP_EXE, **summary},
+                              'exe': APP_EXE, 'alias': ALIAS_EXE, **summary},
                   'identity': {'file': identity_file, 'sha256': identity_sha256,
                                'target_manifest': {'file': TARGET_MANIFEST,
                                                    'sha256': identity_sha256}},
@@ -409,7 +418,14 @@ def main(argv=None):
                             # through the installed build's own maintenance worker (preservation,
                             # clone, pointer switch) - never through this tool.
                             'personal_data_touched_by_installer': False,
-                            'paired_upgrade_changes_data_through_old_worker': True},
+                            'paired_upgrade_changes_data_through_old_worker': True,
+                            # UNINSTALL: the published alias is the same program file, the Start
+                            # Menu entry and the Windows entry both open the application's own
+                            # preparation page, and only its one fixed internal parameter continues
+                            # into this uninstaller. A silent uninstall keeps its previous rules.
+                            'uninstall_alias_sha256_matches_exe': True,
+                            'uninstall_preparation_page': True,
+                            'uninstall_silent_unchanged': True},
                   'signed': False}
         (output/RECORD).write_text(json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
                                   encoding='utf8')
