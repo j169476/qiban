@@ -279,3 +279,50 @@ def test_bili_role_start_stop_and_account_replacement(login,service,monkeypatch)
         assert runtime.start("bilibili")["run"]["accounts"]==[["bilibili","202"]]
     finally:
         runtime.close()
+
+
+def test_official_browser_login_verifies_identity_and_requires_account_switch_confirmation(login):
+    broker, op, start, now = login
+    start("101", "Original")
+    previous = broker.path.read_bytes()
+    seen = []
+    async def verify(cookies):
+        seen.append(cookies)
+        return {"uid": "202", "name": "Official browser"}
+    broker.browser_verify = verify
+    browser = op("browser")["result"]
+    assert browser["state"] == "browser" and not browser["qr"]
+    cookies = {"sessdata": "synthetic-browser-session", "bili_jct": "synthetic-csrf"}
+    reply = op("browser_complete", ticket=browser["ticket"], cookies=cookies)
+    assert reply["ok"] and reply["result"]["state"] == "confirm"
+    assert seen == [cookies] and broker.path.read_bytes() == previous
+    assert "synthetic-browser-session" not in json.dumps(reply)
+    assert op("confirm", ticket=browser["ticket"])["result"]["current"]["uid"] == "202"
+    assert b"synthetic-browser-session" not in broker.path.read_bytes()
+
+
+def test_browser_login_cancel_expiry_and_lock_during_verification_do_not_save(login, service):
+    broker, op, start, now = login
+    start("101", "Original")
+    previous = broker.path.read_bytes()
+    cookies = {"sessdata": "synthetic-browser-session", "bili_jct": "synthetic-csrf"}
+    async def verify(fields):
+        return {"uid": "202", "name": "New"}
+    broker.browser_verify = verify
+    browser = op("browser")["result"]
+    op("cancel", ticket=browser["ticket"])
+    assert op("browser_complete", ticket=browser["ticket"], cookies=cookies)["error"] == "bili_stale"
+    browser = op("browser")["result"]
+    now[0] += 301
+    assert op("browser_complete", ticket=browser["ticket"], cookies=cookies)["error"] == "bili_stale"
+    op("status")
+    browser = op("browser")["result"]
+    assert op("browser_complete", ticket=browser["ticket"], cookies={**cookies, "password": "synthetic"})["error"] == "bili_identity"
+    assert call(service, "lock.enable", {"password": "temporary-strong-pass"})["ok"]
+    browser = op("browser")["result"]
+    async def lock_during_verify(fields):
+        assert call(service, "session.lock")["ok"]
+        return {"uid": "202", "name": "New"}
+    broker.browser_verify = lock_during_verify
+    assert op("browser_complete", ticket=browser["ticket"], cookies=cookies)["error"] == "desktop_locked"
+    assert broker.path.read_bytes() == previous

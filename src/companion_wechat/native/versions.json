@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "profiles": [
+    {
+      "id": 1,
+      "version": "4.1.15.13",
+      "size": 201552944,
+      "sha256": "10f8e995453e2da46d4f2b5080cd6da1f13cc5147746adc119ceae38cb039de5",
+      "timestamp": "0x6ab0a378",
+      "image_size": "0xc0ae000",
+      "abi": "msvc-text-v1",
+      "rvas": {
+        "app_global": "0xb912690",
+        "app_vtable": "0x8d804e8",
+        "app_getter": "0x469a0",
+        "identity_vtable": "0x8dfe2f8",
+        "identity_getter": "0x36f930",
+        "app": "0x45d10",
+        "scheduler": "0x47310",
+        "schedule": "0x2fb010",
+        "text_builder": "0x54b02f0",
+        "allocate": "0x74ab89c",
+        "free": "0x74ab8e0"
+      }
+    },
+    {
+      "id": 2,
+      "version": "4.1.15.56",
+      "size": 204305968,
+      "sha256": "e0428a7b691853de496532523c2c09aa095f90941c37c9f4cfb3f137f3c66556",
+      "timestamp": "0x6ad083c8",
+      "image_size": "0xc34f000",
+      "abi": "msvc-text-v1",
+      "rvas": {
+        "app_global": "0xbb92fa0",
+        "app_vtable": "0x8f514e8",
+        "app_getter": "0x469a0",
+        "identity_vtable": "0x8fd1468",
+        "identity_getter": "0x3855c0",
+        "app": "0x45d10",
+        "scheduler": "0x47310",
+        "schedule": "0x30f450",
+        "text_builder": "0x55f0380",
+        "allocate": "0x754bcdc",
+        "free": "0x754bd20"
+      }
+    },
+    {
+      "id": 3,
+      "version": "4.2.0.13",
+      "size": 205943848,
+      "sha256": "afe3d02c58bada3c35009c0cd58ee1f57b2a00fe53237d0dce649107fddb9a20",
+      "timestamp": "0x6ae83cfe",
+      "image_size": "0xc4de000",
+      "abi": "msvc-text-v1",
+      "rvas": {
+        "app_global": "0xbd0fdf0",
+        "app_vtable": "0x9057b98",
+        "app_getter": "0x469a0",
+        "identity_vtable": "0x90d7fe8",
+        "identity_getter": "0x388030",
+        "app": "0x45d10",
+        "scheduler": "0x47310",
+        "schedule": "0x3141a0",
+        "text_builder": "0x5723550",
+        "allocate": "0x76a750c",
+        "free": "0x76a7550"
+      }
+    }
+  ]
+}

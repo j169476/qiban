@@ -1,4 +1,4 @@
-"""Explicit QR login channel; never starts a message session or chooses a cached account."""
+"""Explicit QR/password login; never starts a message session or chooses an account."""
 from .native_process import NativeProcess
 
 

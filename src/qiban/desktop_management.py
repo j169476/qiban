@@ -333,7 +333,8 @@ class DesktopManagement:
                       'model.status':set(),'model.refresh':set(),'model.login':set(),'model.logout':set(),
                       'model.cancel':set(),'model.open':set(),'model.add':set(),
                       'model.select':{'account_id','expected'},
-                      'qq.status':set(),'qq.refresh':set(),'qq.login':set(),'qq.cancel':set(),
+                      'qq.password':{'account','password'},'qq.status':set(),'qq.refresh':set(),'qq.login':set(),'qq.cancel':set(),
+                      'bili.browser':{'session'},'bili.browser_complete':{'session','ticket','cookies'},
                       'bili.status':{'session'},'bili.login':{'session'},'bili.check':{'session'},
                       'bili.confirm':{'session','ticket'},'bili.cancel':{'session','ticket'},
                       'bili.policy':{'session','uid'},'bili.policy_save':{'session','uid','expected','actions'},
@@ -435,7 +436,7 @@ class DesktopManagement:
             if op in ("bili.policy","bili.policy_save"):
                 from .desktop_bili_policy import manage
                 return manage(self,save=op=="bili.policy_save",**args)
-            result = self.bili.operate(op.split(".")[1],**args)
+            result = self.bili.accept_browser(**args) if op == "bili.browser_complete" else self.bili.operate(op.split(".")[1],**args)
             if self.runtime and result["current"] and "bilibili" not in self.runtime.reconfiguring:
                 core = self.runtime.cores.get("bilibili")
                 if not core or [a.account for a in core.platforms.all()] != [result["current"]["uid"]]:
@@ -693,8 +694,8 @@ class DesktopManagement:
             operation=op.removeprefix('qq.')
             if operation=='status':
                 return self.qq.status()
-            if operation in ('login','refresh'):
-                result=self.qq.begin(operation)
+            if operation in ('login','refresh','password'):
+                result=self.qq.begin(operation,**args)
             elif operation=='cancel':
                 result=self.qq.cancel()
             elif operation=='targets.verify':

@@ -91,11 +91,11 @@ async def close_sdk_session():
 
 
 class DesktopBili:
-    login_states = {"starting","waiting","scanned","verified","confirm"}
+    login_states = {"starting","waiting","scanned","verified","confirm","browser"}
 
-    def __init__(self, management, folder, *, scan=scan_account, verify=verify_sdk_identity, clock=time.monotonic):
+    def __init__(self, management, folder, *, scan=scan_account, verify=verify_sdk_identity, clock=time.monotonic, browser_verify=verify_identity):
         self.manager, self.scan, self.clock = management, scan, clock
-        self.verify = verify
+        self.verify, self.browser_verify = verify, browser_verify
         self.path = Path(folder) / "bili-account.sealed"
         self.binding = ("qiban.desktop.bilibili:"+management.installation).encode()
         self.lock = threading.RLock()
@@ -199,6 +199,31 @@ class DesktopBili:
                 if self.worker and self.worker[1] is asyncio.current_task():
                     self.worker = None
 
+    def accept_browser(self, session, ticket, cookies):
+        names = {"sessdata", "bili_jct", "buvid3", "buvid4", "dedeuserid"}
+        if (not isinstance(cookies, dict) or set(cookies) - names or
+                any(not isinstance(v, str) or not v or len(v) > 8192 for v in cookies.values()) or
+                not {"sessdata", "bili_jct"} <= set(cookies)):
+            raise AssistantError("bili_identity", "官方登录未完成，请重新登录。")
+        def require_current():
+            if not self.manager._active(session):
+                raise AssistantError("desktop_locked", "请先解锁本机管理。")
+            if (self.session != session or self.ticket != ticket or self.state != "browser" or
+                    self.clock() >= self.deadline):
+                raise AssistantError("bili_stale", "登录请求已过期或取消，请重新登录。")
+            self._paused()
+        with self.manager.store.lock, self.lock:
+            require_current()
+        try:
+            found = asyncio.run(self.browser_verify(cookies))
+        except Exception:
+            raise AssistantError("bili_identity", "无法核验官方登录，请重试。") from None
+        with self.manager.store.lock, self.lock:
+            require_current()
+            self.candidate = {**found, "cookies": {**cookies, "dedeuserid": found["uid"]}}
+            self.state = "verified"
+            return self.operate("status", session)
+
     def operate(self, operation, session, ticket=None):
         with self.manager.store.lock, self.lock:
             if not self.manager._active(session):
@@ -214,6 +239,13 @@ class DesktopBili:
             if pending and self.clock()>=self.deadline:
                 self._end("expired","本次登录已过期，请重新扫码。")
                 pending = False
+            if operation == "browser":
+                self._paused()
+                if pending:
+                    raise AssistantError("bili_login_busy", "请先完成或取消当前登录。")
+                self.ticket, self.original = uuid.uuid4().hex, revision
+                self.state, self.notice, self.deadline = "browser", "请在官方登录窗口选择手机验证码或账号密码登录。", self.clock()+300
+                return self._view(account)
             if operation in {"check","login"}:
                 if operation=="login":
                     self._paused()
@@ -236,7 +268,7 @@ class DesktopBili:
                 self._end("failed","已绑定账号发生变化，请重新登录。")
             if self.state=="verified" and account and self.candidate["uid"]!=account["uid"]:
                 self.state = "confirm"
-                self.notice = "扫码账号与当前绑定不同，请核对后选择。"
+                self.notice = "登录账号与当前绑定不同，请核对后选择。"
                 return self._view(account)
             if self.state=="verified" or (self.state=="confirm" and operation=="confirm"):
                 self._paused()

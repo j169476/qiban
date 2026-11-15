@@ -25,6 +25,8 @@ jobs:
       - if: matrix.shard == 0
         run: python scripts/check_release.py
       - if: matrix.shard == 0
+        run: python scripts/generate_wechat_versions.py --check
+      - if: matrix.shard == 0
         run: python scripts/prepare_release.py
       - if: matrix.shard == 0
         run: python -m pytest -q --confcutdir=tests_core tests_core --junitxml=.dev/core-results.xml

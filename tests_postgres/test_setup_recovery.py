@@ -16,15 +16,15 @@ def fresh(pg_store):
 
 def test_plain_home_and_no_ticket_submission_are_actionable(fresh):
     admin = client(fresh, "admin")
-    page = admin.get("/").text
-    assert '<form id="setup" hidden><fieldset disabled>' in page and 'id="setup-guidance"' in page
+    page = admin.get("/")
+    assert page.status_code == 410 and page.json()["error"] == "web_entry_retired"
     response = admin.post("/setup", json={"password": PASSWORD}, headers={"origin": ADMIN})
     assert response.json()["error"] == "setup_ticket_missing"
     assert "service_setup" in response.json()["message"]
     assert not fresh.store.state("web-owner")
     response = admin.post("/setup", json={"ticket": "unissued-synthetic-token", "password": PASSWORD}, headers={"origin": ADMIN})
     assert response.json()["error"] == "setup_ticket_unissued"
-    assert '<form id="setup"' not in client(fresh, "role").get("/").text
+    assert client(fresh, "role").get("/").status_code == 410
 
 
 def test_validate_never_consumes_and_setup_rejects_reuse(fresh):

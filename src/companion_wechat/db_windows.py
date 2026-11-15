@@ -24,8 +24,10 @@ from ctypes import wintypes
 from dataclasses import dataclass, field
 from pathlib import PureWindowsPath
 
-SUPPORTED_VERSION = "4.1.15.13"
-SUPPORTED_VERSIONS = frozenset({SUPPORTED_VERSION, "4.1.15.56"})
+from .native.versions import PROFILES
+
+SUPPORTED_VERSION = PROFILES[0]["version"]
+SUPPORTED_VERSIONS = frozenset(p["version"] for p in PROFILES)
 READ_ACCESS = 0x0010 | 0x0400
 _MAX_ADDRESS = 0x800000000000
 _NAME = b"com.Tencent.WCDB.Config.Cipher"

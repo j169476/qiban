@@ -44,16 +44,21 @@ class DesktopQQ:
         with self.lock:
             self.value = value
 
-    def begin(self, operation):
-        if operation not in {"refresh", "login"}:
+    def begin(self, operation, account=None, password=None):
+        if operation not in {"refresh", "login", "password"}:
             raise AssistantError("qq_login_state", "未知 QQ 登录操作。")
+        credentials = None
+        if operation == "password":
+            if (not isinstance(password, str) or not 1 <= len(password) <= 128 or "\0" in password):
+                raise AssistantError("qq_login_input", "请输入有效的 QQ 号和密码。")
+            credentials = {"account": qq_id(account), "password": password}
         with self.lock, self.store.lock:
             self._editable()
             self.cancelled.clear()
             self.preview = None
             self.directory = None
             self.value = {"state": "connecting", "message": "正在连接 QQ 登录服务……", "accounts": []}
-            self.thread = Thread(target=self._run, args=(operation,), daemon=True)
+            self.thread = Thread(target=self._run, args=(operation,), kwargs={"credentials": credentials}, daemon=True)
             self.thread.start()
         return {"started": True}
 
@@ -108,7 +113,7 @@ class DesktopQQ:
             self.value.update(state="targets_saved", message="回复会话已保存。尚未启动 QQ 运行。")
             return self.status()
 
-    def _run(self, operation, options=None, revision=None):
+    def _run(self, operation, options=None, revision=None, credentials=None):
         worker = None
         try:
             worker = (self.target_factory(targets.native_parameters(options)) if options is not None
@@ -140,18 +145,28 @@ class DesktopQQ:
             worker.open()
             if self.cancelled.is_set():
                 return
-            if operation == "login":
-                worker.request("login_qr")
+            if operation in {"login", "password"}:
+                if operation == "password":
+                    try:
+                        worker.request("login_password", **credentials)
+                    finally:
+                        credentials.clear()
+                else:
+                    worker.request("login_qr")
                 while not self.cancelled.is_set():
                     result = worker.request("login_status")
                     state = result["status"]
                     if state == "authenticated":
                         break
-                    if state in {"failed", "expired", "cancelled"}:
-                        self._set(state=state, message="二维码已失效，请重新点击扫码登录。", accounts=[])
+                    if state in {"failed", "expired", "cancelled", "verification_required"}:
+                        message = ("QQ 要求额外的图形或手机设备验证，请切换扫码登录完成验证。" if state == "verification_required"
+                                   else "密码登录未完成，请核对账号密码或切换扫码。" if operation == "password"
+                                   else "二维码已失效，请重新点击扫码登录。")
+                        self._set(state=state, message=message, accounts=[])
                         return
                     self._set(state=state, message="请用手机 QQ 扫码并确认登录。" if state == "qr_ready"
-                              else "正在获取二维码……", accounts=[], **({"png_base64": result["png_base64"]}
+                                else "正在验证账号密码……" if operation == "password"
+                                else "正在获取二维码……", accounts=[], **({"png_base64": result["png_base64"]}
                               if state == "qr_ready" else {}))
                     self.cancelled.wait(.3)
             if self.cancelled.is_set():
@@ -176,6 +191,8 @@ class DesktopQQ:
                     else "QQ 会话核验未完成，请核对号码、账号与网络后重试。" if operation == "targets"
                     else "QQ 登录操作未完成，请检查网络后重试。"))
         finally:
+            if credentials is not None:
+                credentials.clear()
             try:
                 if worker is not None:
                     worker.close()

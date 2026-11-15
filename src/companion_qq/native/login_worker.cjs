@@ -20,6 +20,13 @@ async function dispatch(request) {
     else if (command === 'login_status') result = session.state.status();
     else if (command === 'login_accounts') result = await session.accounts();
     else if (command === 'login_qr') result = session.state.request();
+    else if (command === 'login_password') {
+      try {
+        void session.state.password(args?.account, args?.password).catch(() => session.state.fail());
+        result = session.state.status();
+      }
+      finally {if (args) args.password = ''; }
+    }
     else if (command === 'close') {
       session.close(); reply(id, {ok: true, result: {closed: true}}); setImmediate(() => process.exit(0)); return;
     } else throw Error('qq_login_state');

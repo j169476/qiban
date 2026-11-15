@@ -23,6 +23,22 @@ function page(){
 const idle={state:'idle',busy:false,accounts:[],selected:null,revision:0};
 const qr={...idle,state:'qr_ready',busy:true,png_base64:'synthetic',message:'请扫码'};
 
+test('password mode submits explicitly and clears the field, switching and locking also clear it',async()=>{
+ const p=page();p.update(true);await p.reply(p.requests[0],idle);
+ p.node('qq-login-method').value='password';p.node('qq-login-method').onchange();
+ assert.equal(p.node('qq-password-fields').hidden,false);
+ p.node('qq-login-account').value='10001';p.node('qq-login-password').value='synthetic-password';
+ const action=p.node('qq-login').onclick(),request=p.requests.at(-1);
+ assert.equal(request.operation,'qq.password');assert.equal(request.arguments.account,'10001');
+ assert.equal(request.arguments.password,'synthetic-password');assert.equal(p.node('qq-login-password').value,'');
+ await p.reply(request,{started:true});await p.reply(p.requests.at(-1),{...idle,busy:true,state:'password_pending'});await action;
+ assert.equal(request.arguments.password,'');assert.equal(p.node('qq-login-method').disabled,true);
+ p.update(false);assert.equal(p.node('qq-login-password').value,'');
+ p.update(true);await p.reply(p.requests.at(-1),idle);
+ p.node('qq-login-password').value='another-password';p.node('qq-login-method').value='qr';p.node('qq-login-method').onchange();
+ assert.equal(p.node('qq-login-password').value,'');assert.equal(p.node('qq-password-fields').hidden,true);
+});
+
 test('opening only checks status; lock clears QR and discards late responses',async()=>{
  const p=page();p.update(true);assert.equal(p.requests[0].operation,'qq.status');
  await p.reply(p.requests[0],qr);assert.equal(p.node('qq-qr').src,'data:image/png;base64,synthetic');

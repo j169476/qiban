@@ -6,18 +6,11 @@ import re
 import struct
 from pathlib import Path
 
-CORE_SIZE = 201552944
-CORE_SHA256 = "10f8e995453e2da46d4f2b5080cd6da1f13cc5147746adc119ceae38cb039de5"
-CORE_TIMESTAMP, CORE_IMAGE_SIZE = 0x6AB0A378, 0xC0AE000
-PROFILES = (
-    {"version": "4.1.15.13", "size": CORE_SIZE, "sha256": CORE_SHA256,
-     "timestamp": CORE_TIMESTAMP, "image_size": CORE_IMAGE_SIZE,
-     "account_rvas": (0xB912690, 0x8D804E8, 0x469A0, 0x8DFE2F8, 0x36F930)},
-    {"version": "4.1.15.56", "size": 204305968,
-     "sha256": "e0428a7b691853de496532523c2c09aa095f90941c37c9f4cfb3f137f3c66556",
-     "timestamp": 0x6AD083C8, "image_size": 0xC34F000,
-     "account_rvas": (0xBB92FA0, 0x8F514E8, 0x469A0, 0x8FD1468, 0x3855C0)},
-)
+from .versions import PROFILES
+
+CORE_SIZE = PROFILES[0]["size"]
+CORE_SHA256 = PROFILES[0]["sha256"]
+CORE_TIMESTAMP, CORE_IMAGE_SIZE = PROFILES[0]["timestamp"], PROFILES[0]["image_size"]
 EXPORTS = {"XlnOpen", "XlnBindTarget", "XlnPrepare", "XlnCommit", "XlnCancel", "XlnStatus", "XlnClose"}
 HERE = Path(__file__).resolve().parent
 
@@ -91,5 +84,5 @@ def pe_exports(data):
 
 
 def build_signature():
-    files = ["bridge.cpp", "helper_abi.inc", "core_version.h", "session.inc", "protocol.py"]
+    files = ["bridge.cpp", "helper_abi.inc", "core_version.h", "session.inc", "protocol.py", "versions.py", "versions.json"]
     return {name: hashlib.sha256((HERE / name).read_bytes()).hexdigest() for name in files}

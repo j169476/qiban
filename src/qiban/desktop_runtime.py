@@ -470,9 +470,11 @@ class DesktopRuntime:
         self.tasks.block()
         if self.scheduler is not None:
             self.scheduler.stop_requested.set()
-        self.manual.stop('application_exit')
         for core in self.cores.values():
             core.interrupt_transports()
+        # A native submit can hold the ledger lock. Interrupt it before manual
+        # queue cleanup acquires that lock, just as explicit stop/cutover do.
+        self.manual.stop('application_exit')
         try:
             self.tasks.close()
         finally:

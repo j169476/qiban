@@ -339,7 +339,7 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
                                        deadline=deadline, max_bytes=32_000_000 if native == "image" else 8_000_000)
         cleanup.push_async_callback(asyncio.to_thread, client.close)
         initialized = await client.call("initialize", {
-            "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.4"} if plan_access_token is not None
+            "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.5"} if plan_access_token is not None
                            else {"name": "companion_isolated", "version": "0.6.0"}),
             "capabilities": {"experimentalApi": True},
         })

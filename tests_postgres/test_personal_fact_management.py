@@ -167,8 +167,8 @@ def test_fact_timeline_web_entry_is_admin_only_and_requires_csrf(pg_store):
     assert admin.post("/operate", json=body, headers={"origin": headers["origin"]}).status_code == 403
     assert admin.post("/operate", json=body, headers=headers).json()["total"] == 1
     assert role.post("/operate", json=body, headers=role_headers).status_code in {403, 404}
-    assert 'id="fact-timeline"' in admin.get("/").text
-    assert 'id="fact-timeline"' not in role.get("/").text
+    # Browser pages were retired; the authenticated API remains available.
+    assert admin.get("/").status_code == role.get("/").status_code == 410
     assert service.status()["status"] == "paused"
 
 

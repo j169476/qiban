@@ -186,6 +186,10 @@
 <section class="card" id="qq-panel" hidden data-nav-page="platforms" data-platform-pane="qq"><h2>QQ 账号</h2>
 <p id="qq-status" role="status">尚未检查 QQ 登录状态。</p><p id="qq-current"></p>
 <p>在栖伴中扫码登录，无需打开电脑版 QQ 或其他桥接软件。这里只管理账号；保存账号不会启动角色或发送消息。</p>
+<label for="qq-login-method">登录方式</label><select id="qq-login-method"><option value="qr">手机扫码</option><option value="password">QQ号与密码</option></select>
+<div id="qq-password-fields" hidden><label for="qq-login-account">QQ号</label><input id="qq-login-account" inputmode="numeric" autocomplete="username" maxlength="20">
+<label for="qq-login-password">密码</label><input id="qq-login-password" type="password" autocomplete="off" maxlength="128"></div>
+<p class="note">当前 QQ 接入不提供独立短信登录；密码登录若要求额外验证，可切换扫码完成。</p>
 <div class="actions"><button id="qq-login">扫码登录 QQ</button><button id="qq-refresh" class="secondary">检查已登录账号</button><button id="qq-cancel" class="secondary" disabled>取消登录</button></div>
 <div id="qq-qr-area" hidden><p>请用手机 QQ 扫码，并确认登录。</p><img id="qq-qr" alt="QQ 登录二维码"></div>
 <div id="qq-selection-area" hidden><label for="qq-selection">选择 QQ 账号</label><select id="qq-selection"></select><button id="qq-select">保存账号选择</button></div>
@@ -205,6 +209,8 @@
 <p class="note">保存会替换当前账号的手动名单。两个列表都留空并保存会清空名单。持续授权在「当前回复范围」单独管理。</p>
 <p id="qq-targets-notice" role="status" aria-live="polite"></p></section>
 <section class="card" id="audience-panel" hidden data-nav-page="platforms" data-platform-pane="wechat"><h2>微信账号与回复名单</h2>
+<p class="note">电脑版微信使用手机确认或扫码登录，当前不提供独立短信或密码登录。完成登录后，再检测并选择账号。</p>
+<button id="audience-client-login" class="secondary">打开微信登录（手机确认 / 扫码）</button>
 <select id="audience-platform" hidden aria-label="回复范围平台"><option value="qq">QQ</option><option value="wechat">微信</option></select>
 <button id="audience-detect" class="secondary" hidden>检测已登录的微信账号</button>
 <p id="audience-accounts" role="status" hidden></p>
@@ -229,7 +235,7 @@
 <section class="card" id="bili-panel" hidden data-nav-page="platforms" data-platform-pane="bilibili"><h2>B 站账号</h2>
 <p id="bili-current"></p><p id="bili-candidate" hidden></p>
 <p id="bili-status" role="status"></p><img id="bili-qr" width="220" height="220" alt="用哔哩哔哩手机应用扫描登录" hidden>
-<div class="actions"><button id="bili-login">扫码登录</button><button id="bili-confirm" hidden>切换到此账号</button>
+<div class="actions"><button id="bili-login">扫码登录</button><button id="bili-browser" class="secondary">手机验证码 / 账号密码</button><button id="bili-confirm" hidden>切换到此账号</button>
 <button id="bili-cancel" class="secondary" hidden>取消</button><button id="bili-check" class="secondary" disabled>核验登录</button><button id="bili-refresh" class="secondary">查看绑定状态</button></div>
 <details id="bili-policy" hidden><summary>互动权限与每日额度</summary>
 <p id="bili-policy-day"></p><p>保存后立即生效，保留今天已用的额度。投币按枚数计算。新建收藏夹、移动视频与新增收藏分别计额；批量移动按视频个数计算。</p>

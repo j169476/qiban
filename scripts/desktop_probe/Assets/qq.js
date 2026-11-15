@@ -23,6 +23,10 @@
  }
  function render(){
   const busy=submitting||!!state?.busy,accounts=allowed?(state?.accounts||[]):[];
+  const passwordMode=el('qq-login-method').value==='password';
+  el('qq-password-fields').hidden=!passwordMode;
+  el('qq-login').textContent=passwordMode?'密码登录 QQ':'扫码登录 QQ';
+  for(const id of ['qq-login-method','qq-login-account','qq-login-password'])el(id).disabled=!allowed||busy;
   el('qq-status').textContent=!allowed?'解锁本机管理后可查看 QQ 账号。':state?.message||'尚未检查 QQ 登录状态。';
   el('qq-current').textContent=allowed&&state?.selected?`已保存：${state.selected.label}（${state.selected.uin}）`:'';
   const next=JSON.stringify(accounts);
@@ -98,7 +102,11 @@
     operation==='targets.verify'?{...editedTargets(),expected:state.revision}:
     operation==='targets.save'?{token:state.preview.token,expected:state.revision}:
     operation==='directory'?{expected:state.revision}:{};
-   await call(operation,args);
+   if(operation==='login'&&el('qq-login-method').value==='password'){
+    operation='password';args.account=el('qq-login-account').value.trim();args.password=el('qq-login-password').value;
+    el('qq-login-password').value='';
+   }
+   try{await call(operation,args);}finally{if('password' in args)args.password='';}
    if(!allowed||current!==epoch)return;
    await refresh();
    if(operation==='select')notice.textContent='账号选择已保存。此操作不会启动角色或发送消息。';
@@ -133,10 +141,11 @@
   };
  }
  el('qq-selection').onchange=render;
+ el('qq-login-method').onchange=()=>{el('qq-login-password').value='';render();};
  window.addEventListener('qiban-management-state',({detail})=>{
   const changed=allowed!==(detail.ready&&!detail.locked);allowed=detail.ready&&!detail.locked;
   el('qq-panel').hidden=el('management-panel').hidden;
-  if(!allowed){state=null;epoch++;el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
+  if(!allowed){el('qq-login-password').value='';state=null;epoch++;el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
   render();if(allowed&&changed)void refresh();
  });
  window.chrome.webview.addEventListener('message',({data})=>{

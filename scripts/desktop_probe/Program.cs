@@ -213,6 +213,7 @@ internal sealed class ProbeWindow : Form
     readonly Label shutdownText = new() { Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Microsoft YaHei UI",14) };
     readonly Button forceExit = new() { Dock=DockStyle.Bottom,Height=65,Text="强制退出",Visible=false };
     readonly Label recoveryStatus = new() { Dock=DockStyle.Top,Height=65,Visible=false,TextAlign=ContentAlignment.MiddleLeft };
+    readonly RecoveryNotice recoveryNotice = new();
     bool journalStarted;
     Process? backend => component.Process;
     bool exiting, shutdownComplete, checking, loaded;
@@ -247,7 +248,16 @@ internal sealed class ProbeWindow : Form
         {
             Log("component_state", new { id=component.Id, state=component.State, detail=component.Detail, members=component.Snapshot });
             PublishService();
-            if(journalStarted && component.State=="failed") journal.Abnormal();
+            if(journalStarted && component.State=="failed")
+            {
+                journal.Abnormal();
+                if(journal.NeedsRecovery)
+                {
+                    recoveryNotice.Failed();
+                    recoveryStatus.Text="后台检查未通过，请查看诊断；现有资料已保留。";
+                    recoveryStatus.Visible=true;
+                }
+            }
         };
         Text = "栖伴 Qiban";
         if(Program.UninstallPrepare)
@@ -281,7 +291,12 @@ internal sealed class ProbeWindow : Form
             { e.Cancel = true; Hide(); Log("hidden_to_tray"); tray.ShowBalloonTip(2000, "栖伴仍在托盘", "双击托盘图标即可重新打开；退出请使用托盘菜单。", ToolTipIcon.Info); }
             else if (!shutdownComplete) { e.Cancel = true; Exit(); }
         };
-        poll.Tick += async (_, _) => await CheckService();
+        poll.Tick += async (_, _) =>
+        {
+            await CheckService();
+            if(recoveryNotice.ShouldDismiss(clock.ElapsedMilliseconds, component.State=="ready"))
+                recoveryStatus.Visible=false;
+        };
         Shown += async (_, _) => await Initialize();
     }
     void Log(string name, object? detail = null)
@@ -298,6 +313,7 @@ internal sealed class ProbeWindow : Form
             journal.Begin();journalStarted=true;
             if(journal.NeedsRecovery)
             {
+                recoveryNotice.Checking();
                 recoveryStatus.Text="上次未正常退出，正在检查数据库恢复、资料密钥和关键资料……";
                 recoveryStatus.Visible=true;recoveryStatus.BringToFront();
                 Log("recovery_check_started");
@@ -422,6 +438,8 @@ internal sealed class ProbeWindow : Form
                 case "portable-preserved-preview": await PortablePreservedPreview(message.RootElement); break;
                 case "portable-restore": await PortableSwitch(message.RootElement); break;
                 case "portable-cancel": await PortableCancel(message.RootElement); break;
+                case "wechat-client-login": await OpenWechatLogin(); break;
+                case "bili-browser-login": await LoginBiliBrowser(message.RootElement); break;
                 case "management":
                     if(!Program.ManagedInstall || component.State!="ready" || backend is null)
                     {Post(new{type="management",request_id=message.RootElement.GetProperty("request_id").GetString(),response=new{ok=false,error="management_unavailable",message="后台尚未就绪"}});break;}
@@ -490,6 +508,81 @@ internal sealed class ProbeWindow : Form
         { Log("invalid_message_rejected"); }
         catch(Exception error) when(error is IOException or OperationCanceledException)
         {Log("management_connection_failed",new{type=error.GetType().Name});Post(new{type="management_error",message="管理连接暂时不可用，请重试。"});}
+    }
+    async Task OpenWechatLogin()
+    {
+        await control.WaitAsync(lifetime.Token);
+        try
+        {
+            if(exiting || !Program.ManagedInstall || backend is null || component.State!="ready")throw new IOException("wechat_login_unavailable");
+            var status=await RecordCall(backend,Guid.NewGuid().ToString("N"),"wechat.profiles",new{});
+            if(!status.GetProperty("ok").GetBoolean())
+            {Post(new{type="wechat-login",message="请先解锁本机管理，再打开微信登录。"});return;}
+            var candidates=new List<string>();
+            foreach(var name in new[]{"Weixin","WeChat"})
+                foreach(var process in Process.GetProcessesByName(name))
+                    using(process)
+                    {
+                        try{if(process.MainModule?.FileName is string path)candidates.Add(path);}
+                        catch(Exception error) when(error is System.ComponentModel.Win32Exception or InvalidOperationException){}
+                    }
+            foreach(var name in new[]{@"Software\Tencent\Weixin",@"Software\Tencent\WeChat"})
+            {
+                using var key=Microsoft.Win32.Registry.CurrentUser.OpenSubKey(name);
+                if(key?.GetValue("InstallPath") is string folder)
+                    foreach(var file in new[]{"Weixin.exe","WeChat.exe"})candidates.Add(Path.Combine(folder,file));
+            }
+            var executable=candidates.Distinct(StringComparer.OrdinalIgnoreCase).FirstOrDefault(path=>
+                File.Exists(path) && (FileVersionInfo.GetVersionInfo(path).CompanyName is string company) &&
+                (company.Contains("Tencent",StringComparison.OrdinalIgnoreCase) || company.Contains("腾讯")));
+            if(executable is null)
+            {Post(new{type="wechat-login",message="尚未找到电脑版微信，请先安装并打开微信，再回来检测账号。"});return;}
+            Process.Start(new ProcessStartInfo(executable){UseShellExecute=true});
+            Post(new{type="wechat-login",message="已打开微信，请在微信中完成手机确认或扫码，再点击检测已登录账号。"});
+        }
+        catch(System.ComponentModel.Win32Exception)
+        {Post(new{type="wechat-login",message="微信未能打开，请手动打开微信并登录后重新检测。"});}
+        finally{control.Release();}
+    }
+    bool biliBrowserBusy;
+    async Task LoginBiliBrowser(JsonElement message)
+    {
+        if(message.EnumerateObject().Count()!=4 || message.GetProperty("operation").GetString()!="bili.browser")return;
+        var id=message.GetProperty("request_id").GetString();
+        var args=message.GetProperty("arguments");
+        if(id is null || !System.Text.RegularExpressions.Regex.IsMatch(id,"\\A[a-f0-9]{32}\\z") ||
+            args.EnumerateObject().Count()!=1 || args.GetProperty("session").ValueKind!=JsonValueKind.String)return;
+        var session=args.GetProperty("session").GetString();
+        void Reply(JsonElement response)=>Post(new{type="management",request_id=id,response});
+        if(biliBrowserBusy){Reply(NativeError("bili_login_busy","请先完成或关闭当前登录窗口。"));return;}
+        var expected=backend;var epoch=controlEpoch;
+        async Task<JsonElement> Exchange(string operation,object arguments)
+        {
+            await control.WaitAsync(lifetime.Token);
+            try
+            {
+                if(exiting || !Program.ManagedInstall || expected is null || !ReferenceEquals(expected,backend) ||
+                    epoch!=controlEpoch || component.State!="ready")throw new IOException("bili_login_instance_changed");
+                return await RecordCall(expected,id!,operation,arguments);
+            }
+            finally{control.Release();}
+        }
+        biliBrowserBusy=true;
+        string? ticket=null;
+        try
+        {
+            var start=await Exchange("bili.browser",new{session});
+            if(!start.GetProperty("ok").GetBoolean()){Reply(start);return;}
+            ticket=start.GetProperty("result").GetProperty("ticket").GetString();
+            using var login=new BiliLoginWindow();
+            var cookies=await login.Login(this);
+            var response=cookies is null ? await Exchange("bili.cancel",new{session,ticket}) :
+                await Exchange("bili.browser_complete",new{session,ticket,cookies});
+            Reply(response);
+        }
+        catch(Exception error) when(error is IOException or OperationCanceledException)
+        {Reply(NativeError("bili_login_unavailable","登录连接已结束，请重新打开登录窗口。"));}
+        finally{biliBrowserBusy=false;}
     }
     async Task ImportFile(JsonElement message)
     {
@@ -982,11 +1075,13 @@ internal sealed class ProbeWindow : Form
                 if(journal.NeedsRecovery)
                 {
                     recoveryStatus.Text="上次未正常退出；数据库恢复、资料解密与关键资料检查已通过。未确认发送不会自动补发。";
+                    recoveryNotice.Succeeded(clock.ElapsedMilliseconds);
                     Log("recovery_check_completed",new{scope="database_start_and_critical_records"});
                 }
             }
             else if(journal.NeedsRecovery)
             {
+                recoveryNotice.Failed();
                 recoveryStatus.Text="恢复检查未通过，后台未启动。请查看诊断；现有资料已保留。";
                 Log("recovery_check_failed");
             }

@@ -20,6 +20,11 @@ test('different UID shows both names, sends only on explicit confirmation, and l
  await reply({state:'checking',current,ticket});assert.equal(el('check').disabled,true);poll();
  await reply({state:'checked',current,message:'已向 B 站核验，当前绑定账号登录有效。'});
  assert.match(el('status').textContent,/登录有效/);assert.equal(el('check').disabled,false);
+ el('browser').onclick();assert.equal(requests.at(-1).action,'bili-browser-login');
+ assert.equal(requests.at(-1).operation,'bili.browser');
+ assert.equal(el('browser').disabled,true);
+ await reply({state:'cancelled',current,message:'登录已取消。'});
+ assert.equal(el('browser').disabled,false);
  el('login').onclick();await reply({state:'waiting',current,ticket,qr:'png'});
  assert.equal(el('qr').hidden,false);poll();await reply({state:'confirm',current,candidate,ticket});
  assert.equal(el('qr').hidden,true);assert.equal(el('confirm').hidden,false);

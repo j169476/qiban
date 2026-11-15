@@ -11,6 +11,15 @@ internal static class ShutdownTests
         ShutdownJournal Open(string name)=>new(Path.Combine(directory,name));
         try
         {
+            var banner=new RecoveryNotice();banner.Checking();
+            Require(!banner.ShouldDismiss(90000,true));
+            banner.Succeeded(100);Require(!banner.ShouldDismiss(8099,true));
+            Require(!banner.ShouldDismiss(8100,false));Require(banner.ShouldDismiss(8100,true));
+            Require(!banner.ShouldDismiss(9000,true));
+            banner.Succeeded(10000);banner.Failed();Require(!banner.ShouldDismiss(20000,true));
+            banner.Succeeded(30000);banner.Checking();Require(!banner.ShouldDismiss(40000,true));
+            banner.Succeeded(50000);Require(banner.ShouldDismiss(58000,true));
+            cases.Add("recovery_success_dismisses_after_eight_seconds_but_pending_and_failure_remain");
             var first=Open("clean");first.Begin();Require(!first.NeedsRecovery);first.Verified();first.Closing();first.Complete(true);
             var clean=Open("clean");clean.Begin();Require(!clean.NeedsRecovery);clean.Complete(true);
             cases.Add("clean_shutdown_does_not_claim_abnormal_exit");

@@ -23,7 +23,7 @@
   el('load').disabled=!allowed||busy;
   el('platform').disabled=busy;
   el('detect').hidden=el('platform').value!=='wechat';
-  el('detect').disabled=!allowed||busy;
+  el('detect').disabled=el('client-login').disabled=!allowed||busy;
   el('wechat-picker').hidden=!profiles;
   el('login').disabled=!allowed||busy;
   el('select').disabled=!allowed||busy||!el('login').value||el('login').value===profiles?.selected;
@@ -73,6 +73,10 @@
   finally{if(epoch===current){busy=false;render();}}
  }
  el('platform').onchange=reset;
+ el('client-login').onclick=()=>{if(allowed&&!busy)window.chrome.webview.postMessage({action:'wechat-client-login'});};
+ window.chrome.webview.addEventListener('message',({data})=>{
+  if(data.type==='wechat-login')el('notice').textContent=data.message;
+ });
  el('detect').onclick=()=>work(async live=>{
   if(el('platform').value!=='wechat')return;
   const status=el('accounts');

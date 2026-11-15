@@ -22,12 +22,16 @@ from qiban.desktop_management import LOCK, OWNER, DesktopManagement, provision_o
 
 @pytest.fixture
 def desktop_store(tmp_path, pg_profile):
-    if not os.environ.get('QIBAN_DESKTOP_TEST_ROOT'):
-        pytest.skip('Requires a disposable running desktop test installation')
-    root=Path(os.environ['QIBAN_DESKTOP_TEST_ROOT'])
-    state=json.loads((root/'installation.json').read_text(encoding='utf8'))
-    credential=json.loads(WinVaultKeyring().get_password('qiban-desktop-probe-storage',state['installation']))
-    options={'host':'127.0.0.1','port':state['port'],'user':'qiban_setup','password':credential['bootstrap_password'],'dbname':'qiban'}
+    if os.environ.get('QIBAN_DESKTOP_TEST_ROOT'):
+        root=Path(os.environ['QIBAN_DESKTOP_TEST_ROOT'])
+        state=json.loads((root/'installation.json').read_text(encoding='utf8'))
+        credential=json.loads(WinVaultKeyring().get_password('qiban-desktop-probe-storage',state['installation']))
+        options={'host':'127.0.0.1','port':state['port'],'user':'qiban_setup','password':credential['bootstrap_password'],'dbname':'qiban'}
+    elif os.environ.get('COMPANION_TEST_DATABASE'):
+        options=json.loads(Path(os.environ['COMPANION_TEST_DATABASE']).read_text(encoding='utf8'))
+        assert options.get('host') == '127.0.0.1' and options.get('dbname') == 'companion_test'
+    else:
+        pytest.skip('Requires an explicit disposable desktop or CI database')
     schema='desktop_test_'+uuid.uuid4().hex
     with psycopg.connect(**options,autocommit=True) as db:
         db.execute('CREATE SCHEMA '+schema)

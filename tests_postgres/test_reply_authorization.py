@@ -173,7 +173,7 @@ async def test_web_and_trusted_chat_share_authorization_and_pause_only_wechat(se
         role = client(service, "role")
         role_headers = login(role, service, "role")
         assert role.post("/operate", json={"operation": "reply_authorization_list"}, headers=role_headers).status_code == 404
-        assert "会话回复授权" in admin.get("/").text
+        assert admin.get("/").status_code == 410
         listing = operation("reply_authorization_list").json()
         assert len(listing["items"]) == 2 and listing["default_allow"] is False
         assert listing["platforms"] == {"qq": {"available": False}, "wechat": {"available": True}}

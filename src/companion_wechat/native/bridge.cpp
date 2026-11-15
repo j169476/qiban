@@ -43,11 +43,11 @@ static bool account_matches(const char* expected) {
     __try {
         auto app = *reinterpret_cast<uintptr_t*>(core_address(core_base, 0xB912690));
         if (!app || *reinterpret_cast<uintptr_t*>(app) != core_address(core_base, 0x8D804E8) ||
-            *reinterpret_cast<uintptr_t*>(core_address(core_base, 0x8D804E8) + 0x60) != core_base + 0x469A0) return false;
+            *reinterpret_cast<uintptr_t*>(core_address(core_base, 0x8D804E8) + 0x60) != core_address(core_base, 0x469A0)) return false;
         auto context = *reinterpret_cast<uintptr_t*>(app + 0x68);
         if (!context || *reinterpret_cast<uintptr_t*>(context) != core_address(core_base, 0x8DFE2F8) ||
-            *reinterpret_cast<uintptr_t*>(core_address(core_base, 0x8DFE2F8) + 0x18) != core_base + (core_profile_id == 1 ? 0x36F930 : 0x3855C0) ||
-            memcmp(reinterpret_cast<void*>(core_base + (core_profile_id == 1 ? 0x36F930 : 0x3855C0)), "\x48\x8d\x41\x48\xc3", 5)) return false;
+            *reinterpret_cast<uintptr_t*>(core_address(core_base, 0x8DFE2F8) + 0x18) != core_address(core_base, 0x36F930) ||
+            memcmp(reinterpret_cast<void*>(core_address(core_base, 0x36F930)), "\x48\x8d\x41\x48\xc3", 5)) return false;
         auto ptr = reinterpret_cast<SmallString*>(context + 0x48);
         SmallString before = *ptr;
         if (!before.length || before.length > 127 || before.capacity < before.length ||

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qiban"
-version = "0.9.4"
+version = "0.9.5"
 description = "A local companion with shared memory and independent Bilibili, WeChat and QQ connectors."
 requires-python = ">=3.11"
 license = {text = "MIT for project-owned code; third-party components retain their original licenses (see THIRD_PARTY_NOTICES.md)"}
@@ -48,7 +48,7 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 bili_assistant = ["defaults/*.yaml", "schemas/*.json"]
 companion_core = ["*.json", "sql/*.sql"]
 companion_qq = ["native/*.cjs", "native/*.c", "native/*.def", "native/*.json", "native/LICENSE.*"]
-companion_wechat = ["third_party/*.txt", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
+companion_wechat = ["third_party/*.txt", "native/*.json", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests_core", "tests_wechat"]

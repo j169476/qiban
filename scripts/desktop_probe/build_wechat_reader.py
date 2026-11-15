@@ -34,6 +34,7 @@ def main():
                "--distpath",str(output),"--workpath",str(work/"build"),"--specpath",str(work),
                "--paths",str(ROOT/"src"),"--copy-metadata","sqlcipher3","--copy-metadata","zstandard",
                "--add-data",str(ROOT/"src/companion_core/assessment_schemas.json")+";companion_core",
+               "--add-data",str(ROOT/"src/companion_wechat/native")+";companion_wechat/native",
                str(Path(__file__).with_name("wechat_reader_worker.py"))]
     with (work/"build.log").open("w",encoding="utf8") as log:
         subprocess.run(command,cwd=work,stdout=log,stderr=log,check=True)

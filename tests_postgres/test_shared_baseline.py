@@ -284,8 +284,7 @@ def test_authenticated_web_can_edit_baseline_but_role_cannot_manage_it(pg_store)
     admin, role = client(service, "admin"), client(service, "role")
     headers, role_headers = login(admin, service, "admin"), login(role, service, "role")
     page = admin.get("/")
-    assert 'id="baseline-load"' in page.text and 'id="foundation-add"' in page.text
-    assert 'id="foundation-add"' not in role.get("/").text
+    assert page.status_code == role.get("/").status_code == 410
     body = {"operation": "baseline_preview", "arguments": {}}
     assert admin.post("/operate", json=body).status_code == 403
     assert role.post("/operate", json=body, headers=role_headers).status_code == 404

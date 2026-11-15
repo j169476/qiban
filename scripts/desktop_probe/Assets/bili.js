@@ -5,21 +5,21 @@
  let policyUid=null,policySeq=0,policy=null,edits=[],policyDirty=false,policyBusy=false;
  const labelsByAction={comment:'发表评论',reply:'回复评论',dm_reply:'回复私信',dynamic:'发布动态',like:'视频点赞',
   comment_like:'评论点赞',favorite:'新增收藏',follow:'关注',coin:'投币',favorite_create:'新建收藏夹（个）',favorite_move:'移动收藏视频（个）'};
- const active=()=>['starting','waiting','scanned','verified','confirm','checking'].includes(state?.state);
+ const active=()=>['starting','waiting','scanned','verified','confirm','checking','browser'].includes(state?.state);
  const labels={idle:'尚未登录。',starting:'正在请求二维码…',waiting:'请用哔哩哔哩手机应用扫码。',
   scanned:'已扫码，请在手机上确认。',verified:'正在核对绑定账号。',checking:'正在向 B 站核验登录…'};
  function render(){
   el('panel').hidden=!session;
   const account=(prefix,value)=>value?prefix+value.name+'（UID '+value.uid+'）':'';
   el('current').textContent=account('当前绑定：',state?.current);
-  el('candidate').textContent=account('本次扫码：',state?.candidate);
+  el('candidate').textContent=account('本次登录：',state?.candidate);
   el('candidate').hidden=!state?.candidate;
   el('status').textContent=state?.message||labels[state?.state]||(state?.current?'已绑定。':'');
   if(state?.state==='idle'&&state.current)el('status').textContent='已绑定。';
   el('qr').hidden=!state?.qr;
   if(state?.qr)el('qr').src='data:image/png;base64,'+state.qr;else el('qr').removeAttribute('src');
   el('login').textContent=state?.current?'重新登录':'扫码登录';
-  el('login').disabled=!session||busy||active();
+  el('login').disabled=el('browser').disabled=!session||busy||active();
   el('confirm').hidden=state?.state!=='confirm';el('confirm').disabled=busy;
   el('cancel').hidden=!active();el('cancel').disabled=busy;
   el('refresh').disabled=!session||busy;
@@ -35,9 +35,9 @@
  function request(op,args){
   const id=crypto.randomUUID().replaceAll('-','');
   return new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>{requests.delete(id);reject(Error('连接超时，请重新读取。'));},12000);
+   const timer=setTimeout(()=>{requests.delete(id);reject(Error('连接超时，请重新读取。'));},op==='browser'?320000:12000);
    requests.set(id,{resolve,reject,timer});
-   window.chrome.webview.postMessage({action:'management',operation:'bili.'+op,arguments:{session,...args},request_id:id});
+   window.chrome.webview.postMessage({action:op==='browser'?'bili-browser-login':'management',operation:'bili.'+op,arguments:{session,...args},request_id:id});
   });
  }
  function showPolicy(value){
@@ -100,7 +100,7 @@
   }catch(error){if(view===epoch){el('status').textContent=error.message;state={...state,message:error.message};}}
   finally{if(view===epoch){busy=false;render();}}
  }
- for(const [id,op] of [['login','login'],['cancel','cancel'],['confirm','confirm'],['check','check'],['refresh','status']]){
+ for(const [id,op] of [['login','login'],['browser','browser'],['cancel','cancel'],['confirm','confirm'],['check','check'],['refresh','status']]){
   el(id).onclick=()=>void run(op);
  }
  window.addEventListener('qiban-management-state',({detail})=>{

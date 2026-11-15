@@ -86,6 +86,43 @@ def test_lock_blocks_qq_management_and_caller_cannot_supply_identity(service, ma
         assert call(service, op)["error"] == "desktop_locked"
 
 
+def test_password_login_requires_explicit_selection_and_never_exposes_password(service, manager):
+    qq, workers = manager
+    received = []
+
+    class PasswordWorker(Worker):
+        def request(self, command, **args):
+            if command == "login_password":
+                received.append((command, dict(args)))
+                return {"status": "password_pending"}
+            if command == "login_status":
+                return {"status": "authenticated", "uin": ACCOUNT["uin"]}
+            return super().request(command)
+
+    def factory(config):
+        worker = PasswordWorker(config)
+        workers.append(worker)
+        return worker
+
+    qq.worker_factory = factory
+    password = "synthetic-qq-password"
+    assert call(service, "qq.password", {"account": "10001", "password": password})["ok"]
+    qq.thread.join(5)
+    assert received == [("login_password", {"account": "10001", "password": password})]
+    status = call(service, "qq.status")["result"]
+    assert status["state"] == "available" and status["selected"] is None
+    assert password not in str(status) and password not in str(service.store.state(KEY))
+    assert "login_qr" not in workers[0].calls
+    assert service.store.state("core-run:qq") is None
+
+
+@pytest.mark.parametrize("account,password", [("123", "pw"), ("10001", ""), ("10001", "a"*129), ("10001", "a\0b")])
+def test_password_login_rejects_invalid_input_before_worker(service, manager, account, password):
+    _, workers = manager
+    assert not call(service, "qq.password", {"account": account, "password": password})["ok"]
+    assert not workers
+
+
 def test_selection_is_local_encrypted_state_and_not_restored_from_role_backup(service, manager):
     import secrets
 
