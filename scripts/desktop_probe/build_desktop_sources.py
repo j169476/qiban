@@ -15,9 +15,7 @@ again afterwards and fails the build when any input changed while publishing. Th
 therefore always belongs to the shell recorded next to it: it is never assembled later from an
 arbitrary source directory. Only the whitelist is read — top-level ``*.cs``, ``*.csproj``,
 ``packages.lock.json``, ``build.ps1`` and this recorder itself in the probe directory, its
-``Assets`` and ``licenses`` trees, the repository ``LICENSE``, and the three backend assets the
-project embeds as ``EmbeddedResource`` (``src/companion_service/static`` ``app.css``, ``qiban.css``,
-``white-dragon-tea.png``). Nothing under ``.dev``, no installation configuration,
+``Assets`` and ``licenses`` trees and the repository ``LICENSE``. Nothing under ``.dev``, no installation configuration,
 ``runtime.json``, log, account, cache or test data is opened, and refused paths fail the build.
 
 Nothing here signs the executable, adds an update source or claims that installation, upgrade or a
@@ -49,9 +47,7 @@ TOP_NAMES = frozenset({'build.ps1', 'build_desktop_sources.py', 'packages.lock.j
 TOP_SUFFIXES = frozenset({'.cs', '.csproj'})
 TREES = ('Assets', 'licenses')
 PROJECT_FILE = 'LICENSE'
-EMBEDDED = ('src/companion_service/static/app.css',
-            'src/companion_service/static/qiban.css',
-            'src/companion_service/static/white-dragon-tea.png')
+EMBEDDED = ()
 FORBIDDEN_PARTS = frozenset({
     '.dev', 'accounts', 'active-generation.json', 'cache', 'installation-status.json',
     'installation.json', 'logs', 'runtime.json', 'storage-config.json', 'temp', 'test-data'})

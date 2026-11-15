@@ -23,9 +23,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
     <EmbeddedResource Include="Assets/*" LogicalName="%(Filename)%(Extension)" />
-    <EmbeddedResource Include="../../src/companion_service/static/app.css" LogicalName="app.css" />
-    <EmbeddedResource Include="../../src/companion_service/static/qiban.css" LogicalName="qiban.css" />
-    <EmbeddedResource Include="../../src/companion_service/static/white-dragon-tea.png" LogicalName="white-dragon-tea.png" />
   </ItemGroup>
   <Target Name="PinWindowsSdkRuntime" BeforeTargets="ProcessFrameworkReferences">
     <ItemGroup>

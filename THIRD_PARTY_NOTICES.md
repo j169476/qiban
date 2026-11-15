@@ -17,7 +17,7 @@ Python 依赖由安装器从各自发行源安装，不在源码包中捆绑。�
 
 v0.9.3 管理界面使用设备已有的系统字体与浏览器通用无衬线字体，不下载或捆绑字体文件。本轮仅调整字号、字重、颜色及间距，未新增第三方字体或图片素材；系统字体仍适用设备与字体发行方的许可。
 
-`src/companion_service/static/white-dragon-tea.png` 和 `icons.svg` 由本项目按 MIT License 分发，使用、修改及再分发时保留版权和许可声明。该授权不包括用户上传的角色图片、聊天内容或未随仓库分发的参考资料，也不改变第三方素材已有的权利。
+`scripts/desktop_probe/Assets/white-dragon-tea.png` 由本项目按 MIT License 分发，使用、修改及再分发时保留版权和许可声明。该授权不包括用户上传的角色图片、聊天内容或未随仓库分发的参考资料，也不改变第三方素材已有的权利。
 
 ## 设计参考
 
@@ -32,7 +32,7 @@ v0.9.3 管理界面使用设备已有的系统字体与浏览器通用无衬线�
 
 ## R0.5 本地语音实验依赖
 
-`scripts/speech_probe/` 为自有 MIT 验证脚本；权重和第三方运行库仅保存于忽略的本地验证目录，不随源码导出。sherpa-onnx 2.0.1 和 Kokoro v1.1-zh 权重适用 Apache-2.0，faster-whisper／Whisper base 适用其 MIT 许可。模型包含未调用的 espeak 数据，不能将整包统一重新授权。依赖版本、原始来源和正式资源分发前的清单要求见 `scripts/speech_probe/README.md` 与 `docs/QIBAN_R0_SPEECH_PROBE.md`。
+`scripts/speech_probe/` 为自有 MIT 验证脚本；权重和第三方运行库仅保存于忽略的本地验证目录，不随源码导出。sherpa-onnx 2.0.1 和 Kokoro v1.1-zh 权重适用 Apache-2.0，faster-whisper／Whisper base 适用其 MIT 许可。模型包含未调用的 espeak 数据，不能将整包统一重新授权。依赖版本、原始来源和正式资源分发前的清单要求见 `scripts/speech_probe/README.md`。
 
 语音 GPU 实验在忽略目录内复用本机 PyTorch 安装所带的 NVIDIA cuBLAS 12 动态库，保留来源包 LICENSE／NOTICE 和逐文件摘要；这些库不随源码导出，也不由自有 MIT 许可重新授权。正式运行资源包仍须明确 NVIDIA 组件的分发条款和清单。
 

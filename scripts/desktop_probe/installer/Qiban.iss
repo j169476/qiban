@@ -44,7 +44,7 @@
 ;   ExpectedBuildRecordSha256   SHA-256 of that payload's desktop-build.json
 ;   ExpectedPayloadIdentitySha256  SHA-256 of that qiban-payload.json
 ;
-; Inno Setup itself is redistributed under its own license; see docs/QIBAN_R7_INSTALLER.md and
+; Inno Setup itself is redistributed under its own license; see
 ; https://jrsoftware.org/files/is/license.txt
 
 #ifndef PayloadDir

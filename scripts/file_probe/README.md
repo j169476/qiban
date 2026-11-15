@@ -37,4 +37,4 @@ python -m pytest scripts/file_probe/test_reader.py -q
 
 所有文档文字标记为 untrusted_document_data，仅作为数据返回；这个字段不是生产授权边界。跨会话文件访问授权与模型输入治理在后续产品接入阶段单独验证。
 
-完整结果见 ../../docs/QIBAN_R0_FILE_PROBE.md。
+历史验证记录已清理；当前能力以脚本和自动测试为准。

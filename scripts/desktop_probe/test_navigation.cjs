@@ -8,7 +8,7 @@ const html=fs.readFileSync(path.join(assets,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(assets,'probe.css'),'utf8');
 const navigation=fs.readFileSync(path.join(assets,'navigation.js'),'utf8');
 const pages=['home','persona','platforms','model','records','media','settings'];
-// 与 QIBAN_R6_NAVIGATION.md 的分区对照表一致：每个页面元素只归属一个分区。
+// 每个页面元素只归属一个分区。
 const owners={
  'profile-panel':'persona','profile-area':'persona','baseline-panel':'persona','relationship-panel':'persona',
  'memory-panel':'persona','sharing-panel':'persona','relation-claims-panel':'persona',

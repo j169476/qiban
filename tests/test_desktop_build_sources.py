@@ -30,9 +30,9 @@ WHITELIST = (
     'scripts/desktop_probe/Assets/index.html',
     'scripts/desktop_probe/Assets/navigation.js',
     'scripts/desktop_probe/licenses/WebView2-SDK.txt',
-    'src/companion_service/static/app.css',
-    'src/companion_service/static/qiban.css',
-    'src/companion_service/static/white-dragon-tea.png',
+    'scripts/desktop_probe/Assets/app.css',
+    'scripts/desktop_probe/Assets/qiban.css',
+    'scripts/desktop_probe/Assets/white-dragon-tea.png',
 )
 NOT_WHITELISTED = (
     'scripts/desktop_probe/notes.log',

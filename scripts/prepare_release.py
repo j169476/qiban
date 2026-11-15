@@ -22,8 +22,7 @@ REVIEWED_ASSETS = {
     # Upstream source archives, pinned by the same SHA-256 values as build_storage.py.
     "scripts/desktop_probe/upstream/bilibili_api_python-17.4.2.tar.gz": "3ec62eaa45702779957eaf70fba0c5ff7c858054804cb605780f76fee388ebd5",
     "scripts/desktop_probe/upstream/qrcode-terminal-0.8.tar.gz": "1e2b69e662b9346e98dd95983033e9d43cff0643d8afda12605f515428e666c0",
-    "src/companion_service/static/white-dragon-tea.png": "d0a92800b16bcc0d2048c1f9efe54a619270047f3ed91d96fd380da11fc5ca98",
-    "src/companion_service/static/icons.svg": "76a6440f6721b32452f10265d08a0ba6c3113178ec583c0ddfa355793247a20c"
+    "scripts/desktop_probe/Assets/white-dragon-tea.png": "d0a92800b16bcc0d2048c1f9efe54a619270047f3ed91d96fd380da11fc5ca98",
 }
 # Confirmed public text outside EXTENSIONS; each exact path is still text-scanned.
 REVIEWED_TEXT = {
@@ -53,8 +52,8 @@ SKIP_SUFFIXES = {".pyc", ".pyo", ".log", ".db", ".sqlite", ".sqlite3", ".pem", "
 # Explicitly approved public attribution and repository; other identifiers stay blocked.
 PUBLIC_TEXT = ("YiNing和ta的小龙", "https://github.com/j169476/qiban", "github.com/j169476/qiban", "j169476/qiban")
 PUBLIC_TEXT_FILES = {
-    "README.md", "docs/ABOUT.md", "src/companion_service/templates/about.html",
-    "tests/qiban_ui.mjs", "scripts/prepare_release.py", "tests/test_release_snapshot.py",
+    "README.md", "docs/ABOUT.md",
+    "scripts/prepare_release.py", "tests/test_release_snapshot.py",
 }
 
 SECRET_PATTERNS = (

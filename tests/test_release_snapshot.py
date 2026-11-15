@@ -124,12 +124,6 @@ def test_unreviewed_csv_outside_local_acceptance_evidence_is_still_rejected(tmp_
         release.audit(root)
 
 
-def test_browser_license_copies_match_release_originals():
-    for original, public in (("LICENSE", "LICENSE.txt"), ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.txt")):
-        assert (ROOT / original).read_text(encoding="utf-8") == (
-            ROOT / "src/companion_service/static" / public).read_text(encoding="utf-8")
-
-
 def test_public_attribution_does_not_allow_other_private_content(tmp_path):
     root = synthetic_source(tmp_path)
     approved = release.PUBLIC_TEXT[0]

@@ -1,4 +1,5 @@
 """Retirement checks for the old entries: the desktop application owns management now."""
+import importlib
 import re
 import sys
 from pathlib import Path
@@ -9,25 +10,27 @@ LEGACY_ENTRIES = {"bili_assistant.cli", "companion_service.admin", "companion_se
                   "companion_service.service", "companion_service.web"}
 
 
-def test_retired_qiban_command_asks_for_the_desktop_application(monkeypatch, capsys):
-    import qiban.cli
+@pytest.mark.parametrize("entry", ["qiban.cli", "companion_service.__main__"])
+def test_retired_qiban_command_asks_for_the_desktop_application(monkeypatch, capsys, entry):
+    command = importlib.import_module(entry)
 
     before = set(sys.modules)
     monkeypatch.setattr(sys, "argv", ["qiban", "restart", "--project", "unused"])
     with pytest.raises(SystemExit) as exit_value:
-        qiban.cli.main()
+        command.main()
     captured = capsys.readouterr()
     assert exit_value.value.code == 2
     assert "Qiban.exe" in captured.err
     assert not LEGACY_ENTRIES & (set(sys.modules) - before)
 
 
-def test_retired_qiban_command_help_has_no_side_effects(monkeypatch, capsys):
-    import qiban.cli
+@pytest.mark.parametrize("entry", ["qiban.cli", "companion_service.__main__"])
+def test_retired_qiban_command_help_has_no_side_effects(monkeypatch, capsys, entry):
+    command = importlib.import_module(entry)
 
     before = set(sys.modules)
     monkeypatch.setattr(sys, "argv", ["qiban", "--help"])
-    assert qiban.cli.main() == 0
+    assert command.main() == 0
     assert "Qiban.exe" in capsys.readouterr().out
     assert not LEGACY_ENTRIES & (set(sys.modules) - before)
 

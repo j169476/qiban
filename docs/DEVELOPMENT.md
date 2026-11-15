@@ -6,7 +6,7 @@
 
 所有命令从本仓库根目录执行；本仓库自己的 .venv 用于常规开发，.dev 存放已忽略的测试证据和临时资源，dist 存放生成产物。临时借用其他虚拟环境时，必须明确设置本仓库 src 为导入路径并核查实际加载位置，避免误测旧版。
 
-阶段状态见[重构进度](QIBAN_REFACTOR_PROGRESS.md)，范围见[重构路线](QIBAN_STANDALONE_REFACTOR_PLAN.md)，旧能力去向见[迁移清单](QIBAN_V094_MIGRATION_INVENTORY.md)。
+仓库仅保留当前使用、开发和许可说明。阶段交接、重构计划及旧网页文档已清理；历史上已提交的内容可通过 Git 历史查看。
 
 常规开发安装：
 
@@ -76,8 +76,10 @@ python -m pip wheel --no-deps --no-build-isolation packages/companion-core --whe
 
 用 `scripts/check_core_package.py` 验证核心 wheel 的平台隔离性。QQ、微信独立包可分别从 `packages/companion-qq`、`packages/companion-wechat` 构建。核对 wheel 内容不包含运行库或角色素材，再整理发布附件。
 
-## v0.9.1 页面验收
+## 源码与生成文件
 
-`tests/qiban_ui.mjs` 使用 Playwright、合成 API 和源码模板验证六个分区的 78 种宽度组合及 20 项立绘边界/间距检查、按钮命中、表单保留、宿主离线以及登录/会客室空状态。不会连接真实服务或发出平台消息。使用已安装的 Playwright 运行 `node tests/qiban_ui.mjs`；可通过 `QIBAN_PLAYWRIGHT_MODULE`、`QIBAN_BROWSER`、`QIBAN_PYTHON` 指定本机运行时。截图与结果保存在 `.dev/v09/browser/`。
+桌面界面位于 `scripts/desktop_probe/Assets/`，由桌面项目直接嵌入；旧浏览器模板、脚本和启动器已经移除。`companion_service` 中桌面仍引用的任务、会客室与恢复逻辑继续保留，兼容 API 的权限回归也继续保留。旧 HTTP 首页及手册返回退役提示，不再提供浏览器界面。
 
-发布审计允许按 SHA-256 登记的界面 PNG 与 SVG，其余未审查二进制仍拒绝。更新素材后必须先目视验收再更新审计摘要。
+构建输出、测试临时目录、Python 缓存、包元数据及阶段记录均不提交。`dist/` 中正在运行的完整应用不应在清理时删除；日常运行数据、数据库、凭据和开发工具环境也不属于构建垃圾。
+
+发布审计按 SHA-256 校验桌面插画与必要上游资源，其他未审查二进制仍拒绝。更新素材后先验收再更新审计摘要。

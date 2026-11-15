@@ -1,26 +1,19 @@
-"""Server-rendered local UI. Role and management apps use distinct origins."""
+"""Compatibility API adapter; browser presentation and its launcher are retired."""
 from __future__ import annotations
 
 import json
-import secrets
 from dataclasses import asdict, is_dataclass
-from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import HTMLResponse, JSONResponse, Response
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
-from starlette.staticfiles import StaticFiles
 
 from companion_core.errors import AssistantError
 from companion_core.operation_context import Trace, stage
 
 from .admin import Management
 from .security import LocalBoundary
-
-ROOT = Path(__file__).parent
-templates = Environment(loader=FileSystemLoader(ROOT / "templates"), autoescape=select_autoescape(["html"]))
 
 
 def serializable(value):
@@ -58,15 +51,7 @@ def create_app(service, *, kind, origin, counterpart):
         return value
 
     async def home(request):
-        try:
-            token, user = authentication(request)
-            csrf = service.sessions.csrf(token, kind)
-        except AssistantError:
-            user, csrf = None, ""
-        html = templates.get_template("index.html").render(kind=kind, authenticated=bool(user), csrf=csrf,
-                 counterpart=counterpart, configured=bool(service.store.state("web-owner")),
-                 nonce=secrets.token_hex(16), kinds=list(service.store.profile.schemas))
-        return HTMLResponse(html)
+        return result({"error": "web_entry_retired", "message": "请运行 Qiban.exe，在应用内使用管理室和用户手册。"}, 410)
 
     async def setup(request):
         if kind != "admin":
@@ -77,7 +62,7 @@ def create_app(service, *, kind, origin, counterpart):
         return result(await run_in_threadpool(service.sessions.configure, args.get("ticket"), args.get("password")))
 
     async def manual(request):
-        return HTMLResponse(templates.get_template("manual.html").render())
+        return await home(request)
 
     async def login(request):
         args = await data(request)
@@ -249,5 +234,4 @@ def create_app(service, *, kind, origin, counterpart):
                    Route("/cancel-message", cancel_message, methods=["POST"]),
                    Route("/input-image", input_image, methods=["GET", "POST", "DELETE"])]
     app = Starlette(routes=routes, exception_handlers={AssistantError: failure, KeyError: invalid, TypeError: invalid, ValueError: invalid})
-    app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
     return LocalBoundary(app, origin=origin, upload_path="/input-image" if kind == "role" else None)

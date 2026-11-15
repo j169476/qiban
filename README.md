@@ -50,9 +50,9 @@
 3. 按需接入 B 站、QQ 或微信，核验账号和目标对象。
 4. 核对会话授权范围，再开启要运行的平台。
 
-旧版浏览器管理页与 Codex 插件入口已经退役，仓库里保留的这几份说明属于**旧版入口／开发参考**，以应用内页面和用户手册为准：[角色与资料配置](docs/CONFIGURATION.md)、[QQ 模块](docs/QQ_MODULE.md)、[微信模块](docs/wechat-module.md)、[统一会话回复授权](docs/CONVERSATION_REPLY_AUTHORIZATION.md)、[架构](docs/ARCHITECTURE.md)。开发者另见 [测试与发布](docs/DEVELOPMENT.md)、[测试版说明](docs/RELEASE_NOTES.md) 和 [第三方许可说明](THIRD_PARTY_NOTICES.md)。
+旧版浏览器管理页已从源码移除，Codex 插件与命令行管理入口仅保留退役提示。当前操作以应用内页面和用户手册为准；开发者另见 [测试与发布](docs/DEVELOPMENT.md)、[版本说明](docs/RELEASE_NOTES.md) 和 [第三方许可说明](THIRD_PARTY_NOTICES.md)。
 
-包名与插件 ID 统一为 `qiban`；旧的 `bili-assistant` 命令和内部连接器模块仅作兼容来源保留，`python -m qiban` 与旧插件启动器现在只输出退役提示并以非零码退出。管理界面附带白龙娘插画与 SVG 图标，不写入用户人物卡。
+包名与插件 ID 统一为 `qiban`；旧的 `bili-assistant` 命令和内部连接器模块仅作兼容来源保留，`python -m qiban` 与旧插件启动器现在只输出退役提示并以非零码退出。桌面界面所需的样式与白龙娘插画统一位于 `scripts/desktop_probe/Assets/`，不写入用户人物卡。
 
 ## 源码构建
 

@@ -54,7 +54,7 @@ def test_login_does_not_start_and_local_host_is_not_authentication(service):
     assert role.post("/login", json={"password": PASSWORD}, headers={"origin": ADMIN}).status_code == 403
     headers = login(role, service, "role")
     response = role.get("/")
-    assert response.status_code == 200 and "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert response.status_code == 410 and "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert "HttpOnly" in role.post("/login", json={"password": PASSWORD}, headers=headers).headers["set-cookie"]
     assert role.get("/status").json()["status"] == "paused"
     assert role.post("/messages", json={"text": "hello", "nonce": secrets.token_hex(16)}, headers=headers).status_code == 403
@@ -92,7 +92,7 @@ def test_bridge_rejects_role_cookie_and_archived_control(service):
         service.core.guard()
     service.host.archived = False
     assert service.status()["status"] == "paused"
-    assert admin.get("/").status_code == 200
+    assert admin.get("/").status_code == 410
     assert service.status()["status"] == "paused"
 
 

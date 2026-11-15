@@ -42,3 +42,10 @@ plugins/qiban/runtime.json
 # Desktop probe build outputs (standard dotnet invocation).
 scripts/desktop_probe/bin/
 scripts/desktop_probe/obj/
+
+# Local test output and obsolete internal handover records.
+pytest-of-*/
+.pytest-tmp*/
+*.whl
+*.pdb
+docs/QIBAN_*.md

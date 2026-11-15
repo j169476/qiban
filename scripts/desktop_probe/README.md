@@ -31,7 +31,7 @@ python scripts/desktop_probe/run_smoke.py --exe .dev/refactor-r0/desktop/portabl
 
 WebView2 SDK 原始许可保留在 licenses/WebView2-SDK.txt；.NET 与其他组件许可由 build.ps1 从对应固定版本 NuGet 包复制到输出目录。自有代码 MIT 不替代这些条款。
 
-完整选择依据及证据范围见 ../../docs/QIBAN_R0_DESKTOP_PROBE.md。
+历史探针记录已清理；当前应用构建说明见 ../../docs/DEVELOPMENT.md。
 
 ## 后台生命周期验证
 
@@ -104,7 +104,7 @@ python scripts/desktop_probe/run_postgres.py --exe .dev/refactor-r0/desktop/port
 
 数据库正常停止使用 pg_ctl fast，回滚未提交事务并保留已提交资料；业务层停止接纳／排空尚未接入。停止确认除进程结束外还检查退出码，非零退出记录 stop_failed，不冒充 graceful_stop。异常退出由 Job 清理，随后用真实数据库恢复与读写验证资料；该测试不替代整机断电、大库或长时压力。
 
-启动时完成真实接受连接检查；后续状态查询目前检查自有工作进程与数据库主进程存活，不代表 SQL、连接池或负载持续健康。多组件依赖、正式密钥库、安装资源分发和中文 Windows 用户路径仍待后续。详细证据见 ../../docs/QIBAN_R1_POSTGRES_COMPONENT.md。
+启动时完成真实接受连接检查；后续状态查询目前检查自有工作进程与数据库主进程存活，不代表 SQL、连接池或负载持续健康。多组件依赖、正式密钥库、安装资源分发和中文 Windows 用户路径仍待后续。历史阶段证据不再随源码保存。
 
 ## 加密存储与依赖组合
 
@@ -157,4 +157,4 @@ run_installation.py 验证 fresh／reopen、权限、端口与资源故障以及
 
 数据库程序的 UTF-8 声明应用于各进程，不更改系统语言设置。当前资源包完整保留所选 bin/lib/share，上游 EXE 未改写；版本、原始摘要与许可随包保存。声明要求 Windows 10 1903 或更新，最终最低系统版本仍需所有组件联合验收。
 
-详见 ../../docs/QIBAN_R1_INSTALLATION_RECOVERY.md。正式安装器、资源下载／修复界面、WebView2 缺失时准备和跨机器安装仍待接入。
+历史阶段证据不再随源码保存。正式安装器、资源下载／修复界面、WebView2 缺失时准备和跨机器安装仍待接入。

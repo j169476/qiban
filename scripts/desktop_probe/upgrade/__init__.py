@@ -36,7 +36,7 @@ Invariants every module keeps:
   decrypts it.
 
 This package is backend only. The native host entry, the installer branch and any page route
-are a later stage; see ``docs/QIBAN_R7_UPGRADE_TRANSACTION.md`` for the protocol.
+are a later stage. The transaction protocol is implemented in the modules listed above.
 """
 from __future__ import annotations
 

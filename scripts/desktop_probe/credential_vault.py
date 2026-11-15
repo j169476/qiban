@@ -46,8 +46,7 @@ Scope
 The mutex name is the hash of the service string inside the session's namespace, so every process
 of this user that touches the same service in the same Windows session shares it. Credentials of
 other users live in their own vault and other services get their own mutex. Two Windows sessions
-of the same user are not covered by a session-local object; that case is documented as untested
-in ``docs/QIBAN_R7_VAULT_CONCURRENCY.md`` and is not needed for this desktop application.
+of the same user are not covered by a session-local object; that case remains untested and is not needed for this desktop application.
 """
 from __future__ import annotations
 

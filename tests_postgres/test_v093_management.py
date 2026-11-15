@@ -64,9 +64,9 @@ def test_growth_recovery_web_requires_preview_paused_and_same_session(service):
     assert operation('public_growth_rebuild', {'token': token}).status_code == 409
 
 
-def test_bilingual_manual_is_available_without_starting_service(service):
+def test_legacy_manual_redirects_users_to_the_desktop_without_starting_service(service):
     for kind in ('admin', 'role'):
         response = client(service, kind).get('/manual')
-        assert response.status_code == 200
-        assert 'data-manual-language="zh"' in response.text and 'data-manual-language="en"' in response.text
+        assert response.status_code == 410
+        assert response.json()["error"] == "web_entry_retired"
     assert service.status()['status'] == 'paused'

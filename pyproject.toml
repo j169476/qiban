@@ -49,7 +49,6 @@ bili_assistant = ["defaults/*.yaml", "schemas/*.json"]
 companion_core = ["*.json", "sql/*.sql"]
 companion_qq = ["native/*.cjs", "native/*.c", "native/*.def", "native/*.json", "native/LICENSE.*"]
 companion_wechat = ["third_party/*.txt", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
-companion_service = ["templates/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/*.png", "static/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests_core", "tests_wechat"]

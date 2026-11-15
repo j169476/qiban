@@ -96,4 +96,4 @@ python scripts/desktop_probe/installer/build_installer.py --app .dev/managed-app
 
 ## 7. 旧版文档如何阅读
 
-仓库里仍保留旧版入口时期的说明，它们描述的是浏览器管理页、`companion_service` 与本机 CLI，**属于旧版／开发参考**，不代表当前使用方式：`docs/CONFIGURATION.md`、`docs/QQ_MODULE.md`、`docs/wechat-module.md`、`docs/CONVERSATION_REPLY_AUTHORIZATION.md`、`docs/ARCHITECTURE.md`。当前操作以应用内页面和内置用户手册为准；版本变更历史见 [测试版说明](RELEASE_NOTES.md)。
+旧浏览器管理页及其过期说明已移除。当前操作以应用内页面和内置用户手册为准；版本变更见 [版本说明](RELEASE_NOTES.md)。
