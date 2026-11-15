@@ -1,7 +1,7 @@
 // QQ management UI tests use only synthetic local replies.
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function page(){
+function page({autoDetails=true}={}){
  const nodes=new Map(),events={},requests=[],listeners=[];
  const node=id=>{
   if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,disabled:false,value:'',children:[],
@@ -10,7 +10,9 @@ function page(){
   return nodes.get(id);
  };
  let sequence=0,tick;
- const webview={addEventListener(_,fn){listeners.push(fn);},postMessage(request){requests.push(request);}};
+ const webview={addEventListener(_,fn){listeners.push(fn);},postMessage(request){requests.push(request);
+  if(autoDetails&&request.operation==='wechat.account_details')queueMicrotask(()=>reply(request,
+   {login:request.arguments.login,nickname:'测试昵称',wechat_id:''}));}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/audience.js'),'utf8'),{
   document:{getElementById:node,createElement:()=>({children:[],append(...children){this.children.push(...children);}})},window:{chrome:{webview},addEventListener(name,fn){events[name]=fn;}},
   crypto:{randomUUID:()=>String(++sequence)},setTimeout:()=>sequence,clearTimeout(){},setInterval(fn){tick=fn;}
@@ -37,7 +39,7 @@ test('WeChat switches only on explicit selection and clears directory when accou
  el('platform').value='wechat';p.update(true);
  let job=el('detect').onclick();
  await p.reply(p.requests.at(-1),{accounts:['one','two'],profiles:{accounts:['one'],selected:'one',revision:1}});await job;
- assert.equal(p.requests.length,1);assert.equal(el('select').disabled,true);
+ assert.equal(p.requests.filter(r=>r.operation==='wechat.accounts').length,1);assert.equal(el('select').disabled,true);
  job=el('groups').onclick();
  assert.deepEqual(JSON.parse(JSON.stringify(p.requests.at(-1).arguments)),{login:'one',expected:1,kind:'group',after:''});
  await p.reply(p.requests.at(-1),{items:[{name:'合成群',username:'target'}],next:null});await job;
@@ -97,4 +99,30 @@ test('group risk is shown before any save; cancel leaves the account unchanged',
  const save=p.node('audience-confirm').onclick();assert.equal(p.requests.at(-1).operation,'audience.save');
  await p.reply(p.requests.at(-1),{enabled:true});await save;
  assert.match(p.node('audience-group').textContent,/关闭/);assert.equal(p.node('audience-private').textContent,'允许所有好友');
+});
+
+test('account nicknames and WeChat IDs stay bound to stable IDs, including duplicate names and late lock replies',async()=>{
+ const p=page({autoDetails:false}),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
+ const job=el('detect').onclick();
+ await p.reply(p.requests.at(-1),{accounts:['one','two'],profiles:{accounts:[],selected:null,revision:0}});
+ assert.equal(p.requests.at(-1).arguments.login,'one');
+ await p.reply(p.requests.at(-1),{login:'one',nickname:'同名🙂',wechat_id:'visible_id'});
+ assert.equal(p.requests.at(-1).arguments.login,'two');
+ await p.reply(p.requests.at(-1),{login:'two',nickname:'同名🙂',wechat_id:''});await job;
+ assert.equal(el('login').children[0].value,'one');assert.match(el('login').children[0].textContent,/同名🙂.*visible_id/);
+ assert.equal(el('login').children[1].value,'two');assert.match(el('login').children[1].textContent,/同名🙂.*two/);
+ el('login').value='two';el('login').onchange();assert.match(el('accounts').textContent,/微信未提供.*ID：two/);
+ const select=el('select').onclick();assert.equal(p.requests.at(-1).arguments.login,'two');
+ await p.reply(p.requests.at(-1),{accounts:['two'],selected:'two',revision:1});await select;
+ assert.match(el('accounts').textContent,/当前使用：同名🙂.*ID：two/);
+ const again=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:[],selected:null,revision:1}});
+ const late=p.requests.at(-1);p.update(false);await p.reply(late,{login:'one',nickname:'must not appear',wechat_id:'private-id'});await again;
+ assert.equal(el('login').children.length,0);assert.equal(el('accounts').textContent,'');
+});
+
+test('mismatched account details never relabel another account',async()=>{
+ const p=page({autoDetails:false}),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
+ const job=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:[],selected:null,revision:0}});
+ await p.reply(p.requests.at(-1),{login:'two',nickname:'wrong-person',wechat_id:'wrong-id'});await job;
+ assert.equal(el('login').children[0].textContent,'one（已登录）');assert.match(el('notice').textContent,/暂未读取成功/);
 });

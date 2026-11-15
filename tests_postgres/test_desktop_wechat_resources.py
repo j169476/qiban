@@ -324,3 +324,44 @@ def test_packaged_wechat_resumes_only_verified_setup(service,tmp_path):
         assert status["available"] and not status["autorun"] and status["status"]!="active"
     finally:
         runtime.close()
+
+@pytest.mark.parametrize('change', ['none', 'wrong_identity', 'locked', 'redetected'])
+def test_account_details_require_current_detection_and_discard_late_metadata(service, monkeypatch, tmp_path, change):
+    from companion_wechat import receiver_transport
+
+    service.wechat_resources = tmp_path
+    (tmp_path/'Qiban.WeChatReader.exe').touch()
+    service.wechat_detected = {service.session_id: ('one',)}
+    if change == 'locked':
+        assert call(service, 'lock.enable', {'password': 'Synthetic-Password-123'})['ok']
+        service.wechat_detected = {service.session_id: ('one',)}
+    closed = []
+
+    class Worker:
+        def __init__(self, **kwargs):
+            pass
+
+        async def request(self, command, **kwargs):
+            assert command == 'account_details' and kwargs == {'login': 'one'}
+            if change == 'locked':
+                assert call(service, 'session.lock')['ok']
+            if change == 'redetected':
+                service.wechat_detected = {}
+            return {'login': 'other' if change == 'wrong_identity' else 'one',
+                    'nickname': '合成昵称', 'wechat_id': 'synthetic-id'}
+
+        async def close(self):
+            closed.append(True)
+    monkeypatch.setattr(receiver_transport, 'SubprocessTransport', Worker)
+    result = call(service, 'wechat.account_details', {'login': 'one'})
+    assert result['ok'] == (change == 'none')
+    if result['ok']:
+        assert result['result'] == {'login': 'one', 'nickname': '合成昵称', 'wechat_id': 'synthetic-id'}
+    else:
+        assert 'synthetic-id' not in str(result)
+    assert closed == [True]
+
+
+def test_account_details_cannot_read_an_undetected_account(service):
+    service.wechat_detected = {service.session_id: ('one',)}
+    assert call(service, 'wechat.account_details', {'login': 'other'})['error'] == 'wechat_account_unknown'

@@ -12,7 +12,7 @@
     <AssemblyTitle>栖伴 Qiban</AssemblyTitle>
     <Company>栖伴</Company>
     <Version>0.9.5</Version>
-    <FileVersion>0.9.5.1</FileVersion>
+    <FileVersion>0.9.5.2</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>

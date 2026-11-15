@@ -36,6 +36,31 @@ def enrollment_key(installation):
     return "wechat-db-enrollment:" + stable_key("logical-account",collector_account(installation))
 
 
+async def account_details(manager, request, login):
+    from companion_wechat.native.protocol import personal
+    from companion_wechat.receiver_transport import SubprocessTransport
+
+    def check():
+        manager.authority.require(request, administrator=True)
+        if not personal(login) or login not in manager.wechat_detected.get(request.session_id, ()):
+            raise AssistantError("wechat_account_unknown", "请先检测已登录的微信账号")
+    check()
+    reader = manager.wechat_resources / "Qiban.WeChatReader.exe" if manager.wechat_resources else None
+    if not reader or not reader.is_file():
+        raise AssistantError("wechat_reader_missing", "本次安装缺少微信读取组件")
+    worker = SubprocessTransport(executable=reader, read_timeout=45)
+    try:
+        result = await worker.request("account_details", login=login)
+        check()
+        if (not isinstance(result, dict) or set(result) != {"login", "nickname", "wechat_id"}
+                or result["login"] != login or any(not isinstance(result[k], str) or len(result[k]) > 200
+                    or any(ord(c) < 32 or 0x7F <= ord(c) < 0xA0 for c in result[k]) for k in ("nickname", "wechat_id"))):
+            raise AssistantError("wechat_account_detection", "无法核实微信账号资料，请重新检测")
+        return result
+    finally:
+        await worker.close()
+
+
 async def _contact_request(manager, request, login, expected, command, **args):
     from companion_wechat.receiver_transport import SubprocessTransport
 

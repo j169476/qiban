@@ -71,6 +71,9 @@ def serve(stdin, stdout, *, session_factory=SourceSession, receipt_factory=Recei
                     raise SourceError("source_identity_changed")
                 if command == "logged_accounts" and set(value) == {"id", "command"} and session is None:
                     result = logged_accounts()
+                elif command == "account_details" and set(value) == {"id", "command", "login"} and session is None:
+                    from .db_setup import account_details
+                    result = account_details(value["login"])
                 elif command == "setup_directory" and set(value) == {"id","command","login","kind","after"} and session is None:
                     from .db_setup import browse
                     result = browse(value["login"], value["kind"], value["after"])

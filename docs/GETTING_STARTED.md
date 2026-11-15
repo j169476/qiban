@@ -2,12 +2,12 @@
 
 栖伴当前以 Windows 独立应用的形式使用：装好或打开 `Qiban.exe`，双击后就是它自己的窗口，管理室、本机会客室和用户手册都在窗口内。**不要求预装 Python、Node.js、PostgreSQL 或编译器**，也不需要另开浏览器、终端或其他人参与的管理聊天。
 
-版本口径：项目与插件版本 `0.9.5`，本机安装器版本 `0.9.5.1`。本轮是**实际的本机完整应用构建**：完整程序位于 `dist/Qiban-0.9.5/Qiban.exe`，安装器位于 `dist/Qiban-0.9.5-Installer/Qiban-Setup-0.9.5.1.exe`；两者都是本机本地输出，不上传仓库、也不等于公开附件。程序与安装器未做代码签名，签名与公开资产发布都未完成，**本轮不提供安装包下载地址**，也没有创建 GitHub Release。QQ 客户端运行时需要你自己已核验的本机资源，本项目不随包公开分发，也不会自动获取。
+版本口径：项目与插件版本 `0.9.5`，本机安装器版本 `0.9.5.2`。本轮是**实际的本机完整应用构建**：完整程序位于 `dist/Qiban-0.9.5.2/Qiban.exe`，安装器位于 `dist/Qiban-0.9.5.2-Installer/Qiban-Setup-0.9.5.2.exe`；两者都是本机本地输出，不上传仓库、也不等于公开附件。程序与安装器未做代码签名，签名与公开资产发布都未完成，**本轮不提供安装包下载地址**，也没有创建 GitHub Release。QQ 客户端运行时需要你自己已核验的本机资源，本项目不随包公开分发，也不会自动获取。
 
 ## 1. 安装或打开应用
 
 - 已经装过：直接双击程序目录里的 `Qiban.exe`，或使用开始菜单里的“栖伴”。
-- 全新安装：运行按当前用户安装的安装器 `Qiban-Setup-0.9.5.1.exe`（本机完整应用构建产出的安装器，仅本地输出，不由本项目公开提供下载）。默认把程序装到 Windows 用户资料目录下的 `Programs\Qiban`，个人资料放在 Windows 用户资料目录下的 `Qiban\Profile`。
+- 全新安装：运行按当前用户安装的安装器 `Qiban-Setup-0.9.5.2.exe`（本机完整应用构建产出的安装器，仅本地输出，不由本项目公开提供下载）。默认把程序装到 Windows 用户资料目录下的 `Programs\Qiban`，个人资料放在 Windows 用户资料目录下的 `Qiban\Profile`。
 - 同一个安装包可以重复运行，用于修复本构建里损坏或被删掉的程序与资源文件。更新到另一个构建时，安装器会按下文的配套升级流程处理。
 - 栖伴正在运行时，安装和卸载都要求先在窗口里正常退出，不要强制结束进程。
 - 卸载只删除安装器登记的程序文件和快捷方式；个人资料、备份与凭据原样保留。
@@ -81,7 +81,7 @@ python scripts/desktop_probe/build_postgres.py --source "C:\BuildTools\postgresq
 python scripts/desktop_probe/assemble_application.py --desktop .dev/managed-desktop-new --storage .dev/storage-bundle-new --postgres .dev/postgres-resources-new --output .dev/managed-app-new
 
 # 5) 编译安装包（先替换为实际的 Inno Setup 编译器路径）
-python scripts/desktop_probe/installer/build_installer.py --app .dev/managed-app-new --output-dir .dev/installer-new --iscc "C:\BuildTools\InnoSetup\ISCC.exe" --version 0.9.5.1
+python scripts/desktop_probe/installer/build_installer.py --app .dev/managed-app-new --output-dir .dev/installer-new --iscc "C:\BuildTools\InnoSetup\ISCC.exe" --version 0.9.5.2
 ```
 
 构建要点：
@@ -91,7 +91,7 @@ python scripts/desktop_probe/installer/build_installer.py --app .dev/managed-app
 - 组装后的目录必须整体保留（含 `resources` 与许可文件），只复制 `Qiban.exe` 不能运行；`Qiban.exe` 是外壳程序同字节改名，构建记录把程序、外壳源码归档与组件资源绑在同一个构建身份上。
 - 微信原生发送桥接与 QQ 桥接不在这条流水线里替你做：分别按 `src/companion_wechat/native/README.md` 和 `scripts/qq_native_probe/README.md` 自行准备并核验本机资源。
 - 第 3 步必须同时带 `-ManagedApplication -SubscriptionValidation`。历史内部开关名 `SubscriptionValidation` 对应应用独立走 ChatGPT 授权（0.9.5 使用 `gpt-6.1-terra` 与 low 推理档位），不需要 API Key，也不经过 Codex 聊天窗口，但仍要求本机有可用的 Codex 可执行文件；QQ 与微信的回复模型接线复用应用的本地模型组件 `DesktopModel`。
-- 本轮完整程序位于 `dist/Qiban-0.9.5/Qiban.exe`，安装器位于 `dist/Qiban-0.9.5-Installer/Qiban-Setup-0.9.5.1.exe`；两者都只在本机保留，不上传仓库，也不创建 GitHub Release。
+- 本轮完整程序位于 `dist/Qiban-0.9.5.2/Qiban.exe`，安装器位于 `dist/Qiban-0.9.5.2-Installer/Qiban-Setup-0.9.5.2.exe`；两者都只在本机保留，不上传仓库，也不创建 GitHub Release。
 - 公开同步以 `scripts/prepare_release.py` 生成的无历史审查副本为准；构建产物、测试输出与证据留在本机，不当作发布附件。
 
 ## 7. 旧版文档如何阅读

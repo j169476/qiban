@@ -315,6 +315,7 @@ class DesktopManagement:
                       'reply_exclusion.restore':{'scope_id','account','expected'},
                       'reply_trace.list':{'limit'},'reply_trace.detail':{'identifier'},
                       'wechat.accounts':set(),'wechat.profiles':set(),'wechat.select':{'login','expected'},
+                      'wechat.account_details':{'login'},
                       'room.history':{'session','before'},'room.post':{'session','text','nonce'},
                       'room.post_files':{'session','text','nonce','files'},'room.preview':{'session','turn','image'},
                       'room.queue':{'session'},'room.search':{'session','before','query'},
@@ -505,6 +506,12 @@ class DesktopManagement:
             self.wechat_detected = {request.session_id: tuple(result["accounts"])}
             from .desktop_wechat import selection
             return {**result, "profiles": selection(self.store, self.installation)}
+        if op == 'wechat.account_details':
+            import asyncio
+
+            from .desktop_wechat import account_details
+
+            return asyncio.run(account_details(self, request, **args))
         if op.startswith('audience.'):
             self.authority.require(request,administrator=True)
             if op=='audience.status':

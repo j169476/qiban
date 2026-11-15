@@ -4,6 +4,15 @@
  const pending = new Map();
  let allowed=false, busy=false, epoch=0, state=null, preview=null;
  let profiles=null, directoryKind=null, nextPage=null;
+ const accountDetails=new Map();
+ function accountLabel(login){
+  const item=accountDetails.get(login);
+  return item?`${item.nickname||'未提供昵称'} · ${item.wechat_id?'微信号：'+item.wechat_id:login}`:login;
+ }
+ function accountSummary(login){
+  const item=accountDetails.get(login);
+  return item?`${item.nickname||'未提供昵称'} · 微信号：${item.wechat_id||'微信未提供'} · ID：${login}`:login;
+ }
  const chosen=new Map(), pageBoxes=new Map();
  let listVersion=null;
  function paintChosen(){
@@ -44,7 +53,7 @@
   el('confirm').disabled=busy||!preview;
  }
  function reset(){
-  epoch++;busy=false;state=null;profiles=null;el('login').replaceChildren();clearPreview();
+  epoch++;busy=false;state=null;profiles=null;accountDetails.clear();el('login').replaceChildren();clearPreview();
   clearDirectory();clearChosen();
   el('accounts').hidden=true;el('accounts').textContent='';
   el('status').textContent=el('notice').textContent='';render();
@@ -80,7 +89,7 @@
  el('detect').onclick=()=>work(async live=>{
   if(el('platform').value!=='wechat')return;
   const status=el('accounts');
-  profiles=null;clearDirectory();clearChosen();status.hidden=false;status.textContent='正在检测微信账号…';el('notice').textContent='';
+  profiles=null;accountDetails.clear();clearDirectory();clearChosen();status.hidden=false;status.textContent='正在检测微信账号…';el('notice').textContent='';
   try{
    const result=await call('wechat.accounts',{});
    if(!live())return;
@@ -94,15 +103,30 @@
    if(profiles?.selected)picker.value=profiles.selected;
    status.textContent=profiles?.selected?'当前使用：'+profiles.selected:
     accounts.length?'请选择要使用的微信账号。':'请先在电脑微信登录，再点击检测。';
+   const missing=[];
+   for(const login of accounts){
+    if(!live())return;
+    el('notice').textContent='正在读取账号昵称和微信号…';
+    try{
+     const item=await call('wechat.account_details',{login});
+     if(!live())return;
+     if(item.login!==login)throw Error('账号资料不匹配');
+     accountDetails.set(login,item);
+     for(const option of picker.children)if(option.value===login)option.textContent=accountLabel(login)+'（已登录）';
+    }catch(error){if(!live())return;missing.push(login);}
+   }
+   status.textContent=profiles?.selected?'当前使用：'+accountSummary(profiles.selected):
+    picker.value?'待选择：'+accountSummary(picker.value):'请先在电脑微信登录，再点击检测。';
+   el('notice').textContent=missing.length?'部分账号资料暂未读取成功，保留原始 ID；可重新检测。':'';
   }catch(error){if(live())status.textContent=error.message;}
  });
- el('login').onchange=render;
+ el('login').onchange=()=>{el('accounts').textContent='待选择：'+accountSummary(el('login').value);render();};
  el('select').onclick=()=>work(async live=>{
   if(!profiles||!el('login').value)return;
   const saved=await call('wechat.select',{login:el('login').value,expected:profiles.revision});
   if(!live())return;
   profiles=saved;state=null;clearPreview();clearDirectory();clearChosen();el('status').textContent='';
-  el('accounts').textContent='当前使用：'+saved.selected;
+  el('accounts').textContent='当前使用：'+accountSummary(saved.selected);
   el('notice').textContent='微信账号已保存。';
  });
  function showDirectory(kind,after){

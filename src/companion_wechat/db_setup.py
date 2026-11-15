@@ -65,6 +65,24 @@ def browse(login, kind, after):
         return contact_page(db, login, kind, after, 100)
 
 
+def account_details(login):
+    """Only the exact verified self row; never enumerate contacts or messages."""
+    with _contacts(login) as (db, _):
+        columns = {row[1] for row in db.execute("PRAGMA table_info(contact)")}
+        if not {"username", "nick_name", "alias"} <= columns:
+            raise ProbeError("contact_schema_unsupported")
+        rows = db.execute("SELECT username,nick_name,alias FROM contact "
+                          "WHERE username=? COLLATE BINARY LIMIT 2", (login,)).fetchall()
+        if len(rows) != 1 or rows[0][0] != login:
+            raise ProbeError("source_identity_changed")
+        def label(value):
+            return value.strip() if isinstance(value, str) and len(value) <= 200 and not any(
+                ord(c) < 32 or 0x7F <= ord(c) < 0xA0 for c in value) else ""
+        result = {"login": login, "nickname": label(rows[0][1]), "wechat_id": label(rows[0][2])}
+    # _contacts verifies the selected process identity again on exit.
+    return result
+
+
 def verify(login, targets, *, include_directory=False):
     with _contacts(login) as (db, directory):
         result = verify_contacts(db, login, targets)

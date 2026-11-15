@@ -17,7 +17,7 @@ internal static class StorageComponent
         (action.GetString()=="desktop-restore" || action.GetString()=="management" && request.TryGetProperty("operation",out var operation)
          && operation.ValueKind==JsonValueKind.String && operation.GetString()!.StartsWith("backups.",StringComparison.Ordinal));
     static bool WeChatSetup(JsonElement request)=>request.TryGetProperty("operation",out var operation)
-        && operation.ValueKind==JsonValueKind.String && operation.GetString() is "wechat.directory" or "wechat.select" or "wechat.targets.verify" or "wechat.targets.save";
+        && operation.ValueKind==JsonValueKind.String && operation.GetString() is "wechat.directory" or "wechat.select" or "wechat.targets.verify" or "wechat.targets.save" or "wechat.account_details";
     static bool PortableOperation(JsonElement request,out bool cancel)
     {
         cancel=false;
