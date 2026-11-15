@@ -140,9 +140,9 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 [Messages]
 ; Say plainly what must happen: leave through the application, never force the process or
 ; the database. Setup and Uninstall both stop here while the marker exists.
-SetupAppRunningError=安装程序检测到栖伴仍在运行，因此无法继续。%n%n请先回到栖伴窗口，用界面或托盘中的正常退出流程结束栖伴（不要强制结束进程，也不要停止数据库），然后再点击“确定”继续安装或修复。
-UninstallAppRunningError=卸载程序检测到栖伴仍在运行，因此无法继续。%n%n请先回到栖伴窗口，用界面或托盘中的正常退出流程结束栖伴，然后再点击“确定”继续卸载。个人资料、备份与凭据不会被删除。
-ConfirmUninstall=卸载只会删除安装器登记的程序文件和快捷方式（以及它创建的“栖伴升级回退”入口）。%n%n个人资料（Windows 用户资料目录下的 Qiban\Profile）、备份与凭据会保留，程序目录之外的任何内容都不会被删除。%n%n确认卸载 %1？
+SetupAppRunningError=安装程序检测到栖伴仍在运行，因此无法继续。%n%n请先在栖伴窗口或托盘里正常退出（不要强制结束进程），再点“确定”继续。
+UninstallAppRunningError=卸载程序检测到栖伴仍在运行，因此无法继续。%n%n请先在栖伴窗口里正常退出（不要强制结束进程），再点“确定”继续卸载。卸载还没有开始，程序和个人资料都没有被删除。
+ConfirmUninstall=卸载会删除程序文件和快捷方式（含“栖伴升级回退”入口）。%n%n个人资料默认保留；是否清空以你在卸载准备页的选择为准。%n%n确认卸载 %1？
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标："; Flags: unchecked
@@ -633,4 +633,23 @@ begin
     '程序目录里没有可用于准备页的栖伴主程序，因此这次无法先备份。' + #13#10 + #13#10 +
     '卸载将继续，只删除安装器登记的程序文件和快捷方式；个人资料、备份与凭据仍然保留。',
     mbInformation, MB_OK, IDOK);
+end;
+
+
+// Runs only after the uninstaller's final confirmation, before program files go away.
+// Silent uninstall always retains personal data.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if (CurUninstallStep <> usUninstall) or UninstallSilent then Exit;
+  if (CompareText(ExpandConstant('{param:QIBANPREPARED|}'), '1') <> 0) or
+     (CompareText(ExpandConstant('{param:QIBANCLEARPROFILE|}'), '1') <> 0) then Exit;
+  if CheckForMutexes(RunningMutexName) then
+    RaiseException('请先退出栖伴，再继续卸载。');
+  if not Exec(AddBackslash(ExpandConstant('{app}')) + AppExeName,
+      '--clear-profile-for-uninstall', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    RaiseException('无法清理个人资料，请关闭占用文件的程序后重试。');
+  if ResultCode <> 0 then
+    RaiseException('个人资料清理未完成，卸载已停止。请关闭占用文件的程序后重试。');
 end;

@@ -15,6 +15,39 @@ from tests_wechat.test_receiver import snapshot
 __all__ = ["desktop_store", "service"]
 
 
+def test_directory_search_preserves_account_revision_and_rejects_late_pages(service, tmp_path, monkeypatch):
+    from companion_wechat import receiver_transport
+
+    service.wechat_resources = tmp_path
+    service.wechat_detected = {service.session_id: ("one", "two")}
+    assert call(service, "wechat.select", {"login": "one", "expected": 0})["ok"]
+    sent, closed = [], []
+
+    class Worker:
+        def __init__(self, **kwargs):
+            pass
+
+        async def request(self, command, **args):
+            sent.append((command, args))
+            if len(sent) == 2:
+                assert call(service, "wechat.select", {"login": "two", "expected": 1})["ok"]
+            return {"items": [{"name": "合成好友", "username": "peer"}], "page": 1, "pages": 1, "total": 1}
+
+        async def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(receiver_transport, "SubprocessTransport", Worker)
+    args = {"login": "one", "expected": 1, "kind": "private", "query": "合成", "page": 1}
+    assert call(service, "wechat.directory_page", {**args, "page": 0})["error"] == "management_request"
+    assert not sent
+    assert call(service, "wechat.directory_page", args)["result"]["total"] == 1
+    assert sent[0] == ("setup_directory_page", {"login": "one", "kind": "private", "query": "合成", "page": 1})
+    assert call(service, "wechat.directory_page", args)["error"] == "edit_conflict"
+    assert call(service, "wechat.directory_page", args)["error"] == "edit_conflict"
+    assert len(sent) == len(closed) == 2
+    assert ReplyAuthorizations(service.store).records() == []
+
+
 def test_empty_manual_list_can_explicitly_enable_and_cancel_follow_all(service,tmp_path,monkeypatch):
     from companion_wechat import receiver_transport
     from qiban.desktop_wechat_targets import identity

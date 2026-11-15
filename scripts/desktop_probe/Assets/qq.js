@@ -3,7 +3,7 @@
  const el=id=>document.getElementById(id),pending=new Map();
  let allowed=false,state=null,submitting=false,refreshing=false,refreshQueued=false,epoch=0,signature='';
  let targetRevision=null;
- let directorySignature='';
+ let directorySignature='', operationArea='login';
  const numbers=id=>el(id).value.split(/[\s,，]+/u).filter(Boolean);
  function matchingRows(directory,field){
   const query=el('qq-directory-search').value.trim().toLocaleLowerCase();
@@ -27,17 +27,22 @@
   el('qq-password-fields').hidden=!passwordMode;
   el('qq-login').textContent=passwordMode?'密码登录 QQ':'扫码登录 QQ';
   for(const id of ['qq-login-method','qq-login-account','qq-login-password'])el(id).disabled=!allowed||busy;
-  el('qq-status').textContent=!allowed?'解锁本机管理后可查看 QQ 账号。':state?.message||'尚未检查 QQ 登录状态。';
+  const message=!allowed?'解锁后可查看 QQ 账号。':state?.message||'尚未检查登录状态。';
+  el('qq-status').textContent=operationArea==='login'?message:'';
+  el('qq-directory-status').textContent=operationArea==='directory'?message:'';
+  if(operationArea==='targets')el('qq-targets-notice').textContent=message;
+  for(const [area,id] of [['login','qq-login'],['directory','qq-directory-load'],['targets','qq-targets-verify']])window.QibanFeedback?.mark(el(id),allowed&&busy&&operationArea===area);
+  el('qq-loading').hidden=!allowed||!busy||operationArea!=='login'||['qr_ready','qr_scanned'].includes(state?.state);
   el('qq-current').textContent=allowed&&state?.selected?`已保存：${state.selected.label}（${state.selected.uin}）`:'';
   const next=JSON.stringify(accounts);
   if(signature!==next){
    const previous=el('qq-selection').value;el('qq-selection').replaceChildren();
    for(const row of accounts){const option=document.createElement('option');option.value=row.uin;
     option.textContent=`${row.label}（${row.uin}）${row.can_quick_login?'':' · 需要重新扫码'}`;option.disabled=!row.can_quick_login;el('qq-selection').append(option);}
-   const choice=accounts.find(a=>a.uin===previous&&a.can_quick_login)||accounts.find(a=>a.uin===state?.selected?.uin&&a.can_quick_login)||accounts.find(a=>a.can_quick_login);
+   const choice=accounts.find(a=>a.uin===state?.authenticated_uin&&a.can_quick_login)||accounts.find(a=>a.uin===previous&&a.can_quick_login)||accounts.find(a=>a.uin===state?.selected?.uin&&a.can_quick_login)||accounts.find(a=>a.can_quick_login);
    el('qq-selection').value=choice?.uin||'';signature=next;
   }
-  const png=allowed&&state?.state==='qr_ready'?state.png_base64:null;
+  const png=allowed&&['qr_ready','qr_scanned'].includes(state?.state)?state.png_base64:null;
   el('qq-qr-area').hidden=!png;
   if(png)el('qq-qr').src='data:image/png;base64,'+png;else el('qq-qr').removeAttribute('src');
   el('qq-selection-area').hidden=accounts.length===0;
@@ -54,7 +59,7 @@
   for(const id of ['qq-private-targets','qq-group-targets','qq-targets-verify'])el(id).disabled=!allowed||busy||!state?.selected;
   el('qq-targets-save').disabled=!allowed||busy||!previewMatches();
   el('qq-targets-summary').textContent=allowed&&state?.targets?`已保存 ${state.targets.private_targets.length} 个好友、${state.targets.groups.length} 个群。${state.targets.authorized?'':'回复授权已关闭，请重新核验并保存。'}`:'';
-  el('qq-targets-preview').textContent=allowed&&previewMatches()?`核验通过：${state.preview.private_targets.length} 个好友、${state.preview.groups.length} 个群。请确认后保存。`:'';
+  el('qq-targets-preview').textContent=allowed&&previewMatches()?`核验通过：${state.preview.private_targets.length} 个好友、${state.preview.groups.length} 个群。`:'';
   el('qq-cancel').textContent=state?.state==='loading_directory'?'取消读取':state?.state==='checking_targets'?'取消核验':'取消登录';
   el('qq-directory-load').disabled=!allowed||busy||!state?.selected;
   const directory=allowed?state?.directory:null;
@@ -83,7 +88,7 @@
    el('qq-'+kind+'-add').disabled=!allowed||busy||!directory||!el('qq-'+kind+'-choice').value;
   }
   el('qq-directory-search').disabled=!allowed||busy||!directory;
-  el('qq-directory-summary').textContent=directory?`已读取 ${directory.private_targets.length} 个好友、${directory.groups.length} 个群；每类最多显示 100 项，可搜索缩小范围。`:'';
+  el('qq-directory-summary').textContent=directory?`已读取 ${directory.private_targets.length} 个好友、${directory.groups.length} 个群；每类最多显示 100 项。`:'';
  }
  async function refresh(){
   if(!allowed)return;
@@ -94,7 +99,8 @@
   finally{refreshing=false;if(refreshQueued){refreshQueued=false;void refresh();}}
  }
  async function perform(operation){
-  if(!allowed||submitting)return;submitting=true;const current=++epoch;render();
+  if(!allowed||submitting)return;submitting=true;const current=++epoch;
+  if(operation!=='cancel')operationArea=operation==='directory'?'directory':operation.startsWith('targets.')?'targets':'login';render();
   const notice=el(operation==='directory'||operation.startsWith('targets.')?'qq-targets-notice':'qq-notice');
   try{
    notice.textContent='';
@@ -109,8 +115,8 @@
    try{await call(operation,args);}finally{if('password' in args)args.password='';}
    if(!allowed||current!==epoch)return;
    await refresh();
-   if(operation==='select')notice.textContent='账号选择已保存。此操作不会启动角色或发送消息。';
-   if(operation==='targets.save')notice.textContent='回复会话已保存，未启动 QQ 运行。';
+   if(operation==='select')notice.textContent='账号已保存。';
+   if(operation==='targets.save')notice.textContent='回复会话已保存。';
    if(operation==='cancel')notice.textContent='已请求取消，正在结束当前 QQ 账号操作。';
   }catch(error){if(allowed&&current===epoch)notice.textContent=error.message;}
   finally{submitting=false;render();}
@@ -128,7 +134,7 @@
     const draft=numbers(input);
     const updated=op==='add'?[...new Set([...draft,...ids])]:draft.filter(id=>!ids.has(id));
     el(input).value=updated.join('\n');
-    el('qq-targets-notice').textContent='待保存范围已更新，请核验并保存。';
+    el('qq-targets-notice').textContent='待保存范围已更新。';
     render();
    };
   }

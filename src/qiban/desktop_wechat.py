@@ -93,6 +93,14 @@ async def _contact_request(manager, request, login, expected, command, **args):
         await worker.close()
 
 
+async def directory_page(manager, request, login, expected, kind, query, page):
+    if (kind not in ("private", "group") or not isinstance(query, str) or len(query) > 100
+            or type(page) is not int or not 1 <= page <= 10000):
+        raise AssistantError("management_request", "微信目录分页无效")
+    return await _contact_request(manager, request, login, expected, "setup_directory_page",
+                                  kind=kind, query=query, page=page)
+
+
 async def directory(manager, request, login, expected, kind, after):
     if kind not in ("private", "group") or not isinstance(after, str) or len(after) > 256:
         raise AssistantError("management_request", "微信目录分页无效")

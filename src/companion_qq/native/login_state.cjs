@@ -7,7 +7,10 @@ class LoginState {
     this.value = {status: 'connecting'}; this.deadline = null; this.closed = false;
   }
   connected() {if (!this.closed && this.value.status === 'connecting') this.value = {status: 'ready'};}
-  active() {return !this.closed && ['requesting_qr', 'qr_ready', 'password_pending'].includes(this.value.status);}
+  active() {return !this.closed && ['requesting_qr', 'qr_ready', 'qr_scanned', 'password_pending'].includes(this.value.status);}
+  scanned() {
+    if (this.status().status === 'qr_ready') this.value = {...this.value, status: 'qr_scanned'};
+  }
   status() {
     if (this.active() && this.clock() >= this.deadline) this.fail('expired');
     return {...this.value};

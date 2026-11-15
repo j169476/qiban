@@ -29,6 +29,7 @@ class LoginSession {
       login.addKernelLoginListener(createListener('login', {
         onLoginConnected: () => {state.connected(); clearTimeout(timer); resolve();},
         onQRCodeGetPicture: event => state.picture(event),
+        onQRCodeSessionUserScaned: () => state.scanned(),
         onQRCodeSessionFailed: () => state.fail('expired'),
         onQRCodeLoginSucceed: event => state.succeeded(event),
         onLoginFailed: () => {state.fail(); clearTimeout(timer); reject(Error('qq_login_failed'));}

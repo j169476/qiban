@@ -61,3 +61,11 @@ test('cancel and expiry reject late password success and late QR callbacks', asy
     assert.equal(state.status().status,cancel?'cancelled':'expired');
   }
 });
+
+test('scanned QR waits for phone confirmation and expires or cancels cleanly',()=>{
+ let now=0;const state=new LoginState({getQRCodePicture(){}},{clock:()=>now,lifetimeMs:10});
+ state.connected();state.request();state.picture(picture);state.scanned();
+ assert.equal(state.status().status,'qr_scanned');assert.ok(state.status().png_base64);
+ state.picture(picture);assert.equal(state.status().status,'qr_scanned');
+ now=11;assert.equal(state.status().status,'expired');state.succeeded({uin:'10001'});assert.equal(state.status().status,'expired');
+});

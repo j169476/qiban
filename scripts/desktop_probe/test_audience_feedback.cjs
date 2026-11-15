@@ -41,12 +41,12 @@ test('WeChat switches only on explicit selection and clears directory when accou
  await p.reply(p.requests.at(-1),{accounts:['one','two'],profiles:{accounts:['one'],selected:'one',revision:1}});await job;
  assert.equal(p.requests.filter(r=>r.operation==='wechat.accounts').length,1);assert.equal(el('select').disabled,true);
  job=el('groups').onclick();
- assert.deepEqual(JSON.parse(JSON.stringify(p.requests.at(-1).arguments)),{login:'one',expected:1,kind:'group',after:''});
- await p.reply(p.requests.at(-1),{items:[{name:'合成群',username:'target'}],next:null});await job;
+ assert.deepEqual(JSON.parse(JSON.stringify(p.requests.at(-1).arguments)),{login:'one',expected:1,kind:'group',query:'',page:1});
+ await p.reply(p.requests.at(-1),{items:[{name:'合成群',username:'target'}],page:1,pages:1,total:1});await job;
  assert.equal(el('members').children.length,1);el('login').value='two';el('login').onchange();
  job=el('select').onclick();assert.equal(p.requests.at(-1).operation,'wechat.select');
  await p.reply(p.requests.at(-1),{accounts:['one','two'],selected:'two',revision:2});await job;
- assert.equal(el('members').children.length,0);assert.match(el('accounts').textContent,/two/);
+ assert.equal(el('members').children.length,0);assert.equal(el('raw-id').textContent,'two');
 });
 test('WeChat bulk verification keeps prior pages and distinguishes equal labels by ID', async()=>{
  const p=page(),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
@@ -54,7 +54,7 @@ test('WeChat bulk verification keeps prior pages and distinguishes equal labels 
  await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:['one'],selected:'one',revision:3}});await job;
  for(const [button,username] of [['friends','first'],['groups','second@chatroom']]){
   job=el(button).onclick();
-  await p.reply(p.requests.at(-1),{items:[{username,name:'同名'}],next:null});await job;
+  await p.reply(p.requests.at(-1),{items:[{username,name:'同名'}],page:1,pages:1,total:1});await job;
   el('check-page').onclick();
  }
  job=el('verify').onclick();const req=p.requests.at(-1);
@@ -111,10 +111,10 @@ test('account nicknames and WeChat IDs stay bound to stable IDs, including dupli
  await p.reply(p.requests.at(-1),{login:'two',nickname:'同名🙂',wechat_id:''});await job;
  assert.equal(el('login').children[0].value,'one');assert.match(el('login').children[0].textContent,/同名🙂.*visible_id/);
  assert.equal(el('login').children[1].value,'two');assert.match(el('login').children[1].textContent,/同名🙂.*two/);
- el('login').value='two';el('login').onchange();assert.match(el('accounts').textContent,/微信未提供.*ID：two/);
+ el('login').value='two';el('login').onchange();assert.equal(el('wechat-id').textContent,'未提供');assert.equal(el('raw-id').textContent,'two');
  const select=el('select').onclick();assert.equal(p.requests.at(-1).arguments.login,'two');
  await p.reply(p.requests.at(-1),{accounts:['two'],selected:'two',revision:1});await select;
- assert.match(el('accounts').textContent,/当前使用：同名🙂.*ID：two/);
+ assert.equal(el('accounts').textContent,'当前使用');assert.equal(el('name').textContent,'同名🙂');assert.equal(el('raw-id').textContent,'two');
  const again=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:[],selected:null,revision:1}});
  const late=p.requests.at(-1);p.update(false);await p.reply(late,{login:'one',nickname:'must not appear',wechat_id:'private-id'});await again;
  assert.equal(el('login').children.length,0);assert.equal(el('accounts').textContent,'');
@@ -124,5 +124,19 @@ test('mismatched account details never relabel another account',async()=>{
  const p=page({autoDetails:false}),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
  const job=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:[],selected:null,revision:0}});
  await p.reply(p.requests.at(-1),{login:'two',nickname:'wrong-person',wechat_id:'wrong-id'});await job;
- assert.equal(el('login').children[0].textContent,'one（已登录）');assert.match(el('notice').textContent,/暂未读取成功/);
+ assert.equal(el('login').children[0].textContent,'one（已登录）');assert.match(el('account-notice').textContent,/暂未读取成功/);
+});
+
+test('search and ten-row pagination preserve selections across page jumps',async()=>{
+ const p=page(),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
+ let job=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:['one'],selected:'one',revision:1}});await job;
+ job=el('friends').onclick();await p.reply(p.requests.at(-1),{items:Array.from({length:10},(_,i)=>({username:'person'+i,name:'同名'})),page:1,pages:3,total:24});await job;
+ el('check-page').onclick();assert.equal(el('members').children.length,10);
+ el('jump').value='3';el('jump-go').onclick();assert.equal(p.requests.at(-1).arguments.page,3);
+ await p.reply(p.requests.at(-1),{items:[{username:'person23',name:'同名'}],page:3,pages:3,total:24});
+ assert.equal(el('more').disabled,true);assert.equal(el('chosen-list').children.length,10);
+ el('search').value='person2';job=el('search-go').onclick();assert.equal(p.requests.at(-1).arguments.query,'person2');assert.equal(p.requests.at(-1).arguments.page,1);
+ await p.reply(p.requests.at(-1),{items:[{username:'person2',name:'同名'}],page:1,pages:1,total:1});await job;
+ assert.equal(el('members').children[0].children[0].children[0].checked,true);
+ p.update(false);assert.equal(el('identity').hidden,true);assert.equal(el('raw-id').textContent,'');
 });

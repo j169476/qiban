@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 Qiban</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><script src="/probe.js" defer></script><script src="/management.js" defer></script><script src="/room.js" defer></script><script src="/tasks.js" defer></script><script src="/model.js" defer></script><script src="/audience.js" defer></script><script src="/reply_quota.js" defer></script><script src="/reply_trace.js" defer></script><script src="/bili.js" defer></script><script src="/qq.js" defer></script><script src="/media.js" defer></script><script src="/stickers.js" defer></script><script src="/files.js" defer></script><script src="/growth.js" defer></script><script src="/memories.js" defer></script><script src="/baseline.js" defer></script><script src="/relationship.js" defer></script><script src="/sharing.js" defer></script><script src="/relation-claims.js" defer></script><script src="/navigation.js" defer></script></head>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 Qiban</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><script src="/feedback.js" defer></script><script src="/probe.js" defer></script><script src="/management.js" defer></script><script src="/room.js" defer></script><script src="/tasks.js" defer></script><script src="/model.js" defer></script><script src="/audience.js" defer></script><script src="/reply_quota.js" defer></script><script src="/reply_trace.js" defer></script><script src="/bili.js" defer></script><script src="/qq.js" defer></script><script src="/media.js" defer></script><script src="/stickers.js" defer></script><script src="/files.js" defer></script><script src="/growth.js" defer></script><script src="/memories.js" defer></script><script src="/baseline.js" defer></script><script src="/relationship.js" defer></script><script src="/sharing.js" defer></script><script src="/relation-claims.js" defer></script><script src="/navigation.js" defer></script></head>
 <body data-nav-page="home" data-tab-persona="profile" data-tab-platforms="qq" data-tab-records="tasks" data-tab-media="attachments" data-tab-backup="local"><main class="probe">
 <header class="probe-topbar">
 <h1 class="probe-brand"><img class="probe-brand-mark" src="/static/white-dragon-tea.png" alt="" width="26" height="26" aria-hidden="true"><span>栖伴 <span class="probe-brand-en">Qiban</span></span></h1>
@@ -17,7 +17,7 @@
 <button type="button" class="probe-menu-item" id="jump-lock" data-jump="management-lock">应用密码锁…</button>
 <button type="button" class="probe-menu-item" id="tray">收至托盘</button>
 <a class="button secondary probe-menu-item" href="/manual">应用使用说明</a>
-<button type="button" class="probe-menu-item" id="uninstall">卸载栖伴…（会先正常退出）</button>
+<button type="button" class="probe-menu-item" id="uninstall">卸载栖伴…</button>
 <button type="button" class="probe-menu-item quiet" id="exit">退出应用</button>
 </div>
 </div>
@@ -74,20 +74,20 @@
 <button type="button" class="probe-tab" data-tab-group="persona" data-tab-target="relations" aria-pressed="false">人物关系</button>
 <button type="button" class="probe-tab" data-tab-group="persona" data-tab-target="sharing" aria-pressed="false">资料共享</button>
 </nav>
-<section class="card" id="profile-panel" hidden data-nav-page="persona" data-persona-pane="profile"><div id="profile-area" data-nav-page="persona"><h2>角色基础资料</h2><p>人物设定用于角色回复。启用共用设定后，这些内容供所有公开与私密会话使用。</p>
+<section class="card" id="profile-panel" hidden data-nav-page="persona" data-persona-pane="profile"><div id="profile-area" data-nav-page="persona"><h2>角色基础资料</h2><p>启用共用设定后，这些内容会用于所有公开与私密回复。</p>
 <label>名字 <input id="persona-name" maxlength="16000"></label><label>简介 <textarea id="persona-description" rows="3" maxlength="16000"></textarea></label>
 <label>说话方式（每行一项）<textarea id="persona-speaking" rows="3"></textarea></label>
 <label>兴趣（每行一项）<textarea id="persona-interests" rows="3"></textarea></label>
-<p class="note">说话方式和兴趣各最多100项，每项最多16000字；共用设定总长度仍受原有限制。</p>
+<p class="note">说话方式和兴趣各最多100项，每项最多16000字。</p>
 <p id="profile-draft" role="status"></p><div class="actions"><button id="save-persona">保存资料</button><button id="reload-persona" class="secondary">重新读取</button><button id="discard-persona" class="secondary" disabled>放弃修改</button></div><p id="profile-notice" role="status" aria-live="polite"></p></div></section>
 <section class="card" id="baseline-panel" hidden data-nav-page="persona" data-persona-pane="profile"><h2>共用人物设定与基础记忆</h2>
-<p>人物卡和基础记忆用于所有公开与私密回复。只应填写适合公开使用的设定；普通聊天记忆不会自动加入这里。</p>
+<p>人物卡和基础记忆用于所有公开与私密回复，只填写适合公开的内容。</p>
 <button id="baseline-refresh" class="secondary" disabled>重新读取共用设定</button><p id="baseline-state" role="status"></p>
 <div id="baseline-records"></div>
-<div id="baseline-publish-area"><label><input id="baseline-confirm" type="checkbox" disabled>我已查看全部内容，确认人物卡和清单内的基础记忆均可用于公开及私密回复</label><button id="baseline-publish" disabled>确认启用共用设定</button></div>
-<div id="foundation-area" hidden><h3>添加基础记忆</h3><p>添加后供所有会话使用，只能由管理员修改。最多10条，共用设定总长度沿用原有限制。</p>
+<div id="baseline-publish-area"><label><input id="baseline-confirm" type="checkbox" disabled>我已查看以上内容，确认可用于所有公开与私密回复</label><button id="baseline-publish" disabled>确认启用共用设定</button></div>
+<div id="foundation-area" hidden><h3>添加基础记忆</h3><p>添加后所有会话都会使用，只能由管理员修改。最多10条。</p>
 <label for="foundation-content">新基础记忆</label><textarea id="foundation-content" rows="5" maxlength="16000" disabled></textarea>
-<label><input id="foundation-confirm" type="checkbox" disabled>我确认这条新设定可以用于所有公开与私密回复</label>
+<label><input id="foundation-confirm" type="checkbox" disabled>我确认这条基础记忆可用于所有公开与私密回复</label>
 <p id="foundation-draft" role="status"></p><div class="actions"><button id="foundation-add" disabled>添加基础记忆</button><button id="foundation-discard" class="secondary" disabled>放弃修改</button></div></div>
 <p id="baseline-notice" role="status" aria-live="polite"></p></section>
 <section class="card" id="memory-panel" hidden data-nav-page="persona" data-persona-pane="memory"><h2>记忆、知识与日记</h2>
@@ -179,55 +179,59 @@
 <div id="sharing-preview-area" hidden><div id="sharing-preview"></div></div>
 </section>
 <nav class="probe-tabs" id="platform-tabs" data-nav-page="platforms" aria-label="平台与会话分组">
-<button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="qq" aria-pressed="true">QQ</button>
-<button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="wechat" aria-pressed="false">微信</button>
-<button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="bilibili" aria-pressed="false">B站</button>
+<button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="qq" aria-pressed="true"><svg class="platform-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15c-1-2-1-4 0-6C7 2 17 2 17 9c1 2 1 4 0 6l2 3-4-1c-2 2-4 2-6 0l-4 1z"/><path d="M9 11h6M9 21l3-2 3 2"/></svg>QQ</button>
+<button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="wechat" aria-pressed="false"><svg class="platform-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 16a8 6 0 1 1 3-9"/><path d="m5 14-1 4 4-2"/><path d="M22 14a6 5 0 1 0-3 4l3 2-1-4"/><path d="M7 9h.01M12 9h.01M13 14h.01M18 14h.01"/></svg>微信</button>
+<button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="bilibili" aria-pressed="false"><svg class="platform-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="15" rx="4"/><path d="m8 2 3 4m5-4-3 4M8 12v3m8-3v3m-6 2h4"/></svg>B站</button>
 </nav>
 <section class="card" id="qq-panel" hidden data-nav-page="platforms" data-platform-pane="qq"><h2>QQ 账号</h2>
-<p id="qq-status" role="status">尚未检查 QQ 登录状态。</p><p id="qq-current"></p>
-<p>在栖伴中扫码登录，无需打开电脑版 QQ 或其他桥接软件。这里只管理账号；保存账号不会启动角色或发送消息。</p>
+<p id="qq-current"></p>
+
 <label for="qq-login-method">登录方式</label><select id="qq-login-method"><option value="qr">手机扫码</option><option value="password">QQ号与密码</option></select>
 <div id="qq-password-fields" hidden><label for="qq-login-account">QQ号</label><input id="qq-login-account" inputmode="numeric" autocomplete="username" maxlength="20">
 <label for="qq-login-password">密码</label><input id="qq-login-password" type="password" autocomplete="off" maxlength="128"></div>
-<p class="note">当前 QQ 接入不提供独立短信登录；密码登录若要求额外验证，可切换扫码完成。</p>
+<p class="note">密码登录需要额外验证时，请改用扫码登录。</p>
 <div class="actions"><button id="qq-login">扫码登录 QQ</button><button id="qq-refresh" class="secondary">检查已登录账号</button><button id="qq-cancel" class="secondary" disabled>取消登录</button></div>
+<p id="qq-status" class="inline-status" role="status"></p><div id="qq-loading" class="dragon-placeholder" hidden><img src="/dragon-rest.svg" alt="趴着打盹的龙娘"><span>正在连接……</span></div>
 <div id="qq-qr-area" hidden><p>请用手机 QQ 扫码，并确认登录。</p><img id="qq-qr" alt="QQ 登录二维码"></div>
 <div id="qq-selection-area" hidden><label for="qq-selection">选择 QQ 账号</label><select id="qq-selection"></select><button id="qq-select">保存账号选择</button></div>
 <p id="qq-notice" role="status" aria-live="polite"></p></section>
 <section class="card" id="qq-targets-area" hidden data-nav-page="platforms" data-platform-pane="qq"><h2>回复名单</h2>
-<button id="qq-directory-load" class="secondary">读取好友和群列表</button>
+<div class="actions"><button id="qq-directory-load" class="secondary">读取好友和群列表</button><p id="qq-directory-status" class="inline-status" role="status"></p></div>
 <div id="qq-directory-area" hidden>
 <label for="qq-directory-search">搜索名称或号码</label><input id="qq-directory-search" type="search" placeholder="输入好友备注、昵称、群名或号码">
 <label for="qq-friend-choice">好友</label><select id="qq-friend-choice"></select><button id="qq-friend-add" class="secondary">添加好友到回复范围</button> <button id="qq-friend-batch-add" class="secondary">批量添加匹配的好友</button> <button id="qq-friend-batch-remove" class="secondary">批量移除匹配的好友</button>
 <label for="qq-group-choice">群</label><select id="qq-group-choice"></select><button id="qq-group-add" class="secondary">添加群到回复范围</button> <button id="qq-group-batch-add" class="secondary">批量添加匹配的群</button> <button id="qq-group-batch-remove" class="secondary">批量移除匹配的群</button>
-<p id="qq-directory-summary" role="status"></p><p class="note">添加只修改下方待保存列表，核验并保存后才生效。名称相同时请核对号码。</p></div>
-<p>输入好友 QQ 号或群号，多个号码用空格、换行或逗号分隔。核验通过后再保存。私聊直接回应；群聊由 @ 或引用唤起。保存不会立即启动角色。</p>
+<p id="qq-directory-summary" role="status"></p><p class="note">添加后需核验并保存才生效；名称相同时核对号码。</p></div>
+<p>多个号码用空格、换行或逗号分隔。核验后保存。私聊直接回复；群聊需 @ 或引用才回复。</p>
 <label for="qq-private-targets">好友 QQ 号</label><textarea id="qq-private-targets" rows="2"></textarea>
 <label for="qq-group-targets">群号</label><textarea id="qq-group-targets" rows="2"></textarea>
 <div class="actions"><button id="qq-targets-verify" class="secondary">核验回复会话</button><button id="qq-targets-save" disabled>保存并允许回复</button></div>
 <p id="qq-targets-summary" role="status"></p><p id="qq-targets-preview" role="status"></p>
-<p class="note">保存会替换当前账号的手动名单。两个列表都留空并保存会清空名单。持续授权在「当前回复范围」单独管理。</p>
+<p class="note">保存会替换当前名单；两个列表都清空后保存即可清空名单。</p>
 <p id="qq-targets-notice" role="status" aria-live="polite"></p></section>
-<section class="card" id="audience-panel" hidden data-nav-page="platforms" data-platform-pane="wechat"><h2>微信账号与回复名单</h2>
-<p class="note">电脑版微信使用手机确认或扫码登录，当前不提供独立短信或密码登录。完成登录后，再检测并选择账号。</p>
+<section class="card" id="audience-panel" hidden data-nav-page="platforms" data-platform-pane="wechat"><h2>微信账号</h2>
+<p class="note">先在电脑微信完成登录，再回到栖伴检测账号。</p>
 <button id="audience-client-login" class="secondary">打开微信登录（手机确认 / 扫码）</button>
 <select id="audience-platform" hidden aria-label="回复范围平台"><option value="qq">QQ</option><option value="wechat">微信</option></select>
 <button id="audience-detect" class="secondary" hidden>检测已登录的微信账号</button>
-<p id="audience-accounts" role="status" hidden></p>
+<p id="audience-account-notice" class="inline-status" role="status"></p>
+<p id="audience-accounts" role="status" hidden></p><dl id="audience-identity" class="account-facts" hidden><div><dt>昵称</dt><dd id="audience-name"></dd></div><div><dt>微信号</dt><dd id="audience-wechat-id"></dd></div><div><dt>ID</dt><dd id="audience-raw-id"></dd></div></dl>
 <div id="audience-wechat-picker" hidden><label for="audience-login">微信账号</label>
 <select id="audience-login"></select> <button id="audience-select" class="secondary">使用此账号</button>
-<p>切换会停止原微信账号的任务。请核对新账号的回复范围后再启动。</p></div>
-<div id="audience-directory" hidden><button id="audience-friends" class="secondary">查看当前账号的好友</button>
+</div>
+</section>
+<section class="card" id="audience-directory-panel" data-nav-page="platforms" data-platform-pane="wechat"><h2>好友与群 · 回复名单</h2><div id="audience-directory" hidden><button id="audience-friends" class="secondary">查看当前账号的好友</button>
 <button id="audience-groups" class="secondary">查看当前账号的群</button>
-<ul id="audience-members"></ul><p id="audience-page-status" role="status"></p>
-<button id="audience-more" class="secondary" hidden>下一页</button>
+<p id="audience-page-status" class="inline-status" role="status"></p><div class="directory-search"><label for="audience-search">搜索好友或群</label><input id="audience-search" type="search" maxlength="100" placeholder="备注、昵称或 ID"><button id="audience-search-go" class="secondary">搜索</button></div>
+<ul id="audience-members" class="contact-list"></ul><div class="directory-pager"><button id="audience-previous" class="secondary">上一页</button><span id="audience-page-number" role="status"></span><label for="audience-jump">跳至</label><input id="audience-jump" type="number" min="1" value="1"><button id="audience-jump-go" class="secondary">跳转</button>
+<button id="audience-more" class="secondary" hidden>下一页</button></div>
 <button id="audience-check-page" class="secondary">勾选本页</button>
 <button id="audience-uncheck-page" class="secondary">取消勾选本页</button>
 <button id="audience-clear" class="secondary">清空所选</button>
 <button id="audience-verify">核验所选会话</button>
 <button id="audience-read-list" class="secondary">读取已保存名单</button>
 <button id="audience-save-list">保存回复名单</button>
-<p>先读取已保存名单，再调整勾选。删好友或退群会暂停回复；重新核实关系后，从新消息继续。</p>
+<p>删好友或退群会暂停回复；重新核实关系后从新消息继续。</p>
 <label for="audience-chosen-list">当前勾选的会话</label><select id="audience-chosen-list"></select>
 <button id="audience-remove-one" class="secondary">移出勾选</button>
 <p id="audience-selection-info" role="status"></p></div>
@@ -243,7 +247,7 @@
 <div class="actions"><button id="bili-policy-save" disabled>保存互动设置</button><button id="bili-policy-default" class="secondary" disabled>填入默认值</button><button id="bili-policy-read" class="secondary">重新读取</button></div>
 <p id="bili-policy-note" role="status"></p></details></section>
 <section class="card" id="growth-panel" hidden data-nav-page="platforms" data-platform-pane="bilibili"><h2>公开成长检查与恢复</h2>
-<p>用于检查 B 站公开活动中积累的兴趣与状态。先停止 B 站并等待任务结束，再检查；恢复不会启动角色，也不会改动私聊记忆或基础人设。</p>
+<p>先停止 B 站，再检查公开活动中积累的兴趣与状态。恢复不会改动私聊记忆或基础人设。</p>
 <button id="growth-preview" class="secondary" disabled>检查并预览恢复</button>
 <div id="growth-proposal" hidden><p>恢复将采用下面的默认内容，原状态加密归档保留，不把失效来源重新当作有效资料。</p><div id="growth-data"></div>
 <label><input id="growth-confirm" type="checkbox" disabled>我已核对，确认用上述默认内容重建公开成长</label>
@@ -256,15 +260,15 @@
 <div id="model-accounts" hidden><label for="model-selection">已保存的 ChatGPT 账号</label><select id="model-selection"></select>
 <div class="actions"><button id="model-select" class="secondary">使用所选账号</button><button id="model-add" class="secondary">添加 ChatGPT 账号</button></div>
 <p>切换账号会立即停止所有进行中的任务，待旧任务退出后由新账号接手未完成工作；已确认发送的消息不重复发送，结果不明的发送等待核对。添加账号成功后同样执行交接。其他账号的登录保留，额度不足时不会自动换号。</p></div>
-<p id="model-status" role="status">尚未检查模型登录状态。</p><p id="model-account"></p>
-<p>使用 ChatGPT 账号登录。登录时会打开官方授权页面，完成后返回栖伴。本应用单独保存登录状态，无需创建或绑定 Codex 聊天。</p>
+<p id="model-account"></p>
+
 <div class="actions"><button id="model-login">登录 ChatGPT</button><button id="model-refresh" class="secondary">检查登录状态</button><button id="model-open" class="secondary" disabled>重新打开登录页面</button><button id="model-cancel" class="secondary" disabled>取消登录</button><button id="model-logout" class="quiet" disabled>退出本应用账号</button></div>
-<p id="model-notice" role="status" aria-live="polite"></p></section>
+<p id="model-status" class="inline-status" role="status"></p><p id="model-notice" role="status" aria-live="polite"></p></section>
 <section class="card" id="reply-quota-panel" hidden data-nav-page="model"><h2>回复额度</h2>
-<p class="note">这里是回复次数与群参与上限：私聊按自然日统计回复条数，群聊按每次被 @ 或引用唤起的参与阶段统计。保存设置不会调用模型；这不是计费额度。</p>
-<p class="note">账号来自本机已保存并曾核验的登记。离线时显示的是已保存资料，不代表此刻已连接或重新核验了平台。修改额度不会授权新会话、不会改变回复授权、不会启停平台，也不要求平台正在运行。</p>
-<p class="note">账号默认额度对所有未单独设置的会话生效；单独设置只影响所选会话，随时可以恢复继承账号默认。</p>
-<p class="note">“停用此会话”只停用这一个已登记会话，账号的“允许所有”和其他会话保持原状，不需要连接器，也不会启停平台。解除排除只移除这项排除：该会话仍按原有授权和关系状态决定是否回复，并且只回应解除之后的新消息，排除期间的消息不会补回复。</p>
+<p class="note">私聊按自然日统计回复条数；群聊每次被 @ 或引用唤起算一次参与。保存设置不会调用模型，也不是计费额度。</p>
+<p class="note">离线时显示已保存的账号。修改额度不会授权新会话，也不会改变回复授权或启动平台。</p>
+<p class="note">单独设置只影响所选会话，可随时恢复为账号默认。</p>
+<p class="note">“停用此会话”只影响这一个会话。解除后仍按原有授权决定是否回复，只回复新消息，排除期间的消息不会补回。</p>
 <button id="reply-quota-refresh" class="secondary">读取账号额度</button>
 <p id="reply-quota-status" role="status"></p>
 <p id="reply-quota-rule" class="note"></p>
@@ -274,7 +278,7 @@
 <button type="button" class="probe-tab" data-tab-group="records" data-tab-target="trace" aria-pressed="false">回复处理记录</button>
 </nav>
 <section class="card" id="tasks-panel" data-nav-page="records" data-records-pane="tasks"><h2>手动任务</h2>
-<p>明确提交后只执行这次任务，不开启平台自动浏览或改变自动运行设置。结果仅供本机用户查看。取消、停止全部或退出应用会终止任务；换模型账号后由新账号接续未完成步骤。</p>
+<p>只执行本次提交的任务，不改自动运行设置。取消、停止全部或退出应用会终止任务；换模型账号后由新账号接续未完成步骤。</p>
 <p>查资料与学习使用当前账号的网页检索能力，实际可用性取决于模型及账号权限。图片生成仍列为后续功能。</p>
 <label for="tasks-kind">任务类型</label><select id="tasks-kind" disabled><option value="video">阅读 B 站视频</option><option value="web">网页查资料</option><option value="learn">分轮学习并自检</option></select><p id="tasks-availability" role="status">等待后台就绪……</p>
 <div id="tasks-web-fields" hidden><label for="tasks-prompt">查资料的问题／学习目标</label><textarea id="tasks-prompt" maxlength="2000" rows="3" disabled></textarea>
@@ -290,9 +294,9 @@
 <p id="tasks-notice" role="status" aria-live="polite"></p><div id="tasks-items"></div>
 </section>
 <section class="card" id="reply-trace-panel" hidden data-nav-page="records" data-records-pane="trace"><h2>回复处理记录</h2>
-<p class="note">这里是程序处理每一条回复时自动留下的记录：平台、开始与结束时间、用时、完成或失败、处理阶段，以及当时使用的来源版本。记录由程序在回复处理过程中写入，不需要平台或模型在线就能查看；没有记录不代表没有回复，超过保留期的记录会被自动清理。</p>
-<p class="note">程序处理记录只含处理过程的结构化信息，不含提示词原文、聊天原文或模型内部推理，也不保存回复正文。本页不提供导出、删除或修改保留期的入口。</p>
-<p class="note">列表只显示最近的若干条，不能翻页；需要更多请把“最近数量”调大（1 至 100 条）。来源只显示资源标识和版本，本页不提供打开原文的入口。</p>
+<p class="note">回复处理记录：平台、时间、用时、结果、处理阶段和来源版本。超过保留期的记录会自动清理。</p>
+<p class="note">记录不含提示词、聊天原文、回复正文或模型推理。</p>
+<p class="note">调整“最近数量”可查看更多（1 至 100 条）。</p>
 <label for="reply-trace-limit">最近数量（1 至 100 条）</label>
 <input id="reply-trace-limit" type="number" min="1" max="100" step="1" value="30">
 <button id="reply-trace-load" class="secondary">读取最近记录</button>
@@ -357,7 +361,7 @@
 </nav>
 <section class="card" id="backup-panel" hidden data-nav-page="settings"><h2>备份与恢复</h2>
 <div data-backup-pane="local"><h3>本机备份</h3>
-<p>在本机保存加密备份。恢复会覆盖当前资料；请先查看预览，再通过 Windows 验证确认。</p>
+<p>恢复会覆盖当前资料；先查看预览，再通过 Windows 验证确认。</p>
 <div class="actions"><button id="backup-create">保存当前备份</button><button id="backup-refresh" class="secondary">刷新备份</button></div>
 <label>选择本机备份 <select id="backup-selection"></select></label>
 <button id="backup-preview" class="secondary">查看恢复预览</button>
@@ -388,30 +392,28 @@
 </div>
 <div class="probe-rail" role="complementary" aria-label="详情、通知与说明">
 <section class="card probe-rail-card" id="notification-panel" hidden data-nav-page="home" data-rail="right"><h2 id="notification-title">应用通知</h2><div id="notification-items"></div><img class="probe-rail-art" src="/static/white-dragon-tea.png" alt="捧着茶杯的栖伴白龙娘"></section>
-<section class="card probe-rail-card" data-nav-page="persona" data-persona-pane="profile" data-rail="right"><h2>人物设定说明</h2><p class="note">人物卡与基础记忆用于所有公开与私密回复；普通聊天记忆不会自动成为共用设定。</p><p class="note">保存后立即作用于之后的回复；有未保存内容时，中间栏会在表单旁显示提示。</p></section>
+
 <section class="card probe-rail-card" data-nav-page="persona" data-persona-pane="memory" data-rail="right"><h2>记忆来源与权限</h2>
 <p id="memory-meta"></p><p id="memory-source"></p><p id="memory-related"></p>
 <button id="memory-explain" class="secondary" disabled>查看来源与权限依据</button>
 <div id="memory-explanation" hidden aria-live="polite"></div>
-<p class="note">选择左侧一条资料后，这里显示它的来源、关联与权限依据；正文、标签与保存仍在中间栏。</p></section>
+</section>
 <section class="card probe-rail-card" data-nav-page="persona" data-persona-pane="relations" data-rail="right"><h2>关系详情</h2>
 <div id="relation-link-detail"></div>
 <div id="relation-claims-detail"></div>
 <div id="relation-claims-history"></div>
-<p class="note">这里显示所选关联或声明的详情与裁决记录；核对、保存与撤销仍在中间栏操作。</p></section>
-<section class="card probe-rail-card" data-nav-page="persona" data-persona-pane="sharing" data-rail="right"><h2>共享详情与说明</h2><div id="sharing-detail"></div><p class="note">共享只决定资料可以被谁使用，不是回复授权；扩大或收回都需要先预览再确认。</p></section>
+</section>
+<section class="card probe-rail-card" data-nav-page="persona" data-persona-pane="sharing" data-rail="right"><h2>共享详情与说明</h2><div id="sharing-detail"></div><p class="note">共享只决定资料可以给谁使用，不是回复授权。</p></section>
 <section class="card probe-rail-card" id="audience-scope-panel" hidden data-nav-page="platforms" data-platform-pane="qq wechat" data-rail="right"><h2>当前回复范围</h2>
 <button id="audience-load" class="secondary">查看当前账号的范围</button><p id="audience-status" role="status"></p>
 <div id="audience-actions" hidden><div class="actions"><button id="audience-private" class="secondary">允许所有好友</button> <button id="audience-group" class="secondary">允许所有群</button></div></div>
 <div id="audience-preview" hidden><p role="alert" id="audience-warning"></p><div class="actions"><button id="audience-confirm"></button> <button id="audience-cancel" class="secondary">取消</button></div></div>
 <p id="audience-notice" role="status"></p>
-<p class="note">启用「允许所有」前会显示影响范围，需单独确认。</p></section>
-<section class="card probe-rail-card" data-nav-page="platforms" data-platform-pane="bilibili" data-rail="right"><h2>B站说明</h2><p class="note">互动权限与每日额度在中间栏展开查看；公开成长检查需要先停止 B 站。</p></section>
-<section class="card probe-rail-card" data-nav-page="model" data-rail="right"><h2>订阅用量与会话次数说明</h2>
-<p class="note">ChatGPT 订阅用量请在账号中查看。</p>
-<p class="note">栖伴的回复额度按私聊每日回复条数、群聊每次唤起的参与次数分别计算。</p></section>
+</section>
+<section class="card probe-rail-card" data-nav-page="platforms" data-platform-pane="bilibili" data-rail="right"><h2>B站说明</h2></section>
+
 <section class="card probe-rail-card" data-nav-page="records" data-records-pane="tasks" data-rail="right"><h2 id="tasks-result-title">任务结果</h2><pre id="tasks-result" class="probe-rail-pre" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre><button id="tasks-more" class="secondary" disabled>读取后续内容</button></section>
-<section class="card probe-rail-card" data-nav-page="records" data-records-pane="trace" data-rail="right"><h2>记录详情</h2><div id="reply-trace-detail"></div><p class="note">选中一条记录后，这里显示它的处理阶段与来源版本。</p></section>
+<section class="card probe-rail-card" data-nav-page="records" data-records-pane="trace" data-rail="right"><h2>记录详情</h2><div id="reply-trace-detail"></div></section>
 <section class="card probe-rail-card" id="sticker-detail-panel" hidden data-nav-page="media" data-media-pane="stickers" data-rail="right"><h2>选中表情预览与编辑</h2>
 <p class="note">角色会在已授权的会话中按语境选择已启用的表情，每次最多一张。</p>
 <p id="sticker-detail-title" role="status">先在中间栏选择一张表情。</p>
@@ -422,7 +424,7 @@
 <div class="actions"><button id="sticker-detail-save" disabled>保存更改</button>
 <p id="sticker-detail-feedback" class="probe-rail-feedback" role="status"></p></div>
 </section>
-<section class="card probe-rail-card" data-nav-page="media" data-media-pane="attachments library" data-rail="right"><h2>素材说明</h2><p class="note">附件原件按保留期限与总容量清理；文件库与表情库的内容长期保留并计入同一份附件容量。</p><p class="note">把这些内容带入回复需要平台与会话授权；本页不改动回复范围。</p></section>
+<section class="card probe-rail-card" data-nav-page="media" data-media-pane="attachments library" data-rail="right"><h2>素材说明</h2><p class="note">附件原件按保留期限与总容量清理；文件库与表情库的内容长期保留并计入同一份附件容量。</p></section>
 <section class="card probe-rail-card" id="backup-rail-local" hidden data-nav-page="settings" data-backup-pane="local" data-rail="right"><h2>本机备份预览与确认</h2>
 <p id="backup-effect" role="status"></p><div class="actions"><button id="backup-restore" disabled>确认覆盖并验证 Windows 身份</button></div><p id="backup-notice" role="status" aria-live="polite"></p>
 </section>

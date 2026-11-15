@@ -26,6 +26,7 @@ REVIEWED_ASSETS = {
 }
 # Confirmed public text outside EXTENSIONS; each exact path is still text-scanned.
 REVIEWED_TEXT = {
+    "scripts/desktop_probe/Assets/dragon-rest.svg",
     "scripts/desktop_probe/installer/Qiban.iss",
     "src/companion_qq/native/LICENSE.Waylay",
     "src/companion_qq/native/QQNT-lifecycle.def",

@@ -35,7 +35,7 @@ test('interrupted handoff can resume with the only saved current account after r
   handoff_pending:true,accounts:[{id:'a',label:'账号 1',active:true,signed_in:true}]};
  const p=page(state);await p.update();
  assert.equal(p.node('model-select').disabled,false);
- assert.match(p.node('model-status').textContent,/交接尚未完成/);
+ assert.match(p.node('model-status').textContent,/交接未完成/);
  let requested;
  p.responses.select=args=>{requested=args;return {};};
  await p.node('model-select').onclick();
@@ -92,7 +92,7 @@ test('locking management clears pending account feedback without reopening a mod
 
 test('SIWC logout preserves the remote revocation warning',async()=>{
  const p=page({state:'authenticated',busy:false,authentication_route:'siwc_validation'});
- await p.update();assert.equal(p.node('model-login').textContent,'Continue with ChatGPT');
+ await p.update();assert.equal(p.node('model-login').textContent,'继续 ChatGPT 登录');
  await p.node('model-logout').onclick();
  await p.update({state:'signed_out',busy:false,remote_revocation_confirmed:false,message:'远端撤销未确认'});
  assert.equal(p.node('model-feedback-message').textContent,'远端撤销未确认');

@@ -51,3 +51,17 @@ test('a never-initialized profile offers no backup but allows explicit skip',()=
  assert.equal(p.get('portable-export').disabled,true);
  assert.equal(p.get('uninstall-skip').disabled,false);
 });
+
+test('clear profile is off by default and survives only an explicit final confirmation',()=>{
+ const p=page();p.state({can_clear_profile:true,backup:'skipped',continue_refusal:''});
+ assert.notEqual(p.get('uninstall-clear-profile').checked,true);
+ p.get('uninstall-clear-profile').checked=true;p.get('uninstall-continue').onclick();
+ assert.match(p.get('uninstall-confirm-text').textContent,/本机备份.*清空/);
+ p.get('uninstall-confirm-no').onclick();assert.equal(p.sent.some(r=>r.action==='uninstall-continue'),false);
+ p.get('uninstall-continue').onclick();p.get('uninstall-confirm-yes').onclick();assert.equal(p.sent.at(-1).clear_profile,true);
+});
+test('custom profile cannot request default profile deletion',()=>{
+ const p=page();p.get('uninstall-clear-profile').checked=true;
+ p.state({can_clear_profile:false,backup:'skipped',continue_refusal:''});
+ assert.equal(p.get('uninstall-clear-profile').disabled,true);assert.equal(p.get('uninstall-clear-profile').checked,false);
+});

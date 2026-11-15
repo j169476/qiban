@@ -324,6 +324,7 @@ class DesktopManagement:
                       'tasks.detail':{'session','identifier','offset'},
                       'tasks.control':{'session','identifier','action','expected'},'runtime.stop_all':set(),
                       'wechat.directory':{'login','expected','kind','after'},
+                      'wechat.directory_page':{'login','expected','kind','query','page'},
                       'wechat.targets.verify':{'login','expected','targets'},
                       'wechat.targets.saved':{'login','expected'},'wechat.targets.save':{'login','expected','targets','version'},
                       'relationship.clear':{'expected'},'relationship.read':set(),'relationship.accounts':{'after'},'relationship.person':{'anchor'},
@@ -483,11 +484,12 @@ class DesktopManagement:
             if self.store.state('desktop-last-restore',{}).get('status')=='assets_pending':
                 raise AssistantError('restore_pending', '请等待资料恢复完成后保存名单')
             return asyncio.run(save(self, request, **args))
-        if op in ('wechat.directory','wechat.targets.verify'):
+        if op in ('wechat.directory','wechat.directory_page','wechat.targets.verify'):
             import asyncio
 
-            from .desktop_wechat import directory, verify_targets
-            handler = directory if op == 'wechat.directory' else verify_targets
+            from .desktop_wechat import directory, directory_page, verify_targets
+            handler = {'wechat.directory': directory, 'wechat.directory_page': directory_page,
+                       'wechat.targets.verify': verify_targets}[op]
             return asyncio.run(handler(self, request, **args))
         if op in ('wechat.profiles','wechat.select'):
             from .desktop_wechat import select_account, selection

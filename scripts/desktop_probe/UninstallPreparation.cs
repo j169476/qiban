@@ -112,9 +112,10 @@ internal static class UninstallRule
     // the directory come from the helper's own location, so nothing here accepts a command.
     internal const string OpenPreparationHelper = "--open-uninstall";
     internal const string FinishHelper = "--finish-uninstall";
+    internal const string FinishClearHelper = "--finish-uninstall-clear-profile";
 
     internal static bool IsHelper(string? argument) =>
-        argument is OpenPreparationHelper or FinishHelper;
+        argument is OpenPreparationHelper or FinishHelper or FinishClearHelper;
 
     // uninstall.exe only forwards to the neighbouring application; it never runs a second copy of
     // itself and never carries a flag a person would have to remember.
@@ -126,7 +127,7 @@ internal static class UninstallRule
 
     internal static string[] AliasArguments() => [PreparationSwitch];
 
-    internal static string[] HandoffArguments() => [PreparedParameter];
+    internal static string[] HandoffArguments(bool clearProfile=false) => clearProfile ? [PreparedParameter,"/QIBANCLEARPROFILE=1"] : [PreparedParameter];
 
     // Only use the current user's registered uninstaller inside this program directory. Every candidate must be an
     // unins???.exe inside the program directory, so a directory that was only unpacked (or copied
@@ -203,11 +204,11 @@ internal static class UninstallRule
     }
 
     // Start the registered uninstaller of this installation with the fixed internal parameter.
-    internal static bool StartRegisteredUninstaller(string programDirectory, string path)
+    internal static bool StartRegisteredUninstaller(string programDirectory, string path, bool clearProfile=false)
     {
         if (!IsUninstallerName(Path.GetFileName(path)) || !IsInside(programDirectory, path)
             || !File.Exists(path)) return false;
-        return Start(path, programDirectory, HandoffArguments());
+        return Start(path, programDirectory, HandoffArguments(clearProfile));
     }
 
     // Start the preparation page of this installation.
@@ -219,6 +220,8 @@ internal static class UninstallRule
     {
         if (!File.Exists(file)) return false;
         var start = new ProcessStartInfo(file) { UseShellExecute = false, WorkingDirectory = workingDirectory };
+        start.Environment["TEMP"]=start.Environment["TMP"]=Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Temp");
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         try
         {
@@ -234,9 +237,9 @@ internal static class UninstallRule
 
     // What the preparation page says for a directory without a registered uninstaller.
     internal const string PortableDirectoryGuidance =
-        "没有找到本机登记的卸载程序，这个目录看起来是免安装（直接解压）的运行目录。\n\n"
-        + "保存备份后，正常退出栖伴，再在文件资源管理器里手动删除程序文件夹即可。\n\n"
-        + "个人资料、备份与凭据都保存在程序目录之外的资料目录里，删除程序目录不会删除它们。";
+        "没有找到本机登记的卸载程序，这个目录可能是免安装（解压）运行目录。\n\n"
+        + "保存备份后，正常退出栖伴，再手动删除程序文件夹。\n\n"
+        + "个人资料、备份与凭据在程序目录之外，删除程序目录不会影响它们。";
 }
 
 // The one internal helper this application starts for itself. It waits for the process that asked
@@ -262,6 +265,6 @@ internal static class UninstallHelper
         if (mode == UninstallRule.OpenPreparationHelper)
             return UninstallRule.StartPreparationPage(program,profile) ? 0 : 1;
         var uninstaller = UninstallRule.ResolveUninstaller(program, UninstallRule.RegisteredUninstaller);
-        return uninstaller is not null && UninstallRule.StartRegisteredUninstaller(program, uninstaller) ? 0 : 1;
+        return uninstaller is not null && UninstallRule.StartRegisteredUninstaller(program, uninstaller,mode==UninstallRule.FinishClearHelper) ? 0 : 1;
     }
 }

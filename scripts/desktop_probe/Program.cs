@@ -51,6 +51,7 @@ internal static class Program
         // Two fixed internal modes and the published alias are decided before anything else, so
         // neither of them can ever reach the window, a profile or a database. A helper waits for
         // exactly one process id and then performs one fixed action from its own directory.
+        if(args.Length==1 && args[0]==ProfileCleanup.Switch)return ProfileCleanup.Run();
         if(args.Length==2 && UninstallRule.IsHelper(args[0]) && int.TryParse(args[1],out int waited))
             return UninstallHelper.Run(args[0],waited);
         if(args.Length==3 && args[0]==UninstallRule.OpenPreparationHelper && int.TryParse(args[1],out int profileWait))
@@ -232,7 +233,7 @@ internal sealed class ProbeWindow : Form
     readonly Dictionary<string, string> resources = new()
     {
         ["/"]="index.html", ["/manual"]="manual.html", ["/uninstall"]="uninstall.html",
-        ["/uninstall.js"]="uninstall.js",
+        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/dragon-rest.svg"]="dragon-rest.svg",
         ["/probe.css"]="probe.css", ["/probe.js"]="probe.js",
         ["/management.js"]="management.js",["/room.js"]="room.js",["/tasks.js"]="tasks.js",["/model.js"]="model.js",["/bili.js"]="bili.js",["/qq.js"]="qq.js",["/audience.js"]="audience.js",["/reply_quota.js"]="reply_quota.js",["/reply_trace.js"]="reply_trace.js",["/media.js"]="media.js",["/stickers.js"]="stickers.js",["/files.js"]="files.js",["/growth.js"]="growth.js",["/memories.js"]="memories.js",["/baseline.js"]="baseline.js",["/relationship.js"]="relationship.js",["/sharing.js"]="sharing.js",["/relation-claims.js"]="relation-claims.js",["/navigation.js"]="navigation.js",["/static/app.css"]="app.css", ["/static/qiban.css"]="qiban.css",
         ["/static/white-dragon-tea.png"]="white-dragon-tea.png"
@@ -288,7 +289,13 @@ internal sealed class ProbeWindow : Form
             if(Program.UninstallPrepare && !exiting && e.CloseReason==CloseReason.UserClosing)
             {e.Cancel=true;Exit();return;}
             if (!exiting && e.CloseReason == CloseReason.UserClosing)
-            { e.Cancel = true; Hide(); Log("hidden_to_tray"); tray.ShowBalloonTip(2000, "栖伴仍在托盘", "双击托盘图标即可重新打开；退出请使用托盘菜单。", ToolTipIcon.Info); }
+            {
+                e.Cancel=true;
+                using var choice=new CloseChoiceDialog();
+                var result=choice.ShowDialog(this);
+                if(result==DialogResult.OK)Exit();
+                else if(result==DialogResult.Ignore)HideToTray();
+            }
             else if (!shutdownComplete) { e.Cancel = true; Exit(); }
         };
         poll.Tick += async (_, _) =>
@@ -305,6 +312,7 @@ internal sealed class ProbeWindow : Form
         events.Add(item);
         File.AppendAllText(Path.Combine(Program.Paths.Logs, "events.jsonl"), JsonSerializer.Serialize(item) + "\n");
     }
+    void HideToTray() {Hide();Log("hidden_to_tray");}
     void RestoreWindow() { Show(); WindowState = FormWindowState.Normal; Activate(); activations++; Log("window_activated"); }
     async Task Initialize()
     {
@@ -414,7 +422,7 @@ internal sealed class ProbeWindow : Form
         if (!Allowed(e.Request.Uri) || !resources.TryGetValue(path, out var name))
         { e.Response = environment.CreateWebResourceResponse(null, 403, "Forbidden", ""); return; }
         var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)!;
-        string mime = Path.GetExtension(name) switch { ".css"=>"text/css", ".js"=>"application/javascript", ".png"=>"image/png", _=>"text/html" };
+        string mime = Path.GetExtension(name) switch { ".css"=>"text/css", ".js"=>"application/javascript", ".png"=>"image/png", ".svg"=>"image/svg+xml", _=>"text/html" };
         e.Response = environment.CreateWebResourceResponse(stream, 200, "OK", "Content-Type: " + mime + "; charset=utf-8\r\n" +
             "Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'\r\nCache-Control: no-store");
     }
@@ -490,8 +498,8 @@ internal sealed class ProbeWindow : Form
                 case "uninstall-status": PostUninstall(); break;
                 case "uninstall-backup": await UninstallBackup(); break;
                 case "uninstall-skip": SkipBackup(); break;
-                case "uninstall-continue": ContinueUninstall(); break;
-                case "tray": Close(); break;
+                case "uninstall-continue": ContinueUninstall(message.RootElement); break;
+                case "tray": HideToTray(); break;
                 case "exit": Exit(); break;
                 case "sticker-import": await ImportSticker(message.RootElement); break;
                 case "file-import": await ImportFile(message.RootElement); break;
@@ -1808,7 +1816,7 @@ internal sealed class ProbeWindow : Form
     }
     // Only the person's explicit continue reaches here; the uninstaller itself is started by one
     // helper after this window, its marker and its database have closed.
-    void ContinueUninstall()
+    void ContinueUninstall(JsonElement message)
     {
         var session = preparation;
         if(session is null || exiting || helperMode is not null)return;
@@ -1821,7 +1829,9 @@ internal sealed class ProbeWindow : Form
         }
         Log("uninstall_continue_confirmed", new { backup=session.Backup.ToString(), name=session.BackupName,
             entry=Path.GetFileName(session.UninstallerPath!) });
-        helperMode = UninstallRule.FinishHelper;
+        bool clear=message.TryGetProperty("clear_profile",out var clearValue)&&clearValue.ValueKind==JsonValueKind.True;
+        if(clear && !ProfileCleanup.IsDefault(session.DataRoot)){PostUninstall();return;}
+        helperMode = clear ? UninstallRule.FinishClearHelper : UninstallRule.FinishHelper;
         Exit();
     }
     // One state document for the preparation page: what the entry is, what the last real result
@@ -1870,6 +1880,7 @@ internal sealed class ProbeWindow : Form
             entry=session?.UninstallerPath is string path ? Path.GetFileName(path) : "",
             application=Program.Paths.ApplicationDirectory,
             profile=Program.Paths.Root,
+            can_clear_profile=ProfileCleanup.IsDefault(Program.Paths.Root),
             backup_folder=UninstallBackupFolder(),
             backup_available=session?.BackupAvailable??false,
             backup_reason=session?.BackupUnavailableReason??"",

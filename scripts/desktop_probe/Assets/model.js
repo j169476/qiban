@@ -19,6 +19,7 @@
  }
  function render(){
   const busy=submitting||!!completion||!!state?.busy;
+  window.QibanFeedback?.mark(element('model-login'),allowed&&busy);
   const multiple=allowed&&!!state?.multi_account,selection=element('model-selection');
   element('model-accounts').hidden=!multiple||state.accounts.length===0;
   const signature=multiple?JSON.stringify([state.accounts,state.active_account]):'';
@@ -37,8 +38,8 @@
   element('model-add').disabled=!multiple||busy;
   element('model-select').disabled=!multiple||busy||!selection.value||(selection.value===state.active_account&&!state.handoff_pending);
   element('model-select').textContent=state?.handoff_pending?'使用所选账号继续交接':'使用所选账号';
-  element('model-login').textContent=state?.authentication_route==='siwc_validation'?'Continue with ChatGPT':'登录 ChatGPT';
-  element('model-status').textContent=!allowed?'解锁本机管理后可查看模型账号。':state?.handoff_pending&&!busy?'账号交接尚未完成，任务保持停止。请确认所选账号后点击“使用所选账号继续交接”。':state?.message||'正在读取模型状态……';
+  element('model-login').textContent=state?.authentication_route==='siwc_validation'?'继续 ChatGPT 登录':'登录 ChatGPT';
+  element('model-status').textContent=!allowed?'解锁后可查看模型账号。':state?.handoff_pending&&!busy?'账号交接未完成，任务保持停止。请点击“使用所选账号继续交接”。':state?.message||'正在读取模型状态……';
   const current=multiple?state.accounts.find(a=>a.id===state.active_account)?.label:null;
   element('model-account').textContent=allowed&&state?.state==='authenticated'?`${current||state.email||'ChatGPT 账号'} · ${state.plan||'订阅类型未知'}`:'';
   for(const name of ['refresh','login','logout'])element('model-'+name).disabled=!allowed||busy||(name==='logout'&&state?.state!=='authenticated');
@@ -51,10 +52,10 @@
   if(operation==='cancel'){
    if(state.state==='cancelled')feedback('账号操作已取消',state.message);
    else if(state.state==='authenticated'&&state.renewal_status)feedback('续期操作结果',state.message);
-   else if(state.state==='authenticated')feedback('登录已经完成','登录已在取消前完成，当前账号仍已登录。如需退出，请点击“退出本应用账号”。');
+   else if(state.state==='authenticated')feedback('登录已经完成','登录已在取消前完成，当前账号仍为登录状态。');
    else feedback('账号操作提示',state.state==='signed_out'?'当前未登录，没有仍在等待的登录请求。':state.message);
   }else if(operation==='logout'){
-   if(state.state==='signed_out')feedback('已退出本应用账号',state.remote_revocation_confirmed===false?state.message:(state.multi_account?'已退出当前 ChatGPT 账号，其他已保存账号和角色资料保持不变。':'已退出栖伴中的 ChatGPT 账号，角色资料保持不变。'));
+   if(state.state==='signed_out')feedback('已退出本应用账号',state.remote_revocation_confirmed===false?state.message:(state.multi_account?'已退出当前账号，其他账号和角色资料不变。':'已退出栖伴中的 ChatGPT 账号，角色资料保持不变。'));
    else feedback('退出账号提示',state.message);
   }else if(operation==='select'){
    feedback(state.state==='error'?'账号切换未完成':'当前账号已切换',state.message);
@@ -86,7 +87,7 @@
    if(!allowed)return;
    if(operation==='cancel'){
     if(result.cancel_requested){completion='cancel';element('model-notice').textContent='正在取消账号操作，请稍候……';}
-    else feedback('当前没有待取消的操作','当前没有正在进行的账号操作；请检查当前登录状态。');
+    else feedback('当前没有待取消的操作','当前没有正在进行的账号操作。');
    }
    if(operation==='logout'){completion='logout';element('model-notice').textContent='正在退出本应用账号……';}
    if(operation==='select'){completion='select';element('model-notice').textContent='正在停止全部任务并切换账号……';}

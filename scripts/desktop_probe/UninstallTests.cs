@@ -135,6 +135,22 @@ internal static class UninstallTests
             cases.Add("success_or_an_explicit_skip_is_required_before_continuing");
             cases.Add("preparation_without_local_data_offers_no_backup");
 
+            Require(UninstallRule.HandoffArguments().Length==1,"default uninstall must retain profile");
+            Require(UninstallRule.HandoffArguments(true).Contains("/QIBANCLEARPROFILE=1"),"clear choice lost");
+            Require(UninstallRule.IsHelper(UninstallRule.FinishClearHelper),"clear helper missing");
+            Require(!ProfileCleanup.IsDefault(Path.Combine(directory,"profile")),"custom profile must not be cleared");
+            string synthetic=Path.Combine(directory,"cleanup-"+Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(synthetic,"data"));
+            File.WriteAllText(Path.Combine(synthetic,"data","synthetic.txt"),"test data");
+            string externalBackup=Path.Combine(directory,"external-backup.txt");
+            File.WriteAllText(externalBackup,"external backup");
+            ProfileCleanup.DeleteTree(synthetic,directory);
+            Require(!Directory.Exists(synthetic)&&File.Exists(externalBackup),"cleanup escaped profile");
+            bool refused=false;
+            try{ProfileCleanup.DeleteTree(directory,directory);}catch(IOException){refused=true;}
+            Require(refused,"invalid cleanup boundary accepted");
+            cases.Add("explicit_cleanup_removes_only_synthetic_profile_and_keeps_external_backup");
+
             File.WriteAllText(Path.Combine(directory, "uninstall-result.json"),
                 JsonSerializer.Serialize(new { passed = true, cases }));
             return 0;

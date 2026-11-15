@@ -268,3 +268,26 @@ body[data-room-open] .probe-center>:not(#room-dialog),body[data-room-open] .prob
  .probe .room-main .actions>button{flex:0 0 auto}
  .probe-sticker-preview{height:150px}
 }
+/* Account and directory controls share the same compact visual rhythm. */
+.account-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}
+.account-facts>div{padding:14px 16px;border:1px solid #e4d7ef;border-radius:16px;background:#f5effa;min-width:0}
+.account-facts dt{font-size:.85rem;color:#806c90;margin-bottom:6px}
+.account-facts dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.directory-search,.directory-pager{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0}
+.directory-search label{width:100%;margin:0}.directory-search input{flex:1;min-width:160px;width:auto}
+.directory-pager input{width:76px}.directory-pager label{margin:0}.directory-pager span{margin-right:auto}
+.contact-list{list-style:none;padding:0;margin:16px 0;display:grid;gap:7px}
+.contact-list li{margin:0}.contact-list label{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid #e4d7ef;border-radius:12px;margin:0;cursor:pointer;overflow-wrap:anywhere}
+.contact-list label:has(input:checked){background:#ede2f6;border-color:#aa88c5}
+.contact-list input[type=checkbox]{width:20px;height:20px;margin:0;flex:0 0 20px;accent-color:#765294}
+.inline-status{font-size:.93rem;color:#765294;margin:8px 0}.inline-status:empty{display:none}
+.actions>.inline-status{flex:1;min-width:160px}
+.platform-icon{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;margin-right:10px;vertical-align:middle}
+button.is-loading{position:relative;min-height:58px;padding-left:65px!important}
+button.is-loading::before{content:'';position:absolute;left:10px;top:50%;width:46px;height:38px;background:url('/dragon-rest.svg') center/contain no-repeat;animation:dragon-orbit 2.8s linear infinite}
+.dragon-placeholder{display:flex;align-items:center;justify-content:center;flex-direction:column;width:220px;height:220px;background:#f4ecfa;border:1px solid #e1cfee;border-radius:24px;margin:16px 0;color:#80648f}
+.dragon-placeholder img{width:145px;height:120px;animation:dragon-nap 3s ease-in-out infinite}
+@keyframes dragon-orbit{from{transform:translateY(-50%) rotate(0)}to{transform:translateY(-50%) rotate(360deg)}}
+@keyframes dragon-nap{0%,100%{transform:rotate(-8deg) translateY(0)}50%{transform:rotate(8deg) translateY(-5px)}}
+@media(max-width:700px){.account-facts{grid-template-columns:1fr}.directory-pager{gap:6px}}
+@media(prefers-reduced-motion:reduce){button.is-loading::before,.dragon-placeholder img{animation:none}button.is-loading::before{transform:translateY(-50%)}}

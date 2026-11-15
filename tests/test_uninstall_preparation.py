@@ -134,7 +134,8 @@ def test_setup_script_guides_an_interactive_uninstall_into_the_preparation_page(
     assert 'Name: "{group}\\卸载{#AppName}"; Filename: "{app}\\{#UninstallAliasName}"' in text
     assert '{uninstallexe}' not in text
     code = text.split('[Code]', 1)[1]
-    uninstall = code[code.index('function InitializeUninstall: Boolean;'):]
+    uninstall = code[code.index('function InitializeUninstall: Boolean;'):].split(
+        'procedure CurUninstallStepChanged', 1)[0]
     silent = uninstall.index('if UninstallSilent then')
     prepared = uninstall.index("ExpandConstant('{param:' + PreparedParameter + '|}')")
     page = uninstall.index('Exec(Application, PreparationSwitch')
@@ -146,10 +147,15 @@ def test_setup_script_guides_an_interactive_uninstall_into_the_preparation_page(
     # Nothing here starts the uninstaller from the guide step: it only opens the preparation page.
     guide = uninstall[page:].split('// The program directory is already damaged', 1)[0]
     assert 'unins' not in guide.lower()
-    # The only deletion beyond the install log is still the recorded recovery shortcut.
+    # The declarative deletion list remains limited to the recorded recovery shortcut.
     delete_section = text.split('[UninstallDelete]', 1)[1].split('\n[', 1)[0]
     entries = [line for line in delete_section.splitlines() if line.strip().lower().startswith('type:')]
     assert len(entries) == 1 and '{#RecoveryLinkName}' in entries[0]
+    cleanup = code.split('procedure CurUninstallStepChanged', 1)[1]
+    assert 'CurUninstallStep <> usUninstall' in cleanup and 'or UninstallSilent then Exit' in cleanup
+    assert '{param:QIBANPREPARED|}' in cleanup and '{param:QIBANCLEARPROFILE|}' in cleanup
+    assert 'CheckForMutexes(RunningMutexName)' in cleanup
+    assert "'--clear-profile-for-uninstall'" in cleanup and 'ResultCode <> 0' in cleanup
 
 
 @pytest.mark.skipif(not ISCC.is_file(), reason='bundled Inno Setup compiler is not present')

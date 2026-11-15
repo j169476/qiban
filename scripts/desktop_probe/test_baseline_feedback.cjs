@@ -25,7 +25,7 @@ test('publication requires complete preview and explicit confirmation; heartbeat
  const work=p.node('baseline-publish').onclick();assert.equal(p.requests.at(-1).operation,'baseline.publish');
  assert.equal(p.requests.at(-1).arguments.expected.pins[0].policy_version,'p1');
  await p.reply({shared:true});await p.reply(preview(true));await p.reply(card);await work;
- assert.match(p.node('baseline-notice').textContent,/没有启动角色/);assert.equal(p.node('baseline-publish-area').hidden,true);
+ assert.match(p.node('baseline-notice').textContent,/共用设定已启用/);assert.equal(p.node('baseline-publish-area').hidden,true);
 });
 test('stale detail cannot be confirmed or published',async()=>{
  const p=page();p.update(true);await p.reply(preview());await p.reply({...card,version:'changed'});
@@ -72,6 +72,6 @@ test('shared protection is explicit even when an inherited memory has locked=fal
  assert.match(rows[1].textContent,/可信程度：明确告知/);
  assert.match(rows[1].textContent,/正文：explicit/);
  assert.match(rows[2].textContent,/只能由管理员修改/);
- assert.match(rows[2].textContent,/不取决于单条记忆锁定标记/);
+ assert.match(rows[2].textContent,/只能由管理员修改/);
  assert.equal(p.requests.some(r=>r.operation==='records.correct'),false);
 });

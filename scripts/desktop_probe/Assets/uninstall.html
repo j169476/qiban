@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 · 卸载准备</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><script src="/uninstall.js" defer></script></head>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 · 卸载准备</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><script src="/feedback.js" defer></script><script src="/uninstall.js" defer></script></head>
 <body data-nav-page="uninstall" data-uninstall="loading">
 <main class="probe">
 <header class="probe-topbar">
@@ -14,21 +14,21 @@
 <li><button type="button" class="app-nav-link" data-step="backup" disabled>2 · 备份资料（可选）</button></li>
 <li><button type="button" class="app-nav-link" data-step="confirm" disabled>3 · 确认并卸载</button></li>
 </ul>
-<div class="app-nav-room"><p class="note">卸载后，个人资料仍然保留。</p></div>
+<div class="app-nav-room"><p class="note">卸载默认保留个人资料。</p></div>
 </nav>
 <div class="probe-center">
 <div class="probe-page-heading"><h2>卸载准备</h2><p id="uninstall-service" class="probe-service-state" role="status">正在读取卸载信息……</p></div>
 <section class="card" id="uninstall-panel">
 <h2>先备份，再卸载</h2>
-<p id="uninstall-summary">卸载只会删除安装器登记的程序文件和快捷方式；个人资料、备份与凭据都保留。</p>
+<p id="uninstall-summary">卸载会删除程序文件和快捷方式，个人资料默认保留。</p>
 <p id="uninstall-entry" class="note"></p>
 <h3>第一步 · 备份资料（可选）</h3>
 <p class="note" id="uninstall-backup-location"></p>
-<p class="note">备份会保存当前数据库和资料，使用「设置与备份」中的现有备份功能。点击后会自动准备所需服务，请等待完成提示。换电脑恢复请选择便携备份。</p>
+<p class="note">换电脑恢复请选择便携备份。</p>
 <div class="actions"><button id="backup-create">保存本机加密备份</button></div>
 <p id="backup-notice" role="status" aria-live="polite"></p>
 <details id="unlock-area" hidden open><summary>栖伴已锁定</summary>
-<p class="note">备份需要先在应用内解锁；也可以选择下面的「跳过备份」。</p>
+<p class="note">备份前需要先解锁。</p>
 <label>应用密码 <input id="unlock-password" type="password" maxlength="256" autocomplete="current-password"></label>
 <div class="actions"><button id="unlock" class="secondary">解锁栖伴</button></div>
 <p id="unlock-notice" role="status"></p>
@@ -40,16 +40,17 @@
 <p id="portable-notice" role="status" aria-live="polite"></p>
 </details>
 <h3>第二步 · 继续卸载</h3>
-<p class="note" id="uninstall-skip-note">也可以不备份直接继续；已经保存过的备份不会因为卸载被删除。</p>
+<p class="note" id="uninstall-skip-note"></p>
+<label class="uninstall-clear-option"><input id="uninstall-clear-profile" type="checkbox">同时清空当前用户的 Qiban 个人资料</label><p id="uninstall-clear-note" class="note"></p>
 <div class="actions"><button id="uninstall-skip" class="secondary">跳过备份</button><button id="uninstall-continue" disabled>继续卸载…</button></div>
 <p id="uninstall-result" role="status" aria-live="polite"></p>
 </section>
 </div>
 <div class="probe-rail" role="complementary" aria-label="保留说明与当前结果">
-<section class="card probe-rail-card"><h2>会保留的内容</h2>
+<section class="card probe-rail-card"><h2>默认保留的内容</h2>
 <p id="uninstall-retention"></p>
-<ul><li>个人资料（角色设定、记忆、资料与聊天记录）</li><li>本机备份与便携备份文件</li><li>凭据、平台登录与应用密码锁</li></ul>
-<p class="note">个人资料使用独立目录保存，卸载会保留它们。自己另存的便携备份请放在程序目录之外。</p>
+
+<p class="note">个人资料默认保留；自己另存的便携备份请放在程序目录之外。</p>
 </section>
 <section class="card probe-rail-card"><h2>当前结果</h2>
 <p id="uninstall-status" role="status" aria-live="polite">尚未开始。</p>

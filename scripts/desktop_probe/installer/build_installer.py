@@ -40,7 +40,7 @@ ever upgraded. A build without the maintenance verb is refused before a single f
 the same-build repair, a first install and a replacement of a program whose default profile never
 created an installation stay plain file copies. An uninstaller only removes the files and
 shortcuts it recorded, plus the one upgrade-recovery shortcut the glue creates, and personal data
-outside the program directory is never touched. The identity identifies which published file set
+outside the program directory is retained unless the user explicitly selects default-profile cleanup. The identity identifies which published file set
 is installed; it is not a publisher signature, it is not claimed to resist deliberate local
 tampering, and it pairs no program with any data on its own. Non-zero exit means no setup and no
 build record were produced; a validated ``qiban-payload.json`` may stay in the output directory to

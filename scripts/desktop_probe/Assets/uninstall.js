@@ -21,7 +21,7 @@
  }
  function send(action){window.chrome.webview.postMessage({action});}
  const statusLines={
-  none:'尚未备份。可以先保存备份，或明确选择跳过备份。',
+  none:'尚未备份。',
   running:'正在保存备份，请稍候……',
   succeeded:'本次备份已完成。',
   failed:'本次备份没有完成；当前资料未改变。',
@@ -40,8 +40,8 @@
    :backend==='failed'?'准备后台没有启动；可以重试，或选择跳过备份继续。'
    :'准备后台未启动；只有保存备份时才需要它。';
   element('uninstall-summary').textContent=registered
-   ? '卸载会由安装器登记的卸载程序执行：它只删除安装器登记的程序文件和快捷方式。个人资料、备份与凭据都保留。'
-   : '没有找到本机登记的卸载程序，因此本次不会自动卸载；下面的说明告诉你可以怎么做。';
+   ? '卸载会删除程序文件和快捷方式，个人资料默认保留。'
+   : '没有找到本机登记的卸载程序，本次不会自动卸载。';
   element('uninstall-entry').textContent=registered
    ? `卸载程序：${s.uninstaller||''}`
    : (s.guidance||'');
@@ -60,12 +60,15 @@
   element('portable-export').disabled=blocked||exporting;
   element('uninstall-skip').disabled=busy||exporting||continuing||finish||s.backup==='running'||!registered;
   element('uninstall-skip').textContent=s.backup==='skipped'?'已选择跳过备份':'跳过备份';
+  element('uninstall-clear-profile').disabled=!s.can_clear_profile||!registered||busy||continuing;
+  if(!s.can_clear_profile)element('uninstall-clear-profile').checked=false;
+  element('uninstall-clear-note').textContent=s.can_clear_profile?'':'此资料目录不是默认位置，将保留。';
   element('uninstall-continue').disabled=!allowed||busy||continuing;
   element('uninstall-continue').textContent=continuing?'正在关闭应用……':'继续卸载…';
   element('uninstall-result').textContent=registered
-   ? (finish?'可以继续卸载；继续后会先正常关闭应用与数据库，再打开安装器的卸载程序。'
+   ? (finish?'继续后会先关闭应用与数据库，再打开卸载程序。'
      :s.backup==='running'?'备份完成后才会显示结果。'
-     :'还不能继续卸载：请先完成备份，或明确选择跳过备份。')
+     :'请先完成备份，或选择跳过备份。')
    : '保存备份后可退出本窗口，再手动删除免安装程序目录。';
   element('uninstall-status').textContent=`${statusLines[s.backup||'none']||statusLines.none}`
    +(s.backup==='succeeded'&&s.backup_name?`（${s.backup_name}）`:'')
@@ -104,7 +107,7 @@
  };
  element('uninstall-skip').onclick=()=>{
   if(busy||exporting||continuing||!state||state.registered!==true)return;
-  busy=true;notice('已选择跳过备份；需要时仍可以先保存备份。');render();send('uninstall-skip');
+  busy=true;notice('已选择跳过备份。');render();send('uninstall-skip');
  };
  element('portable-export').onclick=async()=>{
   if(busy||exporting||continuing)return;
@@ -138,8 +141,8 @@
   element('uninstall-confirm-text').textContent=(backed
     ? `本次备份已完成${state.backup_name?`（${state.backup_name}）`:''}。`
     : '本次没有备份，已经选择跳过备份。')
-   +'\n\n继续后会先正常关闭栖伴与数据库，然后打开安装器的卸载程序。'
-   +'\n卸载程序只删除安装器登记的程序文件和快捷方式；个人资料、备份与凭据保留。'
+   +'\n\n继续后会先关闭栖伴与数据库，再打开卸载程序。'
+   +(element('uninstall-clear-profile').checked?'\n个人资料及目录内的本机备份将被清空，且无法恢复。':'\n个人资料保留。')
    +'\n\n确定继续卸载吗？';
   if(!element('uninstall-confirm').open)element('uninstall-confirm').showModal();
  };
@@ -147,7 +150,7 @@
  element('uninstall-confirm-yes').onclick=()=>{
   element('uninstall-confirm').close();
   if(!state||continuing||element('uninstall-continue').disabled)return;
-  continuing=true;busy=true;render();send('uninstall-continue');
+  continuing=true;busy=true;const clear_profile=element('uninstall-clear-profile').checked;render();window.chrome.webview.postMessage({action:'uninstall-continue',clear_profile});
  };
  window.chrome.webview.addEventListener('message',({data})=>{
   if(data.type==='uninstall'){busy=data.state?.backup==='running';apply(data.state||{});if(state.backup==='failed')void refreshLock();return;}

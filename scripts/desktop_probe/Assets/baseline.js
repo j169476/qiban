@@ -37,20 +37,20 @@
  }
  function render(){
   const list=el('baseline-records');list.replaceChildren();
-  el('baseline-state').textContent=!snapshot?'请重新读取共用设定。':snapshot.preview.shared?`已启用共用设定，包含 ${snapshot.preview.foundation_count} 条基础记忆。`:'尚未启用。请查看下方全部内容，确认适合公开使用后再启用。';
+  el('baseline-state').textContent=!snapshot?'请重新读取共用设定。':snapshot.preview.shared?`已启用共用设定，包含 ${snapshot.preview.foundation_count} 条基础记忆。`:'尚未启用。确认下方内容适合公开使用后再启用。';
   for(const item of snapshot?.records||[]){
    const card=document.createElement('article'),title=document.createElement('h3'),text=document.createElement('p');
    title.textContent=item.kind==='persona'?'人物卡':`基础记忆 · ${item.data.id}`;
    text.className='baseline-content';text.textContent=describe(item.data);card.append(title,text);
    const protection=document.createElement('p');
-   protection.textContent=snapshot.preview.shared?'共用设定保护已生效：只能由管理员修改，角色不能自动修改；此规则不取决于单条记忆锁定标记。':'启用共用设定后，人物卡和清单内基础记忆将只能由管理员修改。';
+   protection.textContent=snapshot.preview.shared?'只能由管理员修改，角色不会自动修改。':'启用后，这些内容只能由管理员修改。';
    card.append(protection);
    if(item.kind==='memories'&&snapshot.preview.shared){
     const button=document.createElement('button');button.className='secondary';button.textContent='移出共用设定';
     button.onclick=()=>{
      if(dirty||!snapshot)return;
      const card=snapshot.records[0];
-     return modify('config.patch',{kind:'persona',expected:card.version,changes:{foundation_memories:card.data.foundation_memories.filter(id=>id!==item.data.id)}},'已移出共用设定并停止召回；原记录与历史保留。');
+     return modify('config.patch',{kind:'persona',expected:card.version,changes:{foundation_memories:card.data.foundation_memories.filter(id=>id!==item.data.id)}},'已移出共用设定；原记录与历史保留。');
     };card.append(button);
    }
    list.append(card);
@@ -85,7 +85,7 @@
  el('baseline-publish').onclick=()=>{
   if(!snapshot||snapshot.preview.shared||!el('baseline-confirm').checked)return;
   const {pins,foundation_count}=snapshot.preview;
-  return modify('baseline.publish',{expected:{pins,foundation_count}},'共用设定已启用；本次操作没有启动角色。');
+  return modify('baseline.publish',{expected:{pins,foundation_count}},'共用设定已启用。');
  };
  el('foundation-content').oninput=()=>{dirty=!!el('foundation-content').value;el('foundation-confirm').checked=false;notice('');controls();};
  el('foundation-discard').onclick=()=>{if(busy)return;dirty=false;el('foundation-content').value='';resetConfirm();notice('已放弃未保存的基础记忆。');controls();};
@@ -93,7 +93,7 @@
   if(!snapshot?.preview.shared||!dirty||!el('foundation-confirm').checked)return;
   const content=el('foundation-content').value;
   if(!content.trim()||content.length>16000){notice('请输入1至16000字的基础记忆。');return;}
-  return modify('foundation.add',{identifier:'foundation-'+crypto.randomUUID().replaceAll('-',''),content,expected:snapshot.records[0].version},'基础记忆已添加，将用于所有公开和私密回复。');
+  return modify('foundation.add',{identifier:'foundation-'+crypto.randomUUID().replaceAll('-',''),content,expected:snapshot.records[0].version},'基础记忆已添加。');
  };
  window.addEventListener('qiban-management-state',({detail})=>{
   const value=detail.ready&&!detail.locked,changed=value!==allowed;allowed=value;el('baseline-panel').hidden=el('management-panel').hidden;

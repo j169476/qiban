@@ -89,3 +89,40 @@ def verify(login, targets, *, include_directory=False):
         if include_directory:
             result["directory"] = str(directory)
         return result
+
+
+def directory_page(db, login, kind, query, page):
+    """One read-only directory snapshot, then filter and paginate verified rows."""
+    if (kind not in ("private", "group") or not isinstance(query, str) or len(query) > 100
+            or type(page) is not int or not 1 <= page <= 10000):
+        raise ProbeError("configuration_invalid")
+    from .db_source import _contact_kind
+
+    query = query.strip().casefold()
+    matches = []
+    rows = db.execute("SELECT username,local_type,flag,delete_flag,verify_flag,is_in_chat_room,"
+                      "remark,nick_name FROM contact WHERE length(username) BETWEEN 1 AND 256 "
+                      "GROUP BY username COLLATE BINARY HAVING count(*)=1 AND local_type=? "
+                      "ORDER BY username COLLATE BINARY", (1 if kind == "private" else 2,))
+    try:
+        for username, *fields, remark, nickname in rows:
+            if _contact_kind(login, username, *fields) != kind:
+                continue
+            if username in {"filehelper", "fmessage", "medianote", "newsapp", "weixin", "floatbottle"}:
+                continue
+            labels = [v[:200] for v in (remark, nickname) if isinstance(v, str) and v]
+            if query and not any(query in v.casefold() for v in [username, *labels]):
+                continue
+            matches.append({"username": username, "name": next(iter(labels), "")})
+    finally:
+        rows.close()
+    pages = max(1, (len(matches) + 9) // 10)
+    page = min(page, pages)
+    return {"items": matches[(page-1)*10:page*10], "page": page, "pages": pages,
+            "total": len(matches), "page_size": 10}
+
+
+def browse_page(login, kind, query, page):
+    with _contacts(login) as (db, _):
+        result = directory_page(db, login, kind, query, page)
+    return result

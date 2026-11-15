@@ -6,10 +6,11 @@
  const labelsByAction={comment:'发表评论',reply:'回复评论',dm_reply:'回复私信',dynamic:'发布动态',like:'视频点赞',
   comment_like:'评论点赞',favorite:'新增收藏',follow:'关注',coin:'投币',favorite_create:'新建收藏夹（个）',favorite_move:'移动收藏视频（个）'};
  const active=()=>['starting','waiting','scanned','verified','confirm','checking','browser'].includes(state?.state);
- const labels={idle:'尚未登录。',starting:'正在请求二维码…',waiting:'请用哔哩哔哩手机应用扫码。',
-  scanned:'已扫码，请在手机上确认。',verified:'正在核对绑定账号。',checking:'正在向 B 站核验登录…'};
+ const labels={idle:'尚未登录 B 站。',starting:'正在加载二维码……',waiting:'请用哔哩哔哩手机应用扫码。',
+  scanned:'已扫码，请在手机上确认。',verified:'正在核对绑定账号。',checking:'正在核验登录……'};
  function render(){
   el('panel').hidden=!session;
+  window.QibanFeedback?.mark(el('login'),!!session&&(busy||['starting','verified','checking'].includes(state?.state)));
   const account=(prefix,value)=>value?prefix+value.name+'（UID '+value.uid+'）':'';
   el('current').textContent=account('当前绑定：',state?.current);
   el('candidate').textContent=account('本次登录：',state?.candidate);

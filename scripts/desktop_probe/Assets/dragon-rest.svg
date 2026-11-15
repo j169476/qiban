@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none">
+<!-- SPDX-License-Identifier: MIT. Original Qiban sleepy dragon girl. -->
+<ellipse cx="79" cy="101" rx="62" ry="8" fill="#dccbea" opacity=".6"/>
+<g stroke="#70528e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round">
+<path d="M102 83c28-34 55-15 40 2-9 10-23-1-11-7" fill="#d6bce9"/>
+<path d="m107 70 9-13 5 10 8-3 2 9" fill="#b99cd5"/>
+<path d="M66 75c15-13 38-9 52 7l8 13H57z" fill="#b89bd3"/>
+<path d="m97 72 2-20 15 12-2 16-9-7z" fill="#e0cfee"/>
+<path d="M40 88C16 69 24 36 50 29c26-8 52 8 49 35l-8 31" fill="#f5edf9"/>
+<path d="m36 40-8-20 18 12m29-2 14-13-3 24" fill="#d4b6e7"/>
+<path d="M38 60c-3 21 7 33 27 34 22 1 29-13 25-33" fill="#ffeadf"/>
+<path d="M31 60c3-15 11-26 28-26 24 0 34 11 38 30L81 54l-1 11-18-13-6 13-9-6-12 14z" fill="#fffaff"/>
+<path d="M44 77q6 5 12 0m15 0q6 5 12 0m-22 8q4 3 8 0"/>
+<path d="M38 86c-12 3-19 13-3 15h27c9-1 9-10-2-10m21-1c12-1 19 10 7 12H64" fill="#ffeadf"/>
+<path d="m27 76 5 18m61-23-2 21"/>
+<path d="m39 81 5 1m39-1 5-1" stroke="#df9cbd"/>
+</g>
+<g fill="#9673b3" font-family="sans-serif" font-weight="bold"><text x="109" y="38" font-size="16">z</text><text x="124" y="24" font-size="11">z</text></g>
+</svg>

@@ -136,7 +136,6 @@ class DesktopSiwc(DesktopCodex):
         permitted = 'chatgpt.tokens.use.direct' in session['scopes']
         expired = session['expires_at'] <= self.clock()
         message = 'ChatGPT 身份已验证；' + ('已获订阅使用权限。' if permitted else '尚未获订阅使用权限。')
-        message += '模型请求未启用，额度归属仍待核对。'
         if expired:
             message += '当前凭证已到期。'
         renewal = value.get('renewal',{}).get('status')
