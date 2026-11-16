@@ -28,6 +28,12 @@ def record_exception(store, error, *, stage, generation=None, platform=None, obs
                  "stage": _label(stage), "generation": _label(generation) if generation else None,
                  "platform": _label(platform) if platform else None, "frames": frames[-8:],
                  "observation_id": _label(observation_id) if observation_id else None}
+        details = getattr(error, "diagnostics", {})
+        if isinstance(details, dict):
+            if type(details.get("process_exit_code")) is int:
+                entry["process_exit_code"] = details["process_exit_code"]
+            if details.get("process_failure") in {"state_database", "startup_configuration"}:
+                entry["process_failure"] = details["process_failure"]
         with store.lock, store.db() as db:
             items = store.state(KEY, [], db=db)
             store.set_state(KEY, (items + [entry])[-50:], db)

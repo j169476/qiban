@@ -8,7 +8,7 @@
  let entrySync=false;
  const visible=()=>document.body.dataset.navPage==='platforms'&&document.body.dataset.tabPlatforms==='qq';
  for(const event of ['qiban-nav-change','qiban-tab-change'])window.addEventListener(event,()=>{if(!visible())entrySync=false;});
- window.QibanContacts.onEntry('qq',()=>allowed,()=>{entrySync=true;void refresh();});
+ window.QibanContacts.onEntry('qq',()=>allowed,async()=>{entrySync=true;await refresh();if(allowed&&!state?.selected&&!state?.busy&&!state?.running)void perform('refresh');});
  const numbers=id=>el(id).value.split(/[\s,，]+/u).filter(Boolean);
  function editedTargets(){return {private_targets:numbers('qq-private-targets'),groups:numbers('qq-group-targets')};}
  function previewMatches(){const value=editedTargets();return state?.preview&&
@@ -71,9 +71,9 @@
   if(!allowed)return;
   if(refreshing){refreshQueued=true;return;}
   refreshing=true;const current=epoch;
-  try{const value=await call('status');if(allowed&&current===epoch){state=value;render();}}
-  catch(error){if(allowed&&current===epoch)el('qq-notice').textContent=error.message;}
-  finally{refreshing=false;if(entrySync&&allowed&&!submitting&&!state?.busy&&state?.selected){entrySync=false;void perform('directory');}if(refreshQueued){refreshQueued=false;void refresh();}}
+  try{const value=await call('status');if(allowed&&current===epoch){state=value;el('qq-refresh').hidden=true;render();}}
+  catch(error){if(allowed&&current===epoch){el('qq-notice').textContent=error.message;el('qq-refresh').hidden=false;el('qq-refresh').textContent='重试';}}
+  finally{refreshing=false;if(entrySync&&state?.running)entrySync=false;if(entrySync&&allowed&&!submitting&&!state?.busy&&state?.selected){entrySync=false;void perform('directory');}if(refreshQueued){refreshQueued=false;void refresh();}}
  }
  async function perform(operation){
   if(!allowed||submitting)return;submitting=true;const current=++epoch;

@@ -48,6 +48,7 @@ class RpcProcess:
         self.incoming, self.outgoing = queue.Queue(maxsize=128), queue.Queue(maxsize=8)
         self.failed = threading.Event()
         self.error = None
+        self.process_failure = None
         self.stopping = threading.Event()
         self.scope, self.process = ProcessScope(), None
         self.threads = []
@@ -56,20 +57,38 @@ class RpcProcess:
         try:
             guard()
             self.process = subprocess.Popen(
-                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 cwd=cwd, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 | (0x4 if os.name == "nt" else 0), start_new_session=os.name != "nt",
             )
             self.scope.attach(self.process)
             guard()
             self.scope.resume()
-            for target in (self._read, self._write):
+            for target in (self._stderr, self._read, self._write):
                 thread = threading.Thread(target=target, daemon=True)
                 thread.start()
                 self.threads.append(thread)
         except BaseException:
             self.close()
             raise
+
+    def _stderr(self):
+        # Drain continuously to prevent a full pipe deadlock. Keep only a small
+        # rolling window in memory, publishing fixed categories, never raw text.
+        tail = b""
+        try:
+            while True:
+                chunk = self.process.stderr.read1(4096)
+                if not chunk:
+                    return
+                tail = (tail + chunk)[-8192:]
+                lowered = tail.lower()
+                if b"failed to initialize sqlite" in lowered or b"failed to migrate state db" in lowered:
+                    self.process_failure = "state_database"
+                elif b"unexpected argument" in lowered or b"error loading config" in lowered:
+                    self.process_failure = "startup_configuration"
+        except (OSError, ValueError):
+            return
 
     def _fail(self, code):
         self.error = code
@@ -81,6 +100,10 @@ class RpcProcess:
             while not self.stopping.is_set():
                 line = self.process.stdout.readline(self.max_bytes + 1)
                 if not line:
+                    try:
+                        self.process.wait(timeout=.2)
+                    except subprocess.TimeoutExpired:
+                        pass
                     self._fail("model_process_exit")
                     return
                 total += len(line)
@@ -122,7 +145,14 @@ class RpcProcess:
         if time.monotonic() >= self.deadline:
             raise AssistantError("model_timeout", "本轮模型处理超时")
         if self.failed.is_set():
-            raise AssistantError(self.error, "隔离模型通信失败；未启用非隔离回退")
+            error = AssistantError(self.error, "模型进程连接中断，请查看运行记录后重试。")
+            error.diagnostics = {}
+            code = self.process.poll()
+            if code is not None:
+                error.diagnostics["process_exit_code"] = code
+            if self.process_failure:
+                error.diagnostics["process_failure"] = self.process_failure
+            raise error
 
     def send(self, value):
         self.check()
@@ -188,7 +218,7 @@ class RpcProcess:
                 self.process.wait(timeout=3)
                 for thread in self.threads:
                     thread.join(timeout=2)
-                for stream in (self.process.stdin, self.process.stdout):
+                for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
                     stream.close()
             # Drop queued access tokens and model inputs immediately.
             while not self.outgoing.empty():

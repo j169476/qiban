@@ -30,7 +30,7 @@ class DesktopQQ:
             saved = self.store.state(KEY, {"revision": 0, "selected": None})
             options = targets.saved_options(self, saved)
             permissions = targets.ReplyAuthorizations(self.store)
-            return {**deepcopy(self.value), "busy": bool(self.thread and self.thread.is_alive()),
+            return {**deepcopy(self.value), "running": self.store.state("core-run:qq", {}).get("status") == "active", "busy": bool(self.thread and self.thread.is_alive()),
                     "selected": saved["selected"], "revision": saved["revision"],
                     "directory": deepcopy(self.directory),
                     "targets": {"private_targets": options["private_targets"], "groups": options["groups"],

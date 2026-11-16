@@ -168,4 +168,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('sticker-refresh',{dirty:()=>dirty()||drafts.size>0});
 })();

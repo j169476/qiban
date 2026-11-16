@@ -231,4 +231,5 @@
   if(data.type==='management_error'){for(const p of pending.values()){clearTimeout(p.timer);p.reject(Error(data.message));}pending.clear();}
  });
  reset();
+ window.QibanAutoRead?.register('relation-read',{dirty:()=>dirty});
 })();

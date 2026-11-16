@@ -106,4 +106,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('media-refresh',{dirty:()=>!!settings&&Number(el('media-days').value)!==settings.days||!!budget&&Object.keys(ranges).some(k=>Number(el('media-'+k).value)!==budget.limits[k])||!!capacity&&Number(el('media-capacity').value)!==capacity.mib||!!voice&&(el('media-voice-enabled').checked!==voice.enabled||Number(el('media-voice-seconds').value)!==voice.seconds)});
 })();

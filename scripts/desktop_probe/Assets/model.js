@@ -43,6 +43,7 @@
   const current=multiple?state.accounts.find(a=>a.id===state.active_account)?.label:null;
   element('model-account').textContent=allowed&&state?.state==='authenticated'?`${current||state.email||'ChatGPT 账号'} · ${state.plan||'订阅类型未知'}`:'';
   for(const name of ['refresh','login','logout'])element('model-'+name).disabled=!allowed||busy||(name==='logout'&&state?.state!=='authenticated');
+  element('model-login').disabled=!allowed||submitting||!!completion||(!!state?.busy&&!state?.can_open_login);
   element('model-cancel').disabled=!allowed||submitting||!!completion||!state?.busy;
   element('model-open').disabled=!allowed||submitting||!!completion||!state?.can_open_login;
  }
@@ -96,6 +97,7 @@
   finally{submitting=false;render();}
  }
  for(const name of ['refresh','login','logout','cancel','open','add','select'])element('model-'+name).onclick=()=>perform(name);
+ element('model-login').onclick=()=>perform(state?.can_open_login?'open':'login');
  element('model-selection').onchange=render;
  window.addEventListener('qiban-management-state',({detail})=>{
   allowed=detail.ready&&!detail.locked;
@@ -114,4 +116,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('model-refresh');
 })();

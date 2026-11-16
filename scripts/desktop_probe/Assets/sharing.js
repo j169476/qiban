@@ -1020,4 +1020,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('sharing-load',{dirty:()=>!!selected});
 })();

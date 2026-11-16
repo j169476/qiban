@@ -94,7 +94,7 @@
  });
  for(const id of ['prompt','criteria','rounds','bvid','page','start','end','mode','reason'])el(id).addEventListener('input',()=>{nonce=null;});
  el('kind').addEventListener('change',()=>{nonce=null;kind();});
- el('refresh').onclick=refresh;
+ el('refresh').onclick=refresh;window.QibanAutoRead?.register('tasks-refresh');
  el('more').onclick=()=>action(async()=>({detail:await call('tasks.detail',{identifier:selected,offset:next}),identifier:selected,append:true}));
  window.addEventListener('qiban-management-state',({detail})=>{
   const newSession=detail.ready&&!detail.locked?detail.roomSession:null;

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import socket
 import tempfile
@@ -137,7 +138,19 @@ class IsolatedJob:
                         + str(_port()) + '"',
                         "-c", "permissions.companion-isolated.network.domains="
                         + _table({host: "allow" for host in SERVICE_HOSTS})]
-        return command + ["--", *(payload or [str(self.executable), "app-server", "--listen", "stdio://"])]
+        if payload is None:
+            # MXC rewrites TEMP/TMP to an AppContainer directory which may not be
+            # writable. Keep the complete model process inside MXC, but point its
+            # SQLite temporary files at the already granted per-job temp folder.
+            # This fixed command contains no prompt, token or interpolated path.
+            # The executable is resolved only through our scrubbed PATH.
+            name = self.executable.name
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+\.exe", name, re.IGNORECASE):
+                raise AssistantError("model_config", "模型程序文件名不受支持。")
+            shell = Path(self.environment()["SYSTEMROOT"]) / "System32" / "cmd.exe"
+            payload = [str(shell), "/d", "/c",
+                       r"set TEMP=..\temp&&set TMP=..\temp&&" + name + " app-server --listen stdio://"]
+        return command + ["--", *payload]
 
     def close(self):
         # Delete only the exact fresh job we created; never follow a replacement

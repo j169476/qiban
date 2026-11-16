@@ -374,4 +374,5 @@
   if(data.type==='management_error'){for(const job of pending.values()){clearTimeout(job.timer);job.reject(new Error(data.message));}pending.clear();}
  });
  showDetail();renderList();
+ window.QibanAutoRead?.register('memory-refresh');window.QibanAutoRead?.register('fact-refresh');window.QibanAutoRead?.register('fact-retention-read',{dirty:()=>!!retention&&Number(el('fact-retention-days').value)!==retention.days});
 })();

@@ -1,0 +1,125 @@
+/* 功能说明：标题或操作旁的小 i，原生 details/summary，悬停、聚焦或点击展开 */
+.help {
+  position: relative;
+  display: block;
+  width: fit-content;
+  margin: 0 0 .55rem;
+  padding: 0;
+  font-size: .75rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0;
+  color: inherit;
+  z-index: 5;
+}
+
+.help[open] {
+  z-index: 60;
+}
+
+.help > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  min-width: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  opacity: .5;
+  cursor: pointer;
+  list-style: none;
+  font-size: .95em;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.help > summary::before,
+.help > summary::after,
+.help > summary::-webkit-details-marker {
+  content: none;
+  display: none;
+}
+
+.help > summary::marker {
+  content: "";
+}
+
+.help > summary:hover,
+.help > summary:focus-visible,
+.help:hover > summary,
+.help[open] > summary {
+  opacity: 1;
+}
+
+.help > summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.help-body {
+  position: absolute;
+  top: calc(100% + .4em);
+  left: 0;
+  right: auto;
+  display: none;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(21rem, calc(100vw - 3.5rem));
+  max-height: min(14rem, 55vh);
+  overflow: auto;
+  margin: 0;
+  padding: .55rem .7rem;
+  border: 1px solid rgba(0, 0, 0, .14);
+  border-radius: .55rem;
+  background: #fff;
+  color: #1f1f22;
+  box-shadow: 0 .35rem 1.1rem rgba(0, 0, 0, .16);
+  font-family: inherit;
+  font-size: .8rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0;
+  text-align: left;
+  text-indent: 0;
+  text-shadow: none;
+  text-transform: none;
+  white-space: normal;
+  overflow-wrap: break-word;
+  z-index: 60;
+}
+
+.help:hover > .help-body,
+.help:focus-within > .help-body,
+.help[open] > .help-body {
+  display: block;
+  content-visibility: visible;
+}
+
+/* 窄窗口改为底部浮层，避免浮层左右溢出 */
+@media (max-width: 720px) {
+  .help-body {
+    position: fixed;
+    top: auto;
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+    max-width: none;
+    max-height: 50vh;
+    box-shadow: 0 .5rem 1.6rem rgba(0, 0, 0, .26);
+  }
+}
+
+.help-heading{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem}.help-heading>h2,.help-heading>h3{margin:0}.help-heading>.help{margin:0;flex-shrink:0}

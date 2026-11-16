@@ -667,4 +667,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('relation-claims-load',{dirty:()=>navigating()});
 })();

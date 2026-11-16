@@ -310,4 +310,5 @@ button.is-loading::before{content:'';position:absolute;left:10px;top:50%;width:4
 #monitor-state{text-align:center;font-weight:650;margin:4px 0}#monitor-detail{text-align:center;font-size:.8rem}
 @media(max-width:1050px){.runtime-monitor{position:static;max-height:none}.runtime-monitor #runtime-platforms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.monitor-scene{max-width:210px}}
 @media(max-width:700px){.runtime-monitor #runtime-platforms{grid-template-columns:1fr}}
-
+[data-auto-read]:not([data-auto-error]){display:none!important}
+.runtime-actions [aria-busy=true]{opacity:.65}

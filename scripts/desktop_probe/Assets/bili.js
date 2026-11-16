@@ -89,6 +89,9 @@
   policyDirty=true;el('policy-note').textContent='已填入默认值，点击保存后生效。';
  };
  el('policy-read').onclick=()=>void policyRequest(false);
+ window.QibanAutoRead?.register('bili-policy-read',{dirty:()=>policyDirty});
+ window.QibanAutoRead?.register('bili-refresh');
+ window.QibanAutoRead?.register('bili-check');
  async function run(op){
   if(!session||busy)return;
   const view=epoch;

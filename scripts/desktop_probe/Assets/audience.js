@@ -79,9 +79,9 @@
   busy=true;render();
   try{await job(()=>allowed&&epoch===current);}
   catch(error){if(epoch===current)notice.textContent=error.message;}
-  finally{finish?.();if(epoch===current){busy=false;render();}}
+  finally{finish?.();if(epoch===current){busy=false;render();window.QibanAutoRead?.settled();}}
  }
- el('platform').onchange=reset;
+ el('platform').onchange=()=>{reset();window.QibanAutoRead?.changed('audience-load');};
  el('client-login').onclick=()=>{if(allowed&&!busy)window.chrome.webview.postMessage({action:'wechat-client-login'});};
  window.chrome.webview.addEventListener('message',({data})=>{
   if(data.type==='wechat-login')el('account-notice').textContent=data.message;
@@ -226,4 +226,5 @@
   }
  });
  reset();
+ window.QibanAutoRead?.register('audience-load',{dirty:()=>!!preview});
 })();

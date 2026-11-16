@@ -367,4 +367,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('reply-quota-refresh',{dirty:()=>drafts.size>0});
 })();

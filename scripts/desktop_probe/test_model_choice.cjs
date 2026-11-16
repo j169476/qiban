@@ -10,3 +10,25 @@ test('model and reasoning choices follow upstream; explicit save sends the selec
  const refresh=p.node('model-catalog-refresh').onclick();assert.equal(p.requests.at(-1).arguments.refresh,true);p.update(false);await p.reply(p.requests.at(-1),value);await refresh;
  assert.equal(p.node('model-choice').children.length,0);assert.equal(p.node('model-choice-save').disabled,true);
 });
+
+test('model and effort changes coalesce into one automatic save; a failure restores the saved pair',async()=>{
+ const p=page('model-choice.js');p.body.dataset.navPage='model';p.update(true);await p.reply(p.requests.at(-1),value);
+ p.node('model-choice').value='second';p.node('model-choice').onchange();p.node('model-effort').value='ultra';p.node('model-effort').onchange();
+ assert.equal(p.requests.filter(r=>r.operation==='model.configure').length,0);
+ await p.advance(350);assert.equal(p.requests.filter(r=>r.operation==='model.configure').length,1);
+ assert.deepEqual(JSON.parse(JSON.stringify(p.requests.at(-1).arguments)),{account_id:'a',expected:'1',model:'second',effort:'ultra'});
+ await p.fail(p.requests.at(-1));assert.equal(p.node('model-choice').value,'first');assert.equal(p.node('model-effort').value,'low');assert.match(p.node('model-choice-status').textContent,/保存失败/);
+ assert.equal(p.node('model-catalog-refresh').hidden,false);
+ p.node('model-choice').value='second';p.node('model-choice').onchange();p.update(false);await p.advance(350);assert.equal(p.requests.filter(r=>r.operation==='model.configure').length,1);
+});
+test('a completed authorization renewal reloads a failed catalog without a manual retry',async()=>{
+ const p=page('model-choice.js');p.body.dataset.navPage='model';p.update(true);
+ await p.reply({request_id:'account-state'},{multi_account:true,active_account:'a',state:'working',busy:true});
+ await p.fail(p.requests.at(-1));assert.equal(p.node('model-catalog-refresh').hidden,false);
+ const count=p.requests.length;
+ await p.reply({request_id:'account-state'},{multi_account:true,active_account:'a',state:'authenticated',busy:false,subscription_permission:true,token_expired:false});
+ assert.equal(p.requests.length,count+1);assert.equal(p.requests.at(-1).operation,'model.catalog');
+ await p.reply(p.requests.at(-1),value);assert.equal(p.node('model-choice').value,'first');assert.equal(p.node('model-catalog-refresh').hidden,true);
+ await p.reply({request_id:'account-state'},{multi_account:true,active_account:'a',state:'authenticated',busy:false,subscription_permission:true,token_expired:false});
+ assert.equal(p.requests.length,count+1);
+});

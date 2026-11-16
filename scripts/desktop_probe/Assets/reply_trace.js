@@ -264,4 +264,5 @@
  });
  if(!el('limit').value)el('limit').value='30';
  render();
+ window.QibanAutoRead?.register('reply-trace-load');el('limit').onchange=()=>window.QibanAutoRead?.changed('reply-trace-load');
 })();

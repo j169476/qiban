@@ -271,6 +271,13 @@ class DesktopRuntime:
                 'autorun':preferences['platforms'][platform],'held':platform in session['held'],
                 'status':run.get('status','paused'),'reason':run.get('reason','explicit_start_required' if available else 'platform_unavailable'),
                 'generation':run.get('generation'),'owner':run.get('owner'),'read_only':run.get('read_only',False)})
+            from .desktop_notifications import MESSAGES
+            reason = platforms[-1]['reason']
+            failure = run.get('status') == 'paused' and reason not in {
+                'explicit_stop', 'explicit_start_required', 'application_exit',
+                'model_account_switch', 'platform_unavailable', 'restore'}
+            platforms[-1].update(failed=failure,
+                message=MESSAGES.get(reason, '平台运行中断，请查看运行记录。') if failure else '')
             if self.scheduler is not None:
                 platforms[-1].update(self.scheduler.status(platform))
         return {'role':self.role.as_dict(),'application_session':self.application,'runtime_instance':self.instance,

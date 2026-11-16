@@ -3,6 +3,11 @@
 from companion_core.errors import AssistantError
 
 MESSAGES = {
+    "model_process_exit": "模型进程连接中断，平台已暂停。请重试；再次失败时查看运行记录。",
+    "model_protocol": "模型进程通信异常，平台已暂停。",
+    "model_timeout": "模型处理超时，平台已暂停。",
+    "model_isolation": "模型运行环境未通过检查，平台已暂停。",
+    "model_config": "模型运行配置不兼容，请检查模型程序及所选模型。",
     "model_usage_limit": "当前模型使用额度达到限制，请查看 ChatGPT 用量设置；限制也可能仅针对本应用。",
     "model_rate_limit": "模型请求受到限流，请稍后再试并检查用量设置。",
     "model_auth": "模型授权未获接受，请检查当前账号和授权状态。",

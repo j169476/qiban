@@ -703,3 +703,16 @@ def test_backlog_admission_requires_canonical_verified_trigger(backlog_permissio
     with pytest.raises(AssistantError) as error:
         policy.admit_backlog(scope,event.id,'run','batch')
     assert error.value.code=='reply_event_untrusted'
+
+
+def test_model_exit_is_reported_as_failure_instead_of_user_stop(service):
+    runtime=attach(service)
+    run=runtime.start('qq')['run']
+    runtime.fail('qq','model_process_exit',run['generation'])
+    status=next(p for p in runtime.status()['platforms'] if p['platform']=='qq')
+    assert status['failed'] and status['held']
+    assert status['reason']=='model_process_exit' and '模型' in status['message']
+    runtime.start('qq')
+    runtime.control(service.request(),'qq','stop')
+    status=next(p for p in runtime.status()['platforms'] if p['platform']=='qq')
+    assert not status['failed'] and status['message']==''

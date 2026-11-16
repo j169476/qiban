@@ -414,9 +414,14 @@
   const message=result&&result.cancelled?'已取消本次导入，当前资料未改变。需要恢复时请重新预览。':'已放弃本次导入，未执行切换。';
   portableSay(message);feedback('已取消本次导入',message);
  });
+ const runtimePending=new Set();
  async function runtimeAction(operation,args){
+  const key=args?.platform;
+  if(key&&runtimePending.has(key))return;
+  if(key)runtimePending.add(key);
   try{await call(operation,args);await loadRuntime();}
   catch(error){feedback('运行设置提示',error.message);}
+  finally{if(key)runtimePending.delete(key);void loadRuntime().catch(()=>{});}
  }
  function paintMonitor(state){
   const names={idle:'抱着茶杯休息',learning:'翻阅书本',watching:'看平板上的视频',replying:'用电脑撰写回复'};
@@ -436,7 +441,7 @@
    const state=await call('runtime.status'),notices=await call('notifications.list');
    if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch)return;
    const activities=state.activities||[],active=activities[0];
-   const fault=state.platforms.some(p=>p.scheduler_error)||state.handoff_pending;
+   const fault=state.platforms.some(p=>p.scheduler_error||p.failed)||state.handoff_pending;
    const label={replying:'撰写回复',learning:'学习中',watching:'观看视频',browsing:'浏览与互动'};
    paintMonitor(active?.state||'idle');
    element('monitor-state').textContent=fault?'运行待处理':active?label[active.state]||'处理中':state.platforms.some(p=>p.status==='active')?'空闲 · 等待新消息':'休息中 · 平台未启动';
@@ -449,7 +454,7 @@
     summary.className='runtime-summary';actions.className='runtime-actions';
     row.dataset.platform=item.platform;
     title.textContent=names[item.platform];
-    status.textContent=item.scheduler_error?'后台任务调度已停止，请重启应用后台':state.handoff_pending?'账号交接未完成，任务保持停止':state.tasks_blocked?'后台任务已停止':item.stopping?'正在停止，请稍候':!item.available?'连接器尚未接入':item.status==='active'?(item.busy?'正在处理任务':'运行中'):item.held?'本次已停止':!item.model_ready?'等待模型就绪':'已停止';
+    status.textContent=item.scheduler_error?'后台任务调度已停止，请重启应用后台':state.handoff_pending?'账号交接未完成，任务保持停止':state.tasks_blocked?'后台任务已停止':item.stopping?'正在停止，请稍候':!item.available?'连接器尚未接入':item.status==='active'?(item.busy?'正在处理任务':'运行中'):item.failed?(item.message||'运行中断，请查看记录'):item.held?'已停止':!item.model_ready?'等待模型就绪':'已停止';
     const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=item.autorun;
     toggle.disabled=!item.available&&!item.autorun;
     toggle.onchange=()=>runtimeAction('runtime.preference',{platform:item.platform,enabled:toggle.checked,expected:state.preference_revision});
@@ -457,11 +462,12 @@
     label.title='保存偏好，勾选后下次打开栖伴时检查是否可运行。';
     const start=document.createElement('button'),stop=document.createElement('button');start.textContent='启动';stop.textContent='停止本次运行';stop.className='secondary';
     start.disabled=state.tasks_blocked||item.stopping||!!item.scheduler_error||!item.available||!item.model_ready||item.status==='active';stop.disabled=item.stopping||(item.status!=='active'&&(!item.autorun||item.held));
-    start.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'start'});stop.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'stop'});
+    start.onclick=()=>{start.disabled=true;start.textContent='正在启动…';status.textContent='正在启动…';return runtimeAction('runtime.control',{platform:item.platform,action:'start'});};stop.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'stop'});
+    if(runtimePending.has(item.platform)){start.disabled=true;start.textContent='处理中…';status.textContent='正在更新运行状态…';}
     summary.append(title,status);actions.append(start);
     if(item.platform==='bilibili'){
      const readOnly=document.createElement('button');readOnly.textContent='只读启动';readOnly.className='secondary';
-     readOnly.disabled=start.disabled;readOnly.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'start_read_only'});
+     readOnly.disabled=start.disabled;readOnly.onclick=()=>{start.disabled=readOnly.disabled=true;readOnly.textContent='正在启动…';status.textContent='正在启动…';return runtimeAction('runtime.control',{platform:item.platform,action:'start_read_only'});};
      if(item.status==='active'&&item.read_only)status.textContent+='（只读）';
      actions.append(readOnly);
     }
@@ -475,8 +481,8 @@
     if(!item.read){const button=document.createElement('button');button.textContent='标为已读';button.className='secondary';button.onclick=()=>runtimeAction('notifications.read',{identifier:item.id});row.append(button);}
     list.append(row);
    }
-   lastRuntimeRefresh=Date.now();
-  }finally{runtimeRefreshing=false;}
+   lastRuntimeRefresh=Date.now();element('runtime-refresh').hidden=true;
+  }catch(error){element('runtime-refresh').hidden=false;element('runtime-refresh').textContent='重试';throw error;}finally{runtimeRefreshing=false;}
  }
  element('runtime-refresh').onclick=()=>perform(loadRuntime);
  element('runtime-stop-all').onclick=()=>perform(async()=>{
@@ -497,4 +503,5 @@
    for(const job of pending.values()){clearTimeout(job.timer);job.reject(new Error(data.message));}pending.clear();
   }
  });
+ ['reload-persona','backup-refresh'].forEach(id=>window.QibanAutoRead?.register(id));
 })();

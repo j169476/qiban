@@ -1,7 +1,7 @@
 (()=>{
  'use strict';
  const el=id=>document.getElementById(id),pending=new Map();
- let allowed=false,busy=false,state=null,epoch=0,entered=false,account=null;
+ let allowed=false,busy=false,state=null,epoch=0,entered=false,account=null,authorizationReady=false,saveTimer=null,noticeTimer=null;
  const status=text=>el('model-choice-status').textContent=text;
  function controls(){for(const id of ['model-choice','model-effort','model-choice-save','model-catalog-refresh'])el(id).disabled=!allowed||busy||(id!=='model-catalog-refresh'&&!state);window.QibanFeedback?.mark(el('model-catalog-refresh'),busy);}
  function call(operation,args){const request_id=crypto.randomUUID().replaceAll('-','');return new Promise((resolve,reject)=>{
@@ -15,21 +15,28 @@
  }
  function paint(value){state=value;el('model-choice').replaceChildren();for(const row of value.models){const o=document.createElement('option');o.value=row.id;o.textContent=row.name;el('model-choice').append(o);}
   el('model-choice').value=value.model;efforts(value.effort);
-  status(value.available?'当前：'+(value.models.find(r=>r.id===value.model)?.name||value.model)+' · '+(titles[value.effort]||value.effort):'原模型已不可用，请重新选择。');
+  status(value.available?'':'原模型已不可用，请重新选择。');
  }
  async function run(save=false,refresh=false){if(!allowed||busy)return;const current=epoch;busy=true;controls();status(save?'正在保存…':'正在读取模型列表…');
   try{const result=await call(save?'configure':'catalog',save?{account_id:state.account_id,expected:state.revision,model:el('model-choice').value,effort:el('model-effort').value}:{refresh});
-   if(allowed&&epoch===current){paint(result);if(save)status('已保存，新任务使用所选模型和思考强度。');}
-  }catch(error){if(epoch===current)status(error.message);}finally{if(epoch===current){busy=false;controls();}}
+   if(allowed&&epoch===current){paint(result);if(save){status('已保存');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{if(epoch===current)status('');},2500);}el('model-catalog-refresh').hidden=true;}
+  }catch(error){if(epoch===current){if(save&&state)paint(state);status((save?'保存失败，仍使用原设置。':'')+error.message);el('model-catalog-refresh').hidden=false;el('model-catalog-refresh').textContent='重试';}}finally{if(epoch===current){busy=false;controls();}}
  }
  function enter(){const visible=allowed&&document.body.dataset.navPage==='model';if(visible&&!entered){entered=true;void run();}else if(!visible)entered=false;}
- el('model-choice').onchange=()=>efforts();el('model-catalog-refresh').onclick=()=>run(false,true);el('model-choice-save').onclick=()=>run(true);
+ function scheduleSave(){clearTimeout(saveTimer);clearTimeout(noticeTimer);const view=epoch;status('待保存…');saveTimer=setTimeout(()=>{if(view===epoch&&allowed)void run(true);},350);}
+ el('model-effort').onchange=scheduleSave;
+ el('model-choice').onchange=()=>{efforts();scheduleSave();};el('model-catalog-refresh').onclick=()=>run(false,true);el('model-choice-save').onclick=()=>run(true);
  window.addEventListener('qiban-nav-change',enter);
- window.addEventListener('qiban-management-state',({detail})=>{allowed=detail.ready&&!detail.locked;if(!allowed){epoch++;state=null;busy=false;el('model-choice').replaceChildren();el('model-effort').replaceChildren();status('解锁后选择模型。');}controls();enter();});
+ window.addEventListener('qiban-management-state',({detail})=>{allowed=detail.ready&&!detail.locked;if(!allowed){clearTimeout(saveTimer);clearTimeout(noticeTimer);epoch++;state=null;busy=false;el('model-choice').replaceChildren();el('model-effort').replaceChildren();status('解锁后选择模型。');}controls();enter();});
  window.chrome.webview.addEventListener('message',({data})=>{
   if(data.type==='management'){
    const result=data.response?.result;
-   if(result?.multi_account&&result.active_account!==undefined&&result.active_account!==account){account=result.active_account;epoch++;state=null;busy=false;entered=false;controls();enter();}
+   if(result?.multi_account&&result.active_account!==undefined){
+    const ready=result.state==='authenticated'&&!result.busy&&!result.token_expired&&result.subscription_permission!==false;
+    const reload=result.active_account!==account||(ready&&!authorizationReady);
+    account=result.active_account;authorizationReady=ready;
+    if(reload){clearTimeout(saveTimer);clearTimeout(noticeTimer);epoch++;state=null;busy=false;entered=false;controls();enter();}
+   }
    const item=pending.get(data.request_id);if(!item)return;clearTimeout(item.timer);pending.delete(data.request_id);
    if(data.response.ok)item.resolve(result);else item.reject(Error(data.response.message||'模型设置未完成。'));
   }else if(data.type==='management_error'){for(const item of pending.values()){clearTimeout(item.timer);item.reject(Error(data.message));}pending.clear();}

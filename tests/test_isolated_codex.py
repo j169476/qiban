@@ -327,3 +327,27 @@ async def test_explicit_effort_stays_in_isolated_request(tmp_path, monkeypatch):
         with pytest.raises(AssistantError) as error:
             CodexModel(**kwargs)
         assert error.value.code == "model_config"
+
+def test_windows_model_bootstrap_keeps_temp_within_granted_job(tmp_path):
+    with job_at(tmp_path) as job:
+        command = job.command()
+        payload = command[command.index('--') + 1:]
+        assert Path(payload[0]).name.lower() == 'cmd.exe'
+        assert payload[1:3] == ['/d', '/c']
+        assert payload[3] == r'set TEMP=..\temp&&set TMP=..\temp&&python.exe app-server --listen stdio://'
+        assert (job.work / '..' / 'temp').resolve() == job.temp
+        # Explicit diagnostic payloads still run unchanged inside the same boundary.
+        assert job.command(['synthetic.exe', '--probe'])[-2:] == ['synthetic.exe', '--probe']
+
+
+async def test_process_exit_retains_bounded_category_and_code_without_stderr_text(tmp_path):
+    rpc = fake_rpc(tmp_path, "import sys;sys.stderr.write('failed to initialize sqlite SECRET_TOKEN\\n'*20000);sys.stderr.flush();sys.exit(17)", seconds=5)
+    try:
+        with pytest.raises(AssistantError) as exc:
+            await rpc.receive()
+        assert exc.value.code == 'model_process_exit'
+        assert exc.value.diagnostics == {'process_exit_code':17,'process_failure':'state_database'}
+        assert 'SECRET_TOKEN' not in str(exc.value) + json.dumps(exc.value.diagnostics)
+    finally:
+        await asyncio.to_thread(rpc.close)
+    assert not any(thread.is_alive() for thread in rpc.threads)

@@ -109,4 +109,5 @@
   if(data.type==='management_error'){for(const job of pending.values()){clearTimeout(job.timer);job.reject(new Error(data.message));}pending.clear();}
  });
  render();
+ window.QibanAutoRead?.register('baseline-refresh',{dirty:()=>dirty});
 })();

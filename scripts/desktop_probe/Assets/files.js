@@ -166,4 +166,5 @@
   }
  });
  render();
+ window.QibanAutoRead?.register('file-refresh',{dirty:()=>drafts.size>0||!!settings&&(Number(el('file-count').value)!==settings.count||Number(el('file-total-mib').value)!==settings.total_mib)});
 })();
