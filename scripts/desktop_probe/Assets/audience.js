@@ -3,7 +3,7 @@
  const el = id => document.getElementById('audience-'+id);
  const pending = new Map();
  let allowed=false, busy=false, epoch=0, state=null, preview=null;
- let profiles=null, directoryKind=null, nextPage=null, currentPage=1, pages=1;
+ let profiles=null;
  const accountDetails=new Map();
  function accountLabel(login){
   const item=accountDetails.get(login);
@@ -16,7 +16,7 @@
   el('wechat-id').textContent=item?.wechat_id||'未提供';
   el('raw-id').textContent=login||'';
  }
- const chosen=new Map(), pageBoxes=new Map();
+ const chosen=new Map();
  let listVersion=null;
  function paintChosen(){
   const menu=el('chosen-list');menu.replaceChildren();
@@ -26,9 +26,7 @@
  }
  function clearChosen(){listVersion=null;chosen.clear();paintChosen();el('selection-info').textContent='';}
  function summary(){paintChosen();el('selection-info').textContent='已勾选 '+chosen.size+' 个会话。';}
- function clearDirectory(){
-  directoryKind=nextPage=null;currentPage=pages=1;el('page-number').textContent='';el('search').value='';pageBoxes.clear();el('members').replaceChildren();el('page-status').textContent='';
- }
+ function clearDirectory(){picker.setRows([]);picker.search.value='';picker.status.textContent='';}
  function clearPreview(){preview=null;el('warning').textContent='';el('preview').hidden=true;}
  function render(){
   el('actions').hidden=!state?.ready;
@@ -40,16 +38,11 @@
   el('login').disabled=!allowed||busy;
   el('select').disabled=!allowed||busy||!el('login').value||el('login').value===profiles?.selected;
   el('directory').hidden=!profiles?.selected;
-  for(const id of ['friends','groups','more'])el(id).disabled=!allowed||busy;
-  el('more').hidden=false;el('more').disabled=!allowed||busy||currentPage>=pages;
-  el('previous').disabled=!allowed||busy||currentPage<=1;
-  for(const id of ['search','search-go','jump','jump-go'])el(id).disabled=!allowed||busy||!directoryKind;
-  for(const id of ['check-page','uncheck-page'])el(id).disabled=!allowed||busy||!pageBoxes.size;
-  for(const id of ['clear','verify'])el(id).disabled=!allowed||busy||!chosen.size;
+  for(const id of ['verify'])el(id).disabled=!allowed||busy||!chosen.size;
   el('read-list').disabled=!allowed||busy||!profiles?.selected;
   el('save-list').disabled=!allowed||busy||!listVersion;
   el('remove-one').disabled=!allowed||busy||!chosen.size;
-  for(const {box} of pageBoxes.values())box.disabled=busy||!allowed;
+  picker.setState(allowed&&!!profiles?.selected,busy);
   for(const [kind,label] of [['private','好友'],['group','群']]){
    const on=state?.categories?.[kind]?.enabled;
    el(kind).textContent=on?'关闭「允许所有'+label+'」':'允许所有'+label;
@@ -59,8 +52,8 @@
  }
  function reset(){
   epoch++;busy=false;state=null;profiles=null;accountDetails.clear();el('login').replaceChildren();clearPreview();
-  clearDirectory();clearChosen();
-  el('accounts').hidden=true;el('accounts').textContent='';paintIdentity(null);el('search').value='';currentPage=pages=1;el('page-number').textContent='';
+  clearDirectory();clearChosen();picker.setRows([]);
+  el('accounts').hidden=true;el('accounts').textContent='';paintIdentity(null);
   el('status').textContent=el('notice').textContent=el('account-notice').textContent='';render();
  }
  window.addEventListener('qiban-tab-change',({detail:{group,target}})=>{
@@ -134,55 +127,41 @@
   profiles=saved;state=null;clearPreview();clearDirectory();clearChosen();el('status').textContent='';
   el('accounts').textContent='当前使用';paintIdentity(saved.selected);
   el('account-notice').textContent='微信账号已保存。';
+  setTimeout(()=>syncDirectory(),0);
  });
- function showDirectory(kind,pageNumber){
+ const picker=new window.QibanContacts.Picker(el('contact-picker'),{
+  selected:row=>chosen.has(row.id),toggle:(row,on)=>{if(on)chosen.set(row.id,{kind:row.kind,title:row.name||row.nickname||row.alias||row.id});else chosen.delete(row.id);summary();render();},sync:()=>syncDirectory()
+ });
+ async function syncDirectory(){
   return work(async live=>{
-   if(!profiles?.selected)return;
-   pageBoxes.clear();el('members').replaceChildren();el('page-status').textContent='正在读取当前账号的微信目录…';el('notice').textContent='';
+   picker.status.textContent='正在同步名单…';
+   const active=await call('wechat.profiles',{});if(!live())return;
+   if(profiles?.selected!==active.selected||profiles?.revision!==active.revision){clearChosen();picker.setRows([]);}
+   profiles=active;el('login').replaceChildren();
+   for(const login of active.accounts||[]){const option=document.createElement('option');option.value=login;option.textContent=accountLabel(login);el('login').append(option);}
+   el('login').value=active.selected||'';paintIdentity(active.selected);render();
+   if(!active.selected){picker.status.textContent='请先选择微信账号。';return;}
    try{
-    const page=await call('wechat.directory_page',{login:profiles.selected,expected:profiles.revision,kind,query:el('search').value.trim(),page:pageNumber});
-    if(!live())return;
-    for(const item of page.items){
-     const li=document.createElement('li'),label=document.createElement('label'),box=document.createElement('input');
-     const title=item.name?item.name+' · '+item.username:item.username;
-     box.type='checkbox';box.checked=chosen.has(item.username);
-     const entry={box,kind,username:item.username,title};pageBoxes.set(item.username,entry);
-     box.onchange=()=>{setChosen(entry,box.checked);summary();render();};
-     label.append(box,title);li.append(label);
-     el('members').append(li);
-    }
-    directoryKind=kind;currentPage=page.page;pages=page.pages;nextPage=currentPage<pages?currentPage+1:null;
-    el('page-number').textContent=`第 ${currentPage} / ${pages} 页 · 共 ${page.total} 条`;el('jump').max=String(pages);el('jump').value=String(currentPage);
-    el('page-status').textContent='本页有 '+page.items.length+' 个'+(kind==='group'?'群':'好友')+'。';
-   }catch(error){if(live())el('page-status').textContent=error.message;}
+    const result=await call('wechat.directory_sync',{login:active.selected,expected:active.revision});if(!live())return;
+    if(result.account?.login===active.selected){accountDetails.set(active.selected,result.account);paintIdentity(active.selected);for(const option of el('login').children)option.textContent=accountLabel(option.value);}
+    if(!listVersion){const saved=await call('wechat.targets.saved',{login:active.selected,expected:active.revision});if(!live())return;
+     listVersion=saved.version;for(const t of saved.targets)chosen.set(t.username,{kind:t.kind,title:t.username});}
+    for(const row of result.items){if(chosen.has(row.id))chosen.get(row.id).title=row.name||row.nickname||row.alias||row.id;}
+    picker.setRows(result.items);summary();picker.status.textContent='已同步 '+result.items.length+' 个联系人';
+   }catch(error){if(live())picker.status.textContent=error.message;}
   });
  }
- for(const [id,kind] of [['friends','private'],['groups','group']])el(id).onclick=()=>{el('search').value='';return showDirectory(kind,1);};
- el('more').onclick=()=>showDirectory(directoryKind,currentPage+1);
- el('previous').onclick=()=>showDirectory(directoryKind,Math.max(1,currentPage-1));
- el('search-go').onclick=()=>showDirectory(directoryKind,1);
- el('search').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();void showDirectory(directoryKind,1);}};
- el('search').onsearch=()=>showDirectory(directoryKind,1);
- el('jump-go').onclick=()=>{const page=Number(el('jump').value);if(Number.isInteger(page)&&page>=1&&page<=pages)void showDirectory(directoryKind,page);};
- function setChosen(entry,checked){
-  entry.box.checked=checked;
-  if(checked)chosen.set(entry.username,{kind:entry.kind,title:entry.title});else chosen.delete(entry.username);
- }
- for(const [id,checked] of [['check-page',true],['uncheck-page',false]]){
-  el(id).onclick=()=>{for(const entry of pageBoxes.values())setChosen(entry,checked);summary();render();};
- }
- el('clear').onclick=()=>{chosen.clear();for(const {box} of pageBoxes.values())box.checked=false;summary();render();};
+ window.QibanContacts.onEntry('wechat',()=>allowed,()=>{el('platform').value='wechat';void syncDirectory();});
  el('remove-one').onclick=()=>{
   const id=el('chosen-list').value;chosen.delete(id);
-  if(pageBoxes.has(id))pageBoxes.get(id).box.checked=false;summary();render();
+  summary();render();
  };
  el('read-list').onclick=()=>work(async live=>{
   const result=await call('wechat.targets.saved',{login:profiles.selected,expected:profiles.revision});
   if(!live())return;
   chosen.clear();listVersion=result.version;
-  for(const {kind,username} of result.targets)chosen.set(username,{kind,title:pageBoxes.get(username)?.title||username});
-  for(const {box,username} of pageBoxes.values())box.checked=chosen.has(username);
-  paintChosen();el('selection-info').textContent='已读取回复名单，共 '+chosen.size+' 个会话。';
+  for(const {kind,username} of result.targets)chosen.set(username,{kind,title:picker.rows.find(r=>r.id===username)?.name||username});
+  picker.render();paintChosen();el('selection-info').textContent='已读取回复名单，共 '+chosen.size+' 个会话。';
  });
  el('save-list').onclick=()=>work(async live=>{
   const targets=Array.from(chosen,([username,{kind}])=>({kind,username}));

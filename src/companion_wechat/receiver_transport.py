@@ -50,7 +50,7 @@ class WorkerError(AssistantError):
 
 class SubprocessTransport:
     MAX_REQUEST = 262144
-    MAX_REPLY = 2 * 1024 * 1024
+    MAX_REPLY = 16 * 1024 * 1024
 
     def __init__(self, *, python=None, executable=None, open_timeout=150.0, read_timeout=20.0):
         self.python = str(python or sys.executable)

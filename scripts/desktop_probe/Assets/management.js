@@ -82,7 +82,7 @@
   element('runtime-panel').hidden=element('management-panel').hidden;
   element('runtime-refresh').disabled=!ready||locked;
   element('runtime-stop-all').disabled=!ready||locked;
-  if(locked||!ready){element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
+  if(locked||!ready){element('monitor-state').textContent=locked?'已锁定':'等待连接';element('monitor-detail').textContent='';element('monitor-scene').dataset.state='idle';element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
   window.dispatchEvent(new CustomEvent('qiban-management-state',{detail:{ready,locked,
    roomSession:ready&&!locked?identity.room_session:null,lockEnabled:enabled}}));
  }
@@ -420,10 +420,16 @@
  }
  async function loadRuntime(){
   if(runtimeRefreshing||!ready||!identity||identity.locked)return;
-  runtimeRefreshing=true;
+  runtimeRefreshing=true;const runtimeEpoch=accessEpoch;
   try{
    const state=await call('runtime.status'),notices=await call('notifications.list');
-   if(!ready||!identity||identity.locked)return;
+   if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch)return;
+   const activities=state.activities||[],active=activities[0];
+   const fault=state.platforms.some(p=>p.scheduler_error)||state.handoff_pending;
+   const label={replying:'撰写回复',learning:'学习中',watching:'观看视频',browsing:'浏览与互动'};
+   element('monitor-scene').dataset.state=active?.state||'idle';
+   element('monitor-state').textContent=fault?'运行待处理':active?label[active.state]||'处理中':state.platforms.some(p=>p.status==='active')?'空闲 · 等待新消息':'休息中 · 平台未启动';
+   element('monitor-detail').textContent=activities.map(a=>({qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机任务'}[a.platform]||'栖伴')+' · '+(label[a.state]||'处理中')).join(' / ');
    const platforms=element('runtime-platforms');platforms.replaceChildren();
    const names={qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机会客室'};
    for(const item of state.platforms){
@@ -470,7 +476,7 @@
   if(data.type==='service'&&data.management){
    element('management-panel').hidden=false;windowsUser=data.windowsUser||windowsUser;
    const changed=ready!==data.ready;ready=data.ready;if(!ready){accessEpoch++;identity=null;}render();if(changed&&ready)void refresh();
-   if(ready&&!changed&&identity&&!identity.locked&&Date.now()-lastRuntimeRefresh>5000)void loadRuntime().catch(error=>notice(error.message));
+   if(ready&&!changed&&identity&&!identity.locked&&Date.now()-lastRuntimeRefresh>2000)void loadRuntime().catch(error=>notice(error.message));
   }
   if(data.type==='management'){
    const job=pending.get(data.request_id);if(!job)return;clearTimeout(job.timer);pending.delete(data.request_id);

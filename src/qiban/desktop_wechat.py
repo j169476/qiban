@@ -101,6 +101,10 @@ async def directory_page(manager, request, login, expected, kind, query, page):
                                   kind=kind, query=query, page=page)
 
 
+async def directory_sync(manager, request, login, expected):
+    return await _contact_request(manager, request, login, expected, 'setup_directory_sync')
+
+
 async def directory(manager, request, login, expected, kind, after):
     if kind not in ("private", "group") or not isinstance(after, str) or len(after) > 256:
         raise AssistantError("management_request", "微信目录分页无效")

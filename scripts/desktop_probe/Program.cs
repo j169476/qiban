@@ -201,7 +201,14 @@ internal sealed class ProbeWindow : Form
     readonly WebView2 view = new() { Dock = DockStyle.Fill };
     readonly Label fallback = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
         Text = "正在准备栖伴窗口……", Font = new Font("Microsoft YaHei UI", 14) };
-    readonly NotifyIcon tray = new() { Icon = SystemIcons.Application, Text = "栖伴 Qiban", Visible = true };
+    static Icon LoadApplicationIcon()
+    {
+        using var stream = typeof(Program).Assembly.GetManifestResourceStream("qiban.ico")
+            ?? throw new InvalidOperationException("Application icon is missing");
+        using var icon = new Icon(stream);
+        return (Icon)icon.Clone();
+    }
+    readonly NotifyIcon tray = new() { Icon = LoadApplicationIcon(), Text = "栖伴 Qiban", Visible = true };
     readonly System.Windows.Forms.Timer poll = new() { Interval = 500 };
     readonly CancellationTokenSource lifetime = new();
     readonly Stopwatch clock = Stopwatch.StartNew();
@@ -233,7 +240,7 @@ internal sealed class ProbeWindow : Form
     readonly Dictionary<string, string> resources = new()
     {
         ["/"]="index.html", ["/manual"]="manual.html", ["/uninstall"]="uninstall.html",
-        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/dragon-rest.svg"]="dragon-rest.svg",
+        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/contacts.js"]="contacts.js", ["/model-choice.js"]="model-choice.js", ["/monitor-dragon.svg"]="monitor-dragon.svg", ["/dragon-rest.svg"]="dragon-rest.svg",
         ["/probe.css"]="probe.css", ["/probe.js"]="probe.js",
         ["/management.js"]="management.js",["/room.js"]="room.js",["/tasks.js"]="tasks.js",["/model.js"]="model.js",["/bili.js"]="bili.js",["/qq.js"]="qq.js",["/audience.js"]="audience.js",["/reply_quota.js"]="reply_quota.js",["/reply_trace.js"]="reply_trace.js",["/media.js"]="media.js",["/stickers.js"]="stickers.js",["/files.js"]="files.js",["/growth.js"]="growth.js",["/memories.js"]="memories.js",["/baseline.js"]="baseline.js",["/relationship.js"]="relationship.js",["/sharing.js"]="sharing.js",["/relation-claims.js"]="relation-claims.js",["/navigation.js"]="navigation.js",["/static/app.css"]="app.css", ["/static/qiban.css"]="qiban.css",
         ["/static/white-dragon-tea.png"]="white-dragon-tea.png"
@@ -261,6 +268,7 @@ internal sealed class ProbeWindow : Form
             }
         };
         Text = "栖伴 Qiban";
+        Icon = LoadApplicationIcon();
         if(Program.UninstallPrepare)
         {
             // One session for this preparation run. Nothing is started, backed up or removed here:
@@ -1210,18 +1218,10 @@ internal sealed class ProbeWindow : Form
         bool passed=false;
         try
         {
-            await Until(()=>JsBool("!document.querySelector('#qq-directory-load').disabled"));
-            await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#qq-directory-load').click()");
-            await Until(()=>JsBool("!document.querySelector('#qq-directory-area').hidden && !document.querySelector('#qq-friend-add').disabled"));
-            await view.CoreWebView2.ExecuteScriptAsync("""
-                for (const id of ['qq-friend-choice', 'qq-group-choice']) {
-                    const select = document.getElementById(id);
-                    const choice = Array.from(select.options).find(option => option.value && !option.disabled);
-                    if (choice) select.value = choice.value;
-                }
-                document.querySelector('#qq-directory-area').scrollIntoView({behavior:'instant'});
-                """);
-            passed=await JsBool("Boolean(document.querySelector('#qq-friend-choice').value && document.querySelector('#qq-group-choice').value) && document.querySelector('#qq-targets-summary').textContent.startsWith('已保存 1 个好友、1 个群。') && document.querySelector('#qq-targets-save').disabled");
+            await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('[data-nav-target=platforms]').click();document.querySelector('[data-tab-target=qq]').click()");
+            await Until(()=>JsBool("document.querySelectorAll('#qq-contact-picker .contact-list li').length > 0"));
+            await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#qq-contact-picker').scrollIntoView({behavior:'instant'})");
+            passed=await JsBool("document.querySelectorAll('#qq-contact-picker .contact-list li').length <= 10 && document.querySelector('#qq-targets-summary').textContent.startsWith('已保存 1 个好友、1 个群。') && document.querySelector('#qq-targets-save').disabled");
             using var screenshot=File.Create(Path.Combine(Program.Data,"qq-directory-visible.png"));
             await view.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,screenshot);
         }

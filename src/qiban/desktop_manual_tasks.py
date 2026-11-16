@@ -184,7 +184,8 @@ class DesktopManualTasks:
         check()
         self.current = (task['id'], asyncio.get_running_loop(), asyncio.current_task())
         try:
-            return await self.runner(task, previous, request=request, guard=check)
+            with self.runtime.activity.track('local', 'watching' if task['kind']=='video' else 'learning'):
+                return await self.runner(task, previous, request=request, guard=check)
         finally:
             self.current = None
 

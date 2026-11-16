@@ -80,6 +80,12 @@ def execution(tmp_path, monkeypatch, mode="success", web_transport=None):
     monkeypatch.setattr(app_server.RpcProcess, "open", opened)
     broker, store, first, second = fixture(tmp_path / "accounts")
     model = DesktopModel(broker, executable=sys.executable, web_transport=web_transport)
+    from qiban.desktop_model_catalog import KEY as CHOICE_KEY, parse_catalog
+    original_state = store.state
+    store.state = lambda key, default=None, db=None: {} if key == CHOICE_KEY else original_state(key, db=db)
+    model.catalog.fetch = lambda access: parse_catalog({'models':[{'slug':'gpt-6.1-terra',
+        'display_name':'Synthetic model','visibility':'list','default_reasoning_level':'low',
+        'supported_reasoning_levels':[{'effort':'low'}]}]})
 
     async def run(native=None):
         return await model.generate(

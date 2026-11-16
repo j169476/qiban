@@ -83,6 +83,7 @@ def main():
     if actual != expected:
         raise RuntimeError("Build environment must match storage-requirements-lock.txt exactly")
     command = [sys.executable, "-m", "PyInstaller", "--onedir", "--console", "--noupx",
+               "--icon", str(ROOT / "scripts/desktop_probe/Assets/qiban.ico"),
                "--name", "Qiban.Storage", "--distpath", str(output), "--workpath", str(work / "build"),
                "--specpath", str(work), "--paths", str(ROOT / "src"),
                "--collect-data", "tzdata",

@@ -11,10 +11,11 @@
     <Product>栖伴 Qiban</Product>
     <AssemblyTitle>栖伴 Qiban</AssemblyTitle>
     <Company>栖伴</Company>
-    <Version>0.9.6</Version>
-    <FileVersion>0.9.6.1</FileVersion>
+    <Version>0.9.7</Version>
+    <FileVersion>0.9.7.1</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationIcon>Assets/qiban.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion>

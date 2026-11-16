@@ -1,27 +1,8 @@
 // QQ management UI tests use only synthetic local replies.
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function page({autoDetails=true}={}){
- const nodes=new Map(),events={},requests=[],listeners=[];
- const node=id=>{
-  if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,disabled:false,value:'',children:[],
-   replaceChildren(){this.children=[];this.value='';},append(child){this.children.push(child);},
-   removeAttribute(name){delete this[name];}});
-  return nodes.get(id);
- };
- let sequence=0,tick;
- const webview={addEventListener(_,fn){listeners.push(fn);},postMessage(request){requests.push(request);
-  if(autoDetails&&request.operation==='wechat.account_details')queueMicrotask(()=>reply(request,
-   {login:request.arguments.login,nickname:'测试昵称',wechat_id:''}));}};
- vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/audience.js'),'utf8'),{
-  document:{getElementById:node,createElement:()=>({children:[],append(...children){this.children.push(...children);}})},window:{chrome:{webview},addEventListener(name,fn){events[name]=fn;}},
-  crypto:{randomUUID:()=>String(++sequence)},setTimeout:()=>sequence,clearTimeout(){},setInterval(fn){tick=fn;}
- });
- const settle=()=>new Promise(resolve=>setImmediate(resolve));
- const update=allowed=>events['qiban-management-state']({detail:{ready:true,locked:!allowed}});
- async function reply(request,result){for(const fn of listeners)fn({data:{type:'management',request_id:request.request_id,response:{ok:true,result}}});await settle();}
- return {node,requests,update,reply,settle,tick:()=>tick()};
-}
+const page=options=>require('./contacts_test_harness.cjs')('audience.js',options);
+
 test('WeChat detection is explicit and a reply arriving after lock cannot reveal accounts', async()=>{
  const p=page();p.node('audience-platform').value='wechat';p.update(true);
  assert.equal(p.requests.length,0);
@@ -34,38 +15,8 @@ test('WeChat detection is explicit and a reply arriving after lock cannot reveal
  await p.reply(p.requests.at(-1),{accounts:[]});await again;
  assert.match(p.node('audience-accounts').textContent,/先在电脑微信登录/);
 });
-test('WeChat switches only on explicit selection and clears directory when account changes', async()=>{
- const p=page(),el=id=>p.node('audience-'+id);
- el('platform').value='wechat';p.update(true);
- let job=el('detect').onclick();
- await p.reply(p.requests.at(-1),{accounts:['one','two'],profiles:{accounts:['one'],selected:'one',revision:1}});await job;
- assert.equal(p.requests.filter(r=>r.operation==='wechat.accounts').length,1);assert.equal(el('select').disabled,true);
- job=el('groups').onclick();
- assert.deepEqual(JSON.parse(JSON.stringify(p.requests.at(-1).arguments)),{login:'one',expected:1,kind:'group',query:'',page:1});
- await p.reply(p.requests.at(-1),{items:[{name:'合成群',username:'target'}],page:1,pages:1,total:1});await job;
- assert.equal(el('members').children.length,1);el('login').value='two';el('login').onchange();
- job=el('select').onclick();assert.equal(p.requests.at(-1).operation,'wechat.select');
- await p.reply(p.requests.at(-1),{accounts:['one','two'],selected:'two',revision:2});await job;
- assert.equal(el('members').children.length,0);assert.equal(el('raw-id').textContent,'two');
-});
-test('WeChat bulk verification keeps prior pages and distinguishes equal labels by ID', async()=>{
- const p=page(),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
- let job=el('detect').onclick();
- await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:['one'],selected:'one',revision:3}});await job;
- for(const [button,username] of [['friends','first'],['groups','second@chatroom']]){
-  job=el(button).onclick();
-  await p.reply(p.requests.at(-1),{items:[{username,name:'同名'}],page:1,pages:1,total:1});await job;
-  el('check-page').onclick();
- }
- job=el('verify').onclick();const req=p.requests.at(-1);
- assert.equal(req.operation,'wechat.targets.verify');
- assert.deepEqual(JSON.parse(JSON.stringify(req.arguments.targets)),[
-  {kind:'private',username:'first'},{kind:'group',username:'second@chatroom'}]);
- await p.reply(req,{verified:1,unavailable:['second@chatroom']});await job;
- assert.match(el('selection-info').textContent,/同名 · second@chatroom/);
- el('uncheck-page').onclick();assert.match(el('selection-info').textContent,/已勾选 1/);
- el('clear').onclick();assert.equal(el('verify').disabled,true);
-});
+
+
 test('a retained unavailable friend can be removed explicitly and an empty list saved', async()=>{
  const p=page(),el=id=>p.node('audience-'+id);
  el('platform').value='wechat';p.update(true);
@@ -125,18 +76,4 @@ test('mismatched account details never relabel another account',async()=>{
  const job=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:[],selected:null,revision:0}});
  await p.reply(p.requests.at(-1),{login:'two',nickname:'wrong-person',wechat_id:'wrong-id'});await job;
  assert.equal(el('login').children[0].textContent,'one（已登录）');assert.match(el('account-notice').textContent,/暂未读取成功/);
-});
-
-test('search and ten-row pagination preserve selections across page jumps',async()=>{
- const p=page(),el=id=>p.node('audience-'+id);el('platform').value='wechat';p.update(true);
- let job=el('detect').onclick();await p.reply(p.requests.at(-1),{accounts:['one'],profiles:{accounts:['one'],selected:'one',revision:1}});await job;
- job=el('friends').onclick();await p.reply(p.requests.at(-1),{items:Array.from({length:10},(_,i)=>({username:'person'+i,name:'同名'})),page:1,pages:3,total:24});await job;
- el('check-page').onclick();assert.equal(el('members').children.length,10);
- el('jump').value='3';el('jump-go').onclick();assert.equal(p.requests.at(-1).arguments.page,3);
- await p.reply(p.requests.at(-1),{items:[{username:'person23',name:'同名'}],page:3,pages:3,total:24});
- assert.equal(el('more').disabled,true);assert.equal(el('chosen-list').children.length,10);
- el('search').value='person2';job=el('search-go').onclick();assert.equal(p.requests.at(-1).arguments.query,'person2');assert.equal(p.requests.at(-1).arguments.page,1);
- await p.reply(p.requests.at(-1),{items:[{username:'person2',name:'同名'}],page:1,pages:1,total:1});await job;
- assert.equal(el('members').children[0].children[0].children[0].checked,true);
- p.update(false);assert.equal(el('identity').hidden,true);assert.equal(el('raw-id').textContent,'');
 });

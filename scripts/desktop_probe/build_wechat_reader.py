@@ -31,6 +31,7 @@ def main():
     work.mkdir(parents=True,exist_ok=False)
     name = "Qiban.WeChatReader"
     command = [sys.executable,"-m","PyInstaller","--onedir","--console","--noupx","--name",name,
+               "--icon",str(ROOT/"scripts/desktop_probe/Assets/qiban.ico"),
                "--distpath",str(output),"--workpath",str(work/"build"),"--specpath",str(work),
                "--paths",str(ROOT/"src"),"--copy-metadata","sqlcipher3","--copy-metadata","zstandard",
                "--add-data",str(ROOT/"src/companion_core/assessment_schemas.json")+";companion_core",

@@ -18,7 +18,7 @@ from companion_core.process_scope import ProcessScope
 
 class NativeProcess:
     WORKER = "worker.cjs"
-    MAX_REPLY = 2 * 1024 * 1024
+    MAX_REPLY = 16 * 1024 * 1024
     ERRORS = frozenset({"qq_login_required", "qq_login_timeout", "qq_target_unverified", "qq_native_runtime_version",
         "qq_native_session_failed", "qq_native_catalog_invalid", "qq_native_not_ready",
         "qq_native_protocol_invalid", "qq_native_read_failed", "qq_native_send_state", "qq_native_send_uncertain",

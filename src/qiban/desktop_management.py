@@ -325,6 +325,7 @@ class DesktopManagement:
                       'tasks.control':{'session','identifier','action','expected'},'runtime.stop_all':set(),
                       'wechat.directory':{'login','expected','kind','after'},
                       'wechat.directory_page':{'login','expected','kind','query','page'},
+                      'wechat.directory_sync':{'login','expected'},
                       'wechat.targets.verify':{'login','expected','targets'},
                       'wechat.targets.saved':{'login','expected'},'wechat.targets.save':{'login','expected','targets','version'},
                       'relationship.clear':{'expected'},'relationship.read':set(),'relationship.accounts':{'after'},'relationship.person':{'anchor'},
@@ -335,6 +336,7 @@ class DesktopManagement:
                       'model.status':set(),'model.refresh':set(),'model.login':set(),'model.logout':set(),
                       'model.cancel':set(),'model.open':set(),'model.add':set(),
                       'model.select':{'account_id','expected'},
+                      'model.catalog':{'refresh'},'model.configure':{'account_id','expected','model','effort'},
                       'qq.password':{'account','password'},'qq.status':set(),'qq.refresh':set(),'qq.login':set(),'qq.cancel':set(),
                       'bili.browser':{'session'},'bili.browser_complete':{'session','ticket','cookies'},
                       'bili.status':{'session'},'bili.login':{'session'},'bili.check':{'session'},
@@ -484,11 +486,11 @@ class DesktopManagement:
             if self.store.state('desktop-last-restore',{}).get('status')=='assets_pending':
                 raise AssistantError('restore_pending', '请等待资料恢复完成后保存名单')
             return asyncio.run(save(self, request, **args))
-        if op in ('wechat.directory','wechat.directory_page','wechat.targets.verify'):
+        if op in ('wechat.directory','wechat.directory_page','wechat.directory_sync','wechat.targets.verify'):
             import asyncio
 
-            from .desktop_wechat import directory, directory_page, verify_targets
-            handler = {'wechat.directory': directory, 'wechat.directory_page': directory_page,
+            from .desktop_wechat import directory, directory_page, directory_sync, verify_targets
+            handler = {'wechat.directory_sync': directory_sync, 'wechat.directory': directory, 'wechat.directory_page': directory_page,
                        'wechat.targets.verify': verify_targets}[op]
             return asyncio.run(handler(self, request, **args))
         if op in ('wechat.profiles','wechat.select'):
@@ -724,6 +726,15 @@ class DesktopManagement:
             if self.codex is None:
                 raise AssistantError('model_unavailable','模型登录服务尚未就绪')
             operation=op.removeprefix('model.')
+            if operation in ('catalog','configure'):
+                model = self.runtime.model if self.runtime else None
+                if model is None or not hasattr(model, 'catalog'):
+                    raise AssistantError('model_unavailable','模型服务尚未就绪')
+                if operation == 'catalog':
+                    if type(args['refresh']) is not bool:
+                        raise AssistantError('management_request','刷新参数无效')
+                    return model.catalog.status(self.store, refresh=args['refresh'])
+                return model.catalog.configure(self.store, **args)
             if operation=='status':
                 return {**self.codex.status(), 'handoff_pending':bool(
                     self.runtime and self.runtime.handoff_pending())}

@@ -20,7 +20,10 @@ def directory(worker, options):
         if not isinstance(rows, list) or len(rows) > 10000:
             raise AssistantError("qq_native_catalog_invalid", "QQ 名称列表超过限制。")
         for row in rows:
-            if not isinstance(row, dict) or set(row) != {"id", "label"} or not isinstance(row["label"], str) or len(row["label"]) > 128:
+            if (not isinstance(row, dict) or not {'id', 'label'} <= set(row)
+                    or set(row) - {'id', 'label', 'nickname'}
+                    or any(not isinstance(row.get(key, ''), str) or len(row.get(key, '')) > 128
+                           for key in ('label', 'nickname'))):
                 raise AssistantError("qq_native_catalog_invalid", "QQ 名称列表格式无效。")
             qq_id(row["id"])
     current = worker.request("identity")

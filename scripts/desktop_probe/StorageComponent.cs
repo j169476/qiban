@@ -16,8 +16,10 @@ internal static class StorageComponent
     static bool BackupOperation(JsonElement request)=>request.TryGetProperty("action",out var action) &&
         (action.GetString()=="desktop-restore" || action.GetString()=="management" && request.TryGetProperty("operation",out var operation)
          && operation.ValueKind==JsonValueKind.String && operation.GetString()!.StartsWith("backups.",StringComparison.Ordinal));
+    static bool ModelCatalogRequest(JsonElement request)=>request.TryGetProperty("operation",out var operation)
+        && operation.ValueKind==JsonValueKind.String && operation.GetString() is "model.catalog" or "model.configure";
     static bool WeChatSetup(JsonElement request)=>request.TryGetProperty("operation",out var operation)
-        && operation.ValueKind==JsonValueKind.String && operation.GetString() is "wechat.directory" or "wechat.directory_page" or "wechat.select" or "wechat.targets.verify" or "wechat.targets.save" or "wechat.account_details";
+        && operation.ValueKind==JsonValueKind.String && operation.GetString() is "wechat.directory" or "wechat.directory_page" or "wechat.directory_sync" or "wechat.select" or "wechat.targets.verify" or "wechat.targets.save" or "wechat.account_details";
     static bool PortableOperation(JsonElement request,out bool cancel)
     {
         cancel=false;
@@ -33,10 +35,10 @@ internal static class StorageComponent
     // reported as a lost backend and the page would offer a retry it must not make.
     static int ReplySeconds(JsonElement request)=>PortableOperation(request,out bool cancel)
         ?(cancel?DesktopPortable.CancelSeconds:DesktopPortable.OperationSeconds)
-        :BackupOperation(request)?120:WeChatSetup(request)?55:20;
+        :ModelCatalogRequest(request)?30:BackupOperation(request)?120:WeChatSetup(request)?55:20;
     static int CallMilliseconds(JsonElement request)=>PortableOperation(request,out bool cancel)
         ?(cancel?DesktopPortable.CancelSeconds:DesktopPortable.OperationSeconds)*1000+5000
-        :BackupOperation(request)?125000:WeChatSetup(request)?58000:10000;
+        :ModelCatalogRequest(request)?33000:BackupOperation(request)?125000:WeChatSetup(request)?58000:10000;
     internal static int ReplySecondsForTest(JsonElement request)=>ReplySeconds(request);
     internal static int CallMillisecondsForTest(JsonElement request)=>CallMilliseconds(request);
     internal static StorageSpec Load(string path) => JsonSerializer.Deserialize<StorageSpec>(File.ReadAllText(path)) ?? throw new IOException("storage_spec_invalid");
@@ -167,7 +169,7 @@ internal static class StorageComponent
         if(expectedServer.HasExited || PipePeer.Server(pipe)!=expectedServer.Id)throw new IOException("management_peer");
         using var reader=new StreamReader(pipe,leaveOpen:true);
         await PipePeer.WriteLine(pipe,request.GetRawText(),deadline.Token);
-        string? response=await PipePeer.ReadLine(reader,deadline.Token,262144);
+        string? response=await PipePeer.ReadLine(reader,deadline.Token,16 * 1024 * 1024);
         using var document=JsonDocument.Parse(response??throw new IOException("management_unavailable"));
         return document.RootElement.Clone();
     }

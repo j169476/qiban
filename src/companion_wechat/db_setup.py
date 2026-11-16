@@ -126,3 +126,35 @@ def browse_page(login, kind, query, page):
     with _contacts(login) as (db, _):
         result = directory_page(db, login, kind, query, page)
     return result
+
+
+def directory_snapshot(db, login):
+    """Read both contact kinds once; preserve all human-searchable names."""
+    from .db_source import _contact_kind
+    items = []
+    account = {'login': login, 'nickname': '', 'wechat_id': ''}
+    rows = db.execute("SELECT username,local_type,flag,delete_flag,verify_flag,is_in_chat_room,"
+                      "remark,nick_name,alias FROM contact WHERE length(username) BETWEEN 1 AND 256 "
+                      "GROUP BY username COLLATE BINARY HAVING count(*)=1 ORDER BY username COLLATE BINARY")
+    try:
+        for username, *fields, remark, nickname, alias in rows:
+            if username == login:
+                account.update(nickname=nickname[:200].strip() if isinstance(nickname, str) else '',
+                               wechat_id=alias[:200].strip() if isinstance(alias, str) else '')
+            kind = _contact_kind(login, username, *fields)
+            if kind not in ('private', 'group') or username in {
+                    'filehelper', 'fmessage', 'medianote', 'newsapp', 'weixin', 'floatbottle'}:
+                continue
+            def label(value):
+                return value[:200].strip() if isinstance(value, str) else ''
+            items.append(dict(id=username, kind=kind, name=label(remark) or label(nickname),
+                              nickname=label(nickname), alias=label(alias)))
+    finally:
+        rows.close()
+    return {'items': items, 'account': account}
+
+
+def browse_snapshot(login):
+    with _contacts(login) as (db, _):
+        result = directory_snapshot(db, login)
+    return result

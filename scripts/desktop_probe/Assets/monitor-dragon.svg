@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 250" fill="none">
+ <title>抱着靠枕的白发小龙娘</title>
+ <ellipse cx="163" cy="222" rx="123" ry="12" fill="#e9dff3"/>
+ <g stroke="#8d75a6" stroke-width="2.2" stroke-linejoin="round">
+  <path d="M209 199q70 34 78-29-19 30-47-5l-29 9Z" fill="#dcd4ee"/>
+  <path d="m253 191 5-13m8 10 6-9m6 1 7-9" stroke="#b4a3cd"/>
+  <path d="m114 145-36-33 3 37-20 6 43 24m105-35 34-34-1 39 19 5-42 25" fill="#c5afe0"/>
+  <path d="M97 110q-17 56-6 88l33 15 68-5 31-22q10-35-4-74Z" fill="#eeeaf7"/>
+  <path d="m119 195-17 18q-7 9 5 13l29 1 7-20m46-12 22 18q7 9-6 13h-29l-6-18" fill="#faf8ff"/>
+  <path d="M118 140q-15 4-23 30l-7 28q18 16 71 17 50-1 72-17l-9-30q-8-25-24-28Z" fill="#fcfbff"/>
+  <path d="M138 138v18q21 13 42 0v-18" fill="#ffe9e1"/>
+  <path d="M122 156q38 28 76-1m-53 10-3 22m31-20 3 20" stroke="#c8bbd9"/>
+  <path d="M108 78q0-37 49-39 53 0 58 39l-3 39q-12 30-51 34-40-5-52-33Z" fill="#ffede6"/>
+  <path d="M104 101q-23-13-15-33 1-22 26-32 21-17 61-7 39 7 51 32l4 44-21 25-2-55q-10 15-37 19l9-17q-20 26-51 28l6-20-21 28-4 27Z" fill="#f8f7fd"/>
+  <path d="M109 48Q77 41 92 10q-1 23 30 25m70 13q34-8 18-38 1 24-28 27" fill="#eeecfa"/>
+  <path d="m107 38-11-9m107 8 8-9M148 41q-19 15-23 34m46-34q-8 22-26 35m49-25 15 21" stroke="#d7cce7"/>
+  <path d="M123 112q9-6 18 0m39 0q9-6 18 0" stroke="#6c5785" stroke-width="3" stroke-linecap="round"/>
+  <path d="M151 130q9 7 17 0" stroke="#b38294" stroke-linecap="round"/>
+  <ellipse cx="127" cy="123" rx="9" ry="4" fill="#f5c7cf" stroke="none"/><ellipse cx="192" cy="123" rx="9" ry="4" fill="#f5c7cf" stroke="none"/>
+  <path d="M122 176q37-21 75 0l11 34q-47 17-96 0Z" fill="#d6c5e9"/>
+  <path d="m108 172 25 15-9 17-27-8m114-23-25 14 9 17 27-9" fill="#fff"/>
+  <path d="m128 188 11 7-4 8-11-1m65-14-11 7 4 8 11-1" fill="#ffe9e1"/>
+  <path d="m158 185 4 7 8 1-6 6 2 8-8-4-7 4 1-8-6-6 8-1Z" fill="#f7f1ff" stroke="#b69aca"/>
+ </g>
+</svg>

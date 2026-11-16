@@ -2,8 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {friends,groups,readDirectory}=require('../../src/companion_qq/native/directory.cjs');
 test('directory exposes only identifiers and names, with remarks preferred',()=>{
- assert.deepEqual(friends([{buddyList:[{uin:'10001',uid:'u_private',nick:'昵称',remark:'备注🙂',phone:'secret'}]}]),[{id:'10001',label:'备注🙂'}]);
- assert.deepEqual(friends([{buddyList:[{uin:'10001',coreInfo:{nick:'新版昵称',remark:'新版备注🙂'}}]}]),[{id:'10001',label:'新版备注🙂'}]);
+ assert.deepEqual(friends([{buddyList:[{uin:'10001',uid:'u_private',nick:'昵称',remark:'备注🙂',phone:'secret'}]}]),[{id:'10001',label:'备注🙂',nickname:'昵称'}]);
+ assert.deepEqual(friends([{buddyList:[{uin:'10001',coreInfo:{nick:'新版昵称',remark:'新版备注🙂'}}]}]),[{id:'10001',label:'新版备注🙂',nickname:'新版昵称'}]);
  assert.deepEqual(groups(0,[{groupCode:'30001',groupName:'群🙂',token:'secret'}]),[{id:'30001',label:'群🙂'}]);
  assert.equal(groups(4,[]),null);assert.equal(groups(2,[{groupCode:'30001'}]),null);
  assert.deepEqual(groups(1,[]),[]);

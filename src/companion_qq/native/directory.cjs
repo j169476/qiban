@@ -19,6 +19,7 @@ function friends(categories) {
       // Pinned Windows kernel returns FriendV2.coreInfo; User is the legacy shape.
       const info = item?.coreInfo ?? item;
       const row = entry(item?.uin, info?.remark || info?.nick);
+      row.nickname = entry(item?.uin, info?.nick).label;
       rows.set(row.id, row);
     }
   }

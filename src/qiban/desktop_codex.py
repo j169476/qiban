@@ -147,7 +147,7 @@ class DesktopCodex:
         client=await self.rpc.open([str(exe),'app-server','--stdio','--strict-config'],
             cwd=work,env=env,guard=self._guard,deadline=time.monotonic()+(600 if operation=='login' else 30))
         try:
-            initialized=await client.call('initialize',{'clientInfo':{'name':'qiban_account','version':'0.9.6'}})
+            initialized=await client.call('initialize',{'clientInfo':{'name':'qiban_account','version':'0.9.7'}})
             if Path(initialized.get('codexHome','')).resolve()!=home:
                 raise AssistantError('model_account_scope','Codex 登录目录不匹配')
             client.send({'method':'initialized','params':{}})

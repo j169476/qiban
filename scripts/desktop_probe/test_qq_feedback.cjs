@@ -1,25 +1,8 @@
 // QQ management UI tests use only synthetic local replies.
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function page(){
- const nodes=new Map(),events={},requests=[],listeners=[];
- const node=id=>{
-  if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,disabled:false,value:'',children:[],
-   replaceChildren(){this.children=[];this.value='';},append(child){this.children.push(child);},
-   removeAttribute(name){delete this[name];}});
-  return nodes.get(id);
- };
- let sequence=0,tick;
- const webview={addEventListener(_,fn){listeners.push(fn);},postMessage(request){requests.push(request);}};
- vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/qq.js'),'utf8'),{
-  document:{getElementById:node,createElement:()=>({})},window:{chrome:{webview},addEventListener(name,fn){events[name]=fn;}},
-  crypto:{randomUUID:()=>String(++sequence)},setTimeout:()=>sequence,clearTimeout(){},setInterval(fn){tick=fn;}
- });
- const settle=()=>new Promise(resolve=>setImmediate(resolve));
- const update=allowed=>events['qiban-management-state']({detail:{ready:true,locked:!allowed}});
- async function reply(request,result){for(const fn of listeners)fn({data:{type:'management',request_id:request.request_id,response:{ok:true,result}}});await settle();}
- return {node,requests,update,reply,settle,tick:()=>tick()};
-}
+const page=options=>require('./contacts_test_harness.cjs')('qq.js',options);
+
 const idle={state:'idle',busy:false,accounts:[],selected:null,revision:0};
 const qr={...idle,state:'qr_ready',busy:true,png_base64:'synthetic',message:'请扫码'};
 
@@ -99,40 +82,4 @@ test('persisted target settings load without granting or checking automatically'
  assert.equal(p.node('qq-private-targets').value,'20001');assert.equal(p.node('qq-group-targets').value,'30001');
  assert.match(p.node('qq-targets-summary').textContent,/授权已关闭/);
  assert.equal(p.node('qq-targets-save').disabled,true);assert.equal(p.requests.length,1);
-});
-
-test('directory search and addition preserve manual targets and never grant or save',async()=>{
- const p=page();p.update(true);await p.reply(p.requests[0],{...idle,selected:{uin:'10001',label:'测试'},revision:1,
-  targets:{private_targets:['20001'],groups:[],authorized:true},directory:{
-   private_targets:[{id:'20001',label:'已有好友'},{id:'20002',label:'中文🙂'}],groups:[{id:'30001',label:'<script>文字</script>'}]}});
- p.node('qq-directory-search').value='🙂';p.node('qq-directory-search').oninput();
- assert.equal(p.node('qq-friend-choice').value,'20002');
- p.node('qq-friend-add').onclick();p.node('qq-friend-add').onclick();
- assert.equal(p.node('qq-private-targets').value,'20001\n20002');assert.equal(p.requests.length,1);
- assert.equal(p.node('qq-targets-save').disabled,true);
- p.node('qq-directory-search').value='';p.node('qq-directory-search').oninput();
- assert.equal(p.node('qq-group-choice').children[0].textContent,'<script>文字</script>（30001）');
- p.update(false);assert.equal(p.node('qq-directory-area').hidden,true);
- assert.equal(p.node('qq-friend-choice').children.length,0);assert.equal(p.node('qq-directory-summary').textContent,'');
-});
-
-test('directory refresh is explicit and late names cannot cross a lock',async()=>{
- const p=page();p.update(true);await p.reply(p.requests[0],{...idle,selected:{uin:'10001'},revision:4});
- const action=p.node('qq-directory-load').onclick(),request=p.requests.at(-1);
- assert.equal(request.operation,'qq.directory');assert.equal(request.arguments.expected,4);
- p.update(false);await p.reply(request,{started:true});await action;
- assert.equal(p.node('qq-directory-area').hidden,true);assert.equal(p.requests.length,2);
-});
-
-test('batch edits cover all search matches beyond the visible page and do not submit',async()=>{
- const p=page();p.update(true);
- const rows=Array.from({length:105},(_,i)=>({id:String(20000+i),label:'项目组'}));
- await p.reply(p.requests[0],{...idle,selected:{uin:'10001'},revision:1,
-  directory:{private_targets:[...rows,{id:'90001',label:'其他'}],groups:[]}});
- const input=p.node('qq-private-targets');input.value='90001';
- const search=p.node('qq-directory-search');search.value='项目';search.oninput();
- p.node('qq-friend-batch-add').onclick();
- assert.equal(input.value.split('\n').length,106);
- p.node('qq-friend-batch-remove').onclick();
- assert.equal(input.value,'90001');assert.equal(p.requests.length,1);
 });

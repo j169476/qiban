@@ -18,6 +18,7 @@ from pathlib import Path
 import yaml
 
 REVIEWED_ASSETS = {
+    "scripts/desktop_probe/Assets/qiban.ico": "3a1a57b8a4f68766af8361ef6c0909bee15cb1d2fc1d7e2681d08eeaa1cb4f2f",
     "scripts/desktop_probe/licenses/Windows-SDK.rtf": "dd07eb178e00c6bba4148457fc00ff77cd4887eb521d504186fe59c9ec8bbe62",
     # Upstream source archives, pinned by the same SHA-256 values as build_storage.py.
     "scripts/desktop_probe/upstream/bilibili_api_python-17.4.2.tar.gz": "3ec62eaa45702779957eaf70fba0c5ff7c858054804cb605780f76fee388ebd5",
@@ -26,6 +27,7 @@ REVIEWED_ASSETS = {
 }
 # Confirmed public text outside EXTENSIONS; each exact path is still text-scanned.
 REVIEWED_TEXT = {
+    "scripts/desktop_probe/Assets/monitor-dragon.svg",
     "scripts/desktop_probe/Assets/dragon-rest.svg",
     "scripts/desktop_probe/installer/Qiban.iss",
     "src/companion_qq/native/LICENSE.Waylay",

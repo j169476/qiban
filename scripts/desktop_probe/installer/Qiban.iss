@@ -123,6 +123,7 @@ AllowNoIcons=yes
 AppMutex={#RunningMutexName}
 CloseApplications=no
 RestartApplications=no
+SetupIconFile=..\Assets\qiban.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 LicenseFile=..\..\..\LICENSE
 InfoAfterFile=INSTALL-NOTES.txt

@@ -57,9 +57,10 @@ class OwnedCompanion(Companion):
     async def _handle_serial(self, event):
         adapter = self.platforms.get(event.platform, event.account)
         work = super()._handle_serial
-        if hasattr(adapter, "run_cancellable_reply"):
-            return await adapter.run_cancellable_reply(event, work)
-        return await work(event)
+        with self.host.runtime.activity.track(event.platform, 'replying'):
+            if hasattr(adapter, "run_cancellable_reply"):
+                return await adapter.run_cancellable_reply(event, work)
+            return await work(event)
 
     def guard(self, generation=None):
         self.host.runtime.tasks.check()
@@ -70,7 +71,8 @@ class OwnedCompanion(Companion):
         return run
 
     async def cycle(self):
-        return await self.host.runtime.tasks.run(super().cycle)
+        with self.host.runtime.activity.track(self.run_key.removeprefix('core-run:'), 'browsing'):
+            return await self.host.runtime.tasks.run(super().cycle)
 
     async def poll(self):
         return await self.host.runtime.tasks.run(super().poll)
@@ -112,6 +114,8 @@ class DesktopRuntime:
         self.model,self.closed = model,False
         self.room_model = room_model
         self.tasks = TaskBarrier()
+        from .desktop_activity import Activity
+        self.activity = Activity()
         self.scheduler = None
         self.reconfiguring = set()
         self.cores = {}
@@ -271,7 +275,7 @@ class DesktopRuntime:
                 platforms[-1].update(self.scheduler.status(platform))
         return {'role':self.role.as_dict(),'application_session':self.application,'runtime_instance':self.instance,
                 'preference_revision':preferences['revision'],'platforms':platforms,'tasks_blocked':self.tasks.blocked,
-                'handoff_pending':self.handoff_pending()}
+                'handoff_pending':self.handoff_pending(), 'activities':self.activity.snapshot()}
 
     def platform_model(self, platform):
         if platform in ("local","bilibili") and self.room_model is not None:

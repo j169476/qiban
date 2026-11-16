@@ -14,7 +14,7 @@ const owners={
  'memory-panel':'persona','sharing-panel':'persona','relation-claims-panel':'persona',
  'bili-panel':'platforms','qq-panel':'platforms','audience-panel':'platforms','growth-panel':'platforms',
  'model-panel':'model','reply-quota-panel':'model',
- 'tasks-panel':'records','reply-trace-panel':'records','runtime-panel':'home','notification-panel':'home',
+ 'tasks-panel':'records','reply-trace-panel':'records','notification-panel':'home',
  'media-panel':'media','file-panel':'media','sticker-panel':'media','sticker-detail-panel':'media',
  'backup-panel':'settings','backup-rail-local':'settings','backup-rail-source':'settings','lock-panel':'settings','management-lock':'settings'
 };
@@ -100,6 +100,8 @@ test('导航列出 7 个分区，每个页面元素只归属一个分区且原 i
  assert.equal(pageOf(html.match(/<div class="probe-page-heading"[^>]*>/)[0]),'home');
  // 顶栏与解锁区在任何分区都可达，诊断区归属设置。
  assert.equal(pageOf(tagOf('management-panel')),'');
+ assert.equal(pageOf(tagOf('runtime-panel')),'');
+ assert.ok(html.indexOf('id="audience-scope-panel"')<html.indexOf('<aside class="probe-rail runtime-monitor"'));
  assert.equal(pageOf(tagOf('diagnostics-panel')),'settings');
  assert.equal(pageOf(html.match(/<header class="probe-topbar">/)[0]),'');
  assert.deepEqual([...new Set(Object.values(owners))].sort(),[...pages].sort());
@@ -177,10 +179,10 @@ test('外壳结构：顶栏在前，导航在固定左列，功能与详情分�
  assert.match(html,/<\/header>\s*<div class="probe-shell">\s*<nav class="app-nav"/);
  const shell=html.slice(html.indexOf('<div class="probe-shell">'),html.indexOf('</main>'));
  assert.match(shell,/^<div class="probe-shell">\s*<nav class="app-nav"/);
- const center=shell.indexOf('<div class="probe-center">'),rail=shell.indexOf('<div class="probe-rail"');
+ const center=shell.indexOf('<div class="probe-center">'),rail=shell.indexOf('<aside class="probe-rail runtime-monitor"');
  assert.ok(center>0&&rail>center,'功能栏必须在详情栏之前（窄窗口时详情栏自然下移）');
  assert.match(shell.slice(center,rail),/id="room-dialog"/,'会客室排在同一外壳的中间栏');
- assert.match(shell.slice(rail),/<div class="probe-rail" role="complementary"/);
+ assert.match(shell.slice(rail),/<aside class="probe-rail runtime-monitor" aria-label="运行监控"/);
  // 顶栏：左侧品牌复用白龙娘资源，右侧“应用设置”展开菜单，且不复制系统窗口按钮。
  const bar=html.slice(html.indexOf('<header class="probe-topbar">'),html.indexOf('</header>'));
  assert.match(bar,/class="probe-brand"/);
