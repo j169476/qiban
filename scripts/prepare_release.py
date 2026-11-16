@@ -18,6 +18,15 @@ from pathlib import Path
 import yaml
 
 REVIEWED_ASSETS = {
+    "scripts/desktop_probe/Assets/monitor-idle.gif": "1e226f7715db5f1628396aeeacf0102f0a25deed508bcec961f93ef598d087e0",
+    "scripts/desktop_probe/Assets/monitor-idle.png": "4c3275b3da11a633c9423fc35db8ba682ae9cd1c96c75fc5050e3e09fd9816d8",
+    "scripts/desktop_probe/Assets/monitor-learning.gif": "a8a9eb9fde2e151a6422351b79200aa0ec176cc0e892c42142e899db021afc3b",
+    "scripts/desktop_probe/Assets/monitor-learning.png": "85eefdd8b4ebe42943c0c312eeb215d0ab810cd2fdc1cae372fc3d1e54c21aea",
+    "scripts/desktop_probe/Assets/monitor-replying.gif": "6fcf3a3e313b0efbfdcf6adba83777bb6c707b4699e5dc761bc846a5d6d02ec1",
+    "scripts/desktop_probe/Assets/monitor-replying.png": "2260aba139c737388ee13f6dd7c2a628e14b0b3947934c4cad633a9931e188c4",
+    "scripts/desktop_probe/Assets/monitor-watching.gif": "e88276958b449c59978e4b8929c3373f16d0ae6fe228a2bb62b3cf0ad2322d17",
+    "scripts/desktop_probe/Assets/monitor-watching.png": "64b04379fec29ce08cdbbfb82c25fa484c4db453117f1cd722fede9fe5490132",
+
     "scripts/desktop_probe/Assets/qiban.ico": "3a1a57b8a4f68766af8361ef6c0909bee15cb1d2fc1d7e2681d08eeaa1cb4f2f",
     "scripts/desktop_probe/licenses/Windows-SDK.rtf": "dd07eb178e00c6bba4148457fc00ff77cd4887eb521d504186fe59c9ec8bbe62",
     # Upstream source archives, pinned by the same SHA-256 values as build_storage.py.
@@ -27,7 +36,6 @@ REVIEWED_ASSETS = {
 }
 # Confirmed public text outside EXTENSIONS; each exact path is still text-scanned.
 REVIEWED_TEXT = {
-    "scripts/desktop_probe/Assets/monitor-dragon.svg",
     "scripts/desktop_probe/Assets/dragon-rest.svg",
     "scripts/desktop_probe/installer/Qiban.iss",
     "src/companion_qq/native/LICENSE.Waylay",

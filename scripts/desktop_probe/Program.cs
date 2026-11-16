@@ -240,7 +240,7 @@ internal sealed class ProbeWindow : Form
     readonly Dictionary<string, string> resources = new()
     {
         ["/"]="index.html", ["/manual"]="manual.html", ["/uninstall"]="uninstall.html",
-        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/contacts.js"]="contacts.js", ["/model-choice.js"]="model-choice.js", ["/monitor-dragon.svg"]="monitor-dragon.svg", ["/dragon-rest.svg"]="dragon-rest.svg",
+        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/contacts.js"]="contacts.js", ["/model-choice.js"]="model-choice.js", ["/monitor-idle.gif"]="monitor-idle.gif", ["/monitor-idle.png"]="monitor-idle.png", ["/monitor-learning.gif"]="monitor-learning.gif", ["/monitor-learning.png"]="monitor-learning.png", ["/monitor-watching.gif"]="monitor-watching.gif", ["/monitor-watching.png"]="monitor-watching.png", ["/monitor-replying.gif"]="monitor-replying.gif", ["/monitor-replying.png"]="monitor-replying.png", ["/dragon-rest.svg"]="dragon-rest.svg",
         ["/probe.css"]="probe.css", ["/probe.js"]="probe.js",
         ["/management.js"]="management.js",["/room.js"]="room.js",["/tasks.js"]="tasks.js",["/model.js"]="model.js",["/bili.js"]="bili.js",["/qq.js"]="qq.js",["/audience.js"]="audience.js",["/reply_quota.js"]="reply_quota.js",["/reply_trace.js"]="reply_trace.js",["/media.js"]="media.js",["/stickers.js"]="stickers.js",["/files.js"]="files.js",["/growth.js"]="growth.js",["/memories.js"]="memories.js",["/baseline.js"]="baseline.js",["/relationship.js"]="relationship.js",["/sharing.js"]="sharing.js",["/relation-claims.js"]="relation-claims.js",["/navigation.js"]="navigation.js",["/static/app.css"]="app.css", ["/static/qiban.css"]="qiban.css",
         ["/static/white-dragon-tea.png"]="white-dragon-tea.png"
@@ -430,7 +430,7 @@ internal sealed class ProbeWindow : Form
         if (!Allowed(e.Request.Uri) || !resources.TryGetValue(path, out var name))
         { e.Response = environment.CreateWebResourceResponse(null, 403, "Forbidden", ""); return; }
         var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)!;
-        string mime = Path.GetExtension(name) switch { ".css"=>"text/css", ".js"=>"application/javascript", ".png"=>"image/png", ".svg"=>"image/svg+xml", _=>"text/html" };
+        string mime = Path.GetExtension(name) switch { ".css"=>"text/css", ".js"=>"application/javascript", ".png"=>"image/png", ".gif"=>"image/gif", ".svg"=>"image/svg+xml", _=>"text/html" };
         e.Response = environment.CreateWebResourceResponse(stream, 200, "OK", "Content-Type: " + mime + "; charset=utf-8\r\n" +
             "Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'\r\nCache-Control: no-store");
     }

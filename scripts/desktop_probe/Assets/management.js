@@ -82,7 +82,7 @@
   element('runtime-panel').hidden=element('management-panel').hidden;
   element('runtime-refresh').disabled=!ready||locked;
   element('runtime-stop-all').disabled=!ready||locked;
-  if(locked||!ready){element('monitor-state').textContent=locked?'已锁定':'等待连接';element('monitor-detail').textContent='';element('monitor-scene').dataset.state='idle';element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
+  if(locked||!ready){element('monitor-state').textContent=locked?'已锁定':'等待连接';element('monitor-detail').textContent='';paintMonitor('idle');element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
   window.dispatchEvent(new CustomEvent('qiban-management-state',{detail:{ready,locked,
    roomSession:ready&&!locked?identity.room_session:null,lockEnabled:enabled}}));
  }
@@ -418,6 +418,17 @@
   try{await call(operation,args);await loadRuntime();}
   catch(error){feedback('运行设置提示',error.message);}
  }
+ function paintMonitor(state){
+  const names={idle:'抱着茶杯休息',learning:'翻阅书本',watching:'看平板上的视频',replying:'用电脑撰写回复'};
+  const animation=state==='browsing'?'watching':Object.hasOwn(names,state)?state:'idle';
+  const scene=element('monitor-scene'),image=element('monitor-animation'),still=element('monitor-still');
+  scene.dataset.state=state||'idle';
+  // Status polling must not restart the current GIF on every response.
+  if(image.dataset.animation===animation)return;
+  still.srcset=`/monitor-${animation}.png`;
+  image.src=`/monitor-${animation}.gif`;image.alt=`白发龙娘${names[animation]}`;
+  image.dataset.animation=animation;
+ }
  async function loadRuntime(){
   if(runtimeRefreshing||!ready||!identity||identity.locked)return;
   runtimeRefreshing=true;const runtimeEpoch=accessEpoch;
@@ -427,7 +438,7 @@
    const activities=state.activities||[],active=activities[0];
    const fault=state.platforms.some(p=>p.scheduler_error)||state.handoff_pending;
    const label={replying:'撰写回复',learning:'学习中',watching:'观看视频',browsing:'浏览与互动'};
-   element('monitor-scene').dataset.state=active?.state||'idle';
+   paintMonitor(active?.state||'idle');
    element('monitor-state').textContent=fault?'运行待处理':active?label[active.state]||'处理中':state.platforms.some(p=>p.status==='active')?'空闲 · 等待新消息':'休息中 · 平台未启动';
    element('monitor-detail').textContent=activities.map(a=>({qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机任务'}[a.platform]||'栖伴')+' · '+(label[a.state]||'处理中')).join(' / ');
    const platforms=element('runtime-platforms');platforms.replaceChildren();

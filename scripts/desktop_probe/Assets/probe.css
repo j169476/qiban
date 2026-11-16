@@ -305,15 +305,9 @@ button.is-loading::before{content:'';position:absolute;left:10px;top:50%;width:4
 .runtime-monitor .runtime-summary{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.runtime-monitor .runtime-summary h3{font-size:1rem;margin:0}
 .runtime-monitor .runtime-summary p{font-size:.8rem;margin:0 0 0 auto}.runtime-monitor .runtime-actions{justify-content:flex-start;gap:6px;margin:8px 0}
 .runtime-monitor #runtime-platforms label{font-size:.78rem;margin:0}.runtime-monitor #runtime-platforms input[type=checkbox]{width:16px;height:16px}
-.monitor-scene{position:relative;width:100%;max-width:320px;margin:0 auto;background:radial-gradient(ellipse,#f1e9f9 20%,transparent 70%)}
-.monitor-scene>img{display:block;width:100%;animation:monitor-breathe 4s ease-in-out infinite}
-.monitor-scene>svg{display:none;position:absolute;width:30%;bottom:5%;left:36%}.monitor-sleep{position:absolute;top:20%;right:14%;color:#a68bbd;animation:monitor-drift 3s ease-out infinite}
-.monitor-scene[data-state=learning] .monitor-book,.monitor-scene[data-state=watching] .monitor-screen,.monitor-scene[data-state=browsing] .monitor-screen,.monitor-scene[data-state=replying] .monitor-writing{display:block}
-.monitor-scene:not([data-state=idle]) .monitor-sleep{display:none}.monitor-scene[data-state=learning] .monitor-book{animation:monitor-breathe 2s ease-in-out infinite}
-.monitor-scene[data-state=watching] .monitor-screen,.monitor-scene[data-state=browsing] .monitor-screen{animation:monitor-glow 2s ease-in-out infinite}
-.monitor-pencil{animation:monitor-write .6s ease-in-out infinite;transform-origin:center}#monitor-state{text-align:center;font-weight:650;margin:4px 0}#monitor-detail{text-align:center;font-size:.8rem}
-@keyframes monitor-breathe{50%{transform:translateY(-3px)}}@keyframes monitor-drift{0%{opacity:0;transform:translateY(8px)}50%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
-@keyframes monitor-write{50%{transform:translate(3px,-2px) rotate(6deg)}}@keyframes monitor-glow{50%{filter:drop-shadow(0 0 6px #b29ad6)}}
+.monitor-scene{width:100%;max-width:320px;margin:8px auto;border-radius:20px;overflow:hidden;background:#fcf9ff}
+.monitor-scene picture,.monitor-scene img{display:block;width:100%;height:auto}
+#monitor-state{text-align:center;font-weight:650;margin:4px 0}#monitor-detail{text-align:center;font-size:.8rem}
 @media(max-width:1050px){.runtime-monitor{position:static;max-height:none}.runtime-monitor #runtime-platforms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.monitor-scene{max-width:210px}}
 @media(max-width:700px){.runtime-monitor #runtime-platforms{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){.monitor-scene *{animation:none!important}}
+
