@@ -230,10 +230,10 @@
 
 <div class="actions"><button id="model-login">登录 ChatGPT</button><button id="model-refresh" class="secondary">检查登录状态</button><button id="model-open" class="secondary" disabled hidden>重新打开登录页面</button><button id="model-cancel" class="secondary" disabled hidden>取消登录</button><button id="model-logout" class="quiet" disabled>退出本应用账号</button></div>
 <p id="model-status" class="inline-status" role="status"></p><p id="model-notice" role="status" aria-live="polite"></p></section>
-<section class="card" id="reply-quota-panel" hidden data-nav-page="model"><div class="help-heading"><h2>回复额度</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">私聊按自然日统计回复条数，群聊每次被 @ 或引用唤起算一次参与；保存设置不调用模型，也不是计费额度。修改额度不会授权会话、不改变回复授权或启动平台。单独设置只影响所选会话，可恢复为账号默认。“停用此会话”只影响这一个会话，解除后只回新消息，期间消息不补回。</div></details></div>
+<section class="card" id="reply-quota-panel" hidden data-nav-page="model"><div class="help-heading"><h2>回复额度</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">私聊按自然日统计回复条数，群聊每次被 @ 或引用唤起算一次参与；保存设置不调用模型，也不是计费额度。修改额度不会授权会话、不改变回复授权或启动平台。单独设置只影响所选会话，可恢复为账号默认。“停用此会话”只影响这一个会话，解除后只回新消息，期间消息不补回。<p id="reply-quota-rule" class="note"></p></div></details></div>
 <button id="reply-quota-refresh" class="secondary">读取账号额度</button>
 <p id="reply-quota-status" role="status"></p>
-<p id="reply-quota-rule" class="note"></p>
+
 <div id="reply-quota-accounts"></div></section>
 <nav class="probe-tabs" id="records-tabs" data-nav-page="records" aria-label="任务与记录分组">
 <button type="button" class="probe-tab" data-tab-group="records" data-tab-target="tasks" aria-pressed="true">手动任务</button>
