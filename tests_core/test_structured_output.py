@@ -37,3 +37,25 @@ def test_union_objects_restore_nested_optional_fields_without_coercing_types():
     assert restore_optional({"choice": {"name": "value", "count": None}}, schema) == {"choice": {"name": "value"}}
     with pytest.raises(ValidationError):
         validate(restore_optional({"choice": {"name": "value", "count": "wrong"}}, schema), schema)
+
+@pytest.mark.parametrize('node,expected', [
+    ({'const':'message.reply'},'string'), ({'const':1},'integer'),
+    ({'const':False},'boolean'), ({'const':None},'null'),
+    ({'enum':['text','voice']},'string'), ({'enum':[1.5,2.5]},'number'),
+    ({'enum':['text',None]},['string','null']),
+])
+def test_strict_transport_adds_types_to_enum_and_const_without_changing_values(node,expected):
+    before=deepcopy(node)
+    wire=strict_schema(obj({'value':node}))['properties']['value']
+    assert wire['type']==expected and node==before
+    assert {k:v for k,v in wire.items() if k!='type'}==node
+
+
+def test_bilibili_favorite_tool_discriminators_are_explicitly_typed():
+    from bili_assistant.favorite_workflow import SCHEMA
+    wire=strict_schema(SCHEMA)
+    for variant in wire['properties']['call']['anyOf']:
+        assert variant['properties']['tool']['type']=='string'
+    result={'call':{'tool':'done','arguments':{}}}
+    validate(result,wire)
+    validate(restore_optional(result,SCHEMA),SCHEMA)

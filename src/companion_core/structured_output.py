@@ -15,6 +15,20 @@ def strict_schema(schema):
         if not isinstance(node, dict):
             return node
         result = {key: visit(value) for key, value in node.items() if key != "uniqueItems"}
+        # JSON Schema permits enum/const without type; strict model transports
+        # require the type explicitly, including nested tool discriminators.
+        if "type" not in result and ("const" in node or "enum" in node):
+            values = [node["const"]] if "const" in node else node["enum"]
+            types = []
+            for value in values:
+                kind = ("null" if value is None else "boolean" if isinstance(value, bool)
+                        else "integer" if isinstance(value, int) else "number" if isinstance(value, float)
+                        else "string" if isinstance(value, str) else "array" if isinstance(value, list)
+                        else "object" if isinstance(value, dict) else None)
+                if kind and kind not in types:
+                    types.append(kind)
+            if types:
+                result["type"] = types[0] if len(types) == 1 else types
         if "properties" in node:
             required = set(node.get("required", []))
             for name, value in node["properties"].items():
