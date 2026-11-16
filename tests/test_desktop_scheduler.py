@@ -176,33 +176,36 @@ async def test_stop_cancels_only_its_platform_and_repeated_stop_preserves_cleanu
     await stop(scheduler, task)
 
 
-async def test_model_failure_pauses_one_platform_without_automatic_retry_or_account_change():
+@pytest.mark.parametrize("code", ["model_usage_limit", "login_required"])
+async def test_model_failure_pauses_one_platform_without_automatic_retry_or_account_change(code):
     value = runtime()
     calls = []
 
     async def fail():
         calls.append(True)
-        raise AssistantError("model_usage_limit", "SYNTHETIC_SECRET_DO_NOT_EXPOSE")
+        raise AssistantError(code, "SYNTHETIC_SECRET_DO_NOT_EXPOSE")
 
     value.cores["qq"].poll = fail
     scheduler = DesktopScheduler(value, tick=0.005)
     task = asyncio.create_task(scheduler._run())
     await until(lambda: bool(value.errors))
     await until(lambda: value.cores["wechat"].polls >= 3)
-    assert calls == [True] and value.errors == [("qq", "model_usage_limit")]
+    assert calls == [True] and value.errors == [("qq", code)]
     await stop(scheduler, task)
 
 
-async def test_network_poll_retries_are_bounded_and_explicit_restart_clears_delay():
+@pytest.mark.parametrize("code", ["network_error", "inbox_timeout", "read_timeout", "platform_read_error"])
+@pytest.mark.parametrize("stage", ["poll", "cycle"])
+async def test_network_poll_retries_are_bounded_and_explicit_restart_clears_delay(code, stage):
     value = runtime()
     now = [0]
     count = []
 
     async def fail():
         count.append(True)
-        raise AssistantError("network_error", "Temporary")
+        raise AssistantError(code, "Temporary")
 
-    value.cores["qq"].poll = fail
+    setattr(value.cores["qq"], stage, fail)
     scheduler = DesktopScheduler(value, tick=0.005, clock=lambda: now[0])
     task = asyncio.create_task(scheduler._run())
     for attempt in range(1, 4):
@@ -210,7 +213,7 @@ async def test_network_poll_retries_are_bounded_and_explicit_restart_clears_dela
         now[0] += 1000
     await until(lambda: bool(value.errors))
     assert value.store.runs["qq"]["status"] == "paused"
-    value.cores["qq"].poll = lambda: asyncio.sleep(0, result=[])
+    setattr(value.cores["qq"], stage, lambda: asyncio.sleep(0, result=[]))
     value.store.runs["qq"] = {"status": "active", "generation": "qq-2"}
     scheduler.wake("qq")
     await until(lambda: scheduler.schedules["qq"].generation == "qq-2")

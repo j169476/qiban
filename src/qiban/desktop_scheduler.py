@@ -12,6 +12,11 @@ from companion_core.reply_batch import handle_batch
 from companion_core.runtime_keys import DESKTOP_PLATFORMS as PLATFORMS
 
 
+# Transport read failures share the bounded reconnect policy. Authentication and
+# model errors still stop immediately; delivery owns any uncertain send result.
+READ_RETRY = {"inbox_timeout", "network_error", "read_timeout", "platform_read_error"}
+
+
 @dataclass
 class Schedule:
     generation: str | None = None
@@ -186,7 +191,7 @@ class DesktopScheduler:
                 state.failures += 1
                 state.next_poll = self.clock() + min(900, 60 * 2 ** min(state.failures, 4))
                 if code not in TEMPORARY | {"cycle_busy"} and (
-                    state.failures >= 3 or code not in {"inbox_timeout", "network_error"}
+                    state.failures >= 3 or code not in READ_RETRY
                 ):
                     await asyncio.to_thread(self.runtime.fail, platform, code, state.generation)
             except Exception:
@@ -231,7 +236,6 @@ class DesktopScheduler:
         else:
             incoming = await asyncio.wait_for(core.poll(), settings.get("inbox_timeout_seconds", 180))
             incoming = [event for event in incoming if event.visibility == "private"]
-        state.failures = 0
         state.next_poll = self.clock() + min(
             (getattr(a, "poll_interval_seconds", settings.get("inbox_poll_seconds", 60)) for a in adapters),
             default=60,
@@ -244,3 +248,4 @@ class DesktopScheduler:
             await core.cycle()
             policy = (await asyncio.to_thread(self.runtime.store.read, "policy"))["data"]
             state.next_cycle = self.clock() + policy.get("cycle_minutes", 15) * 60
+        state.failures = 0
