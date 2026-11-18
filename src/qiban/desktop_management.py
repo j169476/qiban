@@ -333,6 +333,7 @@ class DesktopManagement:
                       'backups.list':set(),'backups.create':set(),'backups.preview':{'name'},
                       'runtime.status':set(),'runtime.preference':{'platform','enabled','expected'},
                       'runtime.control':{'platform','action'},'notifications.list':set(),'notifications.read':{'identifier'},
+                      'notifications.page':{'page'},'notifications.update':{'identifiers','action'},
                       'model.status':set(),'model.refresh':set(),'model.login':set(),'model.logout':set(),
                       'model.cancel':set(),'model.open':set(),'model.add':set(),
                       'model.select':{'account_id','expected'},
@@ -754,6 +755,10 @@ class DesktopManagement:
                                       else 'desktop_model_cancel_idle',self.installation)
                 return result
             return {'status':self.codex.status,'cancel':self.codex.cancel,'open':self.codex.open_login}[operation]()
+        if op=='notifications.page':
+            return self.notifications.page(request, **args)
+        if op=='notifications.update':
+            return self.notifications.update(request, **args)
         if op=='notifications.list':
             return self.notifications.listing(request)
         if op=='notifications.read':

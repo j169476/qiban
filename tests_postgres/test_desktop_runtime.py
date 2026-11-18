@@ -43,6 +43,36 @@ def account_runtime(service, tmp_path, model):
     return runtime,book,list(book['accounts'])[1]
 
 
+async def test_unattended_renewal_recovers_cold_autorun_and_respects_manual_stop(service, tmp_path):
+    from qiban.desktop_model import DesktopModel
+    from qiban.desktop_siwc import KEY
+
+    runtime, book, _ = account_runtime(service, tmp_path, object())
+    runtime.model = DesktopModel(service.codex, executable='unused')
+    book['accounts'][book['active']]['session']['expires_at'] = 999
+    service.store.set_state(KEY, book)
+    exchanges = []
+    def exchange(*args):
+        exchanges.append(1)
+        return {'token_type':'Bearer', 'expires_in':3600, 'access_token':'new', 'refresh_token':'rotated'}
+
+    service.codex.transport = exchange
+    await runtime.maintain_model_account()
+    assert not exchanges
+    runtime.preference(service.request(), 'qq', True, runtime.status()['preference_revision'])
+    assert runtime.reconcile()['qq']['reason'] == 'model_unavailable'
+    await runtime.maintain_model_account()
+    assert exchanges == [1] and not runtime.awaiting_model
+    assert service.store.state('core-run:qq')['status'] == 'active'
+    service.codex.clock = lambda:4100
+    await runtime.maintain_model_account()
+    assert exchanges == [1, 1]
+    runtime.control(service.request(), 'qq', 'stop')
+    service.codex.clock = lambda:7200
+    await runtime.maintain_model_account()
+    assert exchanges == [1, 1]
+
+
 async def test_account_switch_stops_real_runtime_tasks_before_commit_and_takes_over(service,tmp_path):
     from qiban.desktop_siwc import KEY
 
@@ -586,12 +616,54 @@ def test_notifications_are_durable_deduplicated_and_do_not_use_chat(service):
     assert all('模型' not in str(value) and 'model_unavailable' not in str(value) for value in values)
 
 
+def test_reply_configurations_preserve_documents_and_scoped_reads(desktop_store):
+    from companion_core.storage import REPLY_CONFIGURATIONS, read_reply_configurations
+
+    expected = {kind: desktop_store.read(kind) for kind in REPLY_CONFIGURATIONS}
+    assert read_reply_configurations(desktop_store) == expected
+
+    class Scoped:
+        def __getattr__(self, name):
+            return getattr(desktop_store, name)
+
+        def read(self, kind):
+            return {'version': 'scoped', 'data': kind}
+
+    assert all(item['version'] == 'scoped' for item in read_reply_configurations(Scoped()).values())
+
+
+def test_notification_pages_upgrade_and_bulk_edits(service):
+    notices = service.notifications
+    # Seed the old on-disk format, including an item older than the legacy limit.
+    with service.store.db() as db:
+        for i in range(201):
+            key = f'{i:03}'
+            service.store.set_state('desktop-notice:' + key, {'id': key, 'read': i == 0}, db)
+    def page(number):
+        return call(service, 'notifications.page', {'page': number})['result']
+    def update(action, ids):
+        return call(service, 'notifications.update', {'action': action, 'identifiers': ids})['result']['changed']
+    assert [item['id'] for item in page(21)['items']] == ['000']
+    assert page(1)['unread'] == 200
+    new_id = notices.record('network_error', 'once', 'qq')
+    assert update('read', [new_id, new_id, '200']) == 2
+    assert update('read', [new_id, '200']) == 0
+    assert update('delete', [new_id, '000', '199']) == 3
+    assert update('delete', [new_id]) == 0
+    assert notices.record('network_error', 'once', 'qq') == new_id
+    last = page(99)
+    assert (last['page'], last['pages'], last['total'], last['unread']) == (20, 20, 199, 198)
+    assert not call(service, 'notifications.update', {'action': 'delete', 'identifiers': ['1', 2]})['ok']
+
+
 def test_notifications_require_unlocked_management(service):
     service.notifications.record('untrusted raw exception text','synthetic','qq')
     item=call(service,'notifications.list')['result']['items'][0]
     assert item['code']=='runtime_failed' and 'untrusted' not in item['message']
     service.enable_lock('Synthetic-Notification-Lock!')
     service.lock()
+    assert call(service,'notifications.page',{'page':1})['error']=='desktop_locked'
+    assert call(service,'notifications.update',{'action':'delete','identifiers':[item['id']]})['error']=='desktop_locked'
     assert call(service,'notifications.list')['error']=='desktop_locked'
     assert call(service,'notifications.read',{'identifier':item['id']})['error']=='desktop_locked'
 

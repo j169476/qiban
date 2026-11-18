@@ -31,13 +31,14 @@ def selected(value):
 
 
 class DesktopSiwcAccounts(DesktopSiwc):
-    operations = (*DesktopSiwc.operations, 'add', 'select')
+    operations = (*DesktopSiwc.operations, 'add', 'select', 'platform_refresh')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.target = None
         self.adding = False
         self.selection = None
+        self.current_operation = None
         self.view = {}
         self.account_change = lambda commit, *, ready: commit()
         self._update_view()
@@ -58,7 +59,8 @@ class DesktopSiwcAccounts(DesktopSiwc):
 
     def status(self):
         with self.lock:
-            return {**super().status(), **self.view, 'multi_account':True}
+            return {**super().status(), **self.view, 'multi_account':True,
+                    'automatic_renewal_enabled':True}
 
     def begin(self, operation, *, account_id=None, expected=None):
         with self.lock:
@@ -69,7 +71,9 @@ class DesktopSiwcAccounts(DesktopSiwc):
                         type(expected) is not int or expected < 0):
                     raise AssistantError('model_account_selection','请选择已保存的账号')
                 self.selection = (account_id, expected)
-            return super().begin(operation)
+            result = super().begin(operation)
+            self.current_operation = operation
+            return result
 
     def _run(self, operation):
         try:
@@ -98,6 +102,53 @@ class DesktopSiwcAccounts(DesktopSiwc):
                 'chatgpt.tokens.use.direct' in session.get('scopes', []) and
                 session.get('expires_at', 0) > self.clock() + 120 and
                 value.get('renewal', {}).get('status') in (None, 'complete', 'temporary_failure'))
+
+    def platform_renewal_lead(self, value):
+        # Prefer ten minutes for hourly grants. Short-lived grants must not
+        # rotate again immediately after a successful exchange.
+        expiry = value.get('session', {}).get('expires_at', 0)
+        last = value.get('renewal', {}).get('completed_at')
+        return 600 if last is None else min(600, max(120, (expiry - last) / 3))
+
+    def _refreshable(self, value):
+        session = value.get('session') or {}
+        renewal = value.get('renewal') or {}
+        if not session.get('refresh_token') or 'chatgpt.tokens.use.direct' not in session.get('scopes', []):
+            return False
+        return renewal.get('status') in (None, 'complete', 'temporary_failure', 'received')
+
+    def platform_refresh_due(self):
+        value = selected(self._book())
+        renewal = value.get('renewal') or {}
+        return (self._refreshable(value) and (renewal.get('status') == 'received' or
+                (renewal.get('retry_at', 0) <= self.clock() and
+                 value['session']['expires_at'] <= self.clock() + self.platform_renewal_lead(value))))
+
+    def waiting_for_renewal(self):
+        value = selected(self._book())
+        if self._ready(value):
+            return False
+        with self.lock:
+            working = self.thread and self.thread.is_alive() and self.current_operation in ('refresh', 'platform_refresh')
+        return bool(working) or self._refreshable(value)
+
+    def refresh_for_platform(self):
+        # Use the same worker, process lock and durable rotation receipts as
+        # manual refresh. Never wait for an interactive login or account switch.
+        due = self.platform_refresh_due()
+        with self.lock:
+            if self.closed:
+                return
+            if self.thread and self.thread.is_alive():
+                if self.current_operation not in ('refresh', 'platform_refresh'):
+                    return
+            elif due:
+                self.begin('platform_refresh')
+            else:
+                return
+            worker = self.thread
+        worker.join()
+        return True
 
     def ready_for_model(self):
         return self._ready(selected(self._book()))

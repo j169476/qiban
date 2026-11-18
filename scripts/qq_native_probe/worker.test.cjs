@@ -86,7 +86,7 @@ test('empty private range has exactly one terminal page', () => {
 test('read diagnostics retain only fixed failure categories, never raw exception text', () => {
   for (const [group, reason] of [['10003', 'group_head_timeout'], ['unknown', 'unclassified']]) {
     const replies = run([{command: 'group_open', args: {group}}, {command: 'catalog_status', args: {}}]);
-    assert.equal(replies[2].error, 'qq_native_read_failed');
+    assert.equal(replies[2].error, 'qq_read_group_open_' + reason);
     assert.deepEqual(replies[3].result.last_read_failure,
       {operation: 'group_open', reason, sync_phase: 'ready', sync_generation: 1});
     assert.equal(JSON.stringify(replies).includes('PRIVATE'), false);

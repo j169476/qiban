@@ -87,6 +87,18 @@ def atomic_write(path: Path, raw: bytes):
             os.unlink(tmp)
 
 
+REPLY_CONFIGURATIONS = ("persona", "policy", "companion", "manifest", "preferences")
+
+
+def read_reply_configurations(store):
+    # A scoped store may delegate unknown attributes but override read() to
+    # project policy or identity. Only use a batch reader on its own type.
+    batch = getattr(type(store), "reply_configurations", None)
+    if batch is not None:
+        return batch(store)
+    return {kind: store.read(kind) for kind in REPLY_CONFIGURATIONS}
+
+
 class Store:
     def __init__(self, root: Path, profile=None):
         self.profile = profile or default_profile()

@@ -312,3 +312,12 @@ button.is-loading::before{content:'';position:absolute;left:10px;top:50%;width:4
 @media(max-width:700px){.runtime-monitor #runtime-platforms{grid-template-columns:1fr}}
 [data-auto-read]:not([data-auto-error]){display:none!important}
 .runtime-actions [aria-busy=true]{opacity:.65}
+
+.inbox-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0}
+.inbox-toolbar[hidden],.inbox-toolbar button[hidden]{display:none}
+.inbox-toolbar label,.inbox-row{display:flex;align-items:center;gap:8px}
+.inbox-toolbar input[type=checkbox],.inbox-row input[type=checkbox]{width:auto;margin:0}
+.inbox-toolbar input[type=number]{width:5em}
+#notification-items .inbox-row{display:grid;grid-template-columns:auto 1fr auto;padding:10px 0;border-top:1px solid var(--probe-line)}
+.inbox-row small{opacity:.75}.inbox-row.unread span{font-weight:650}
+@media(max-width:850px){#notification-items .inbox-row{grid-template-columns:auto 1fr}.inbox-row small{grid-column:2}}

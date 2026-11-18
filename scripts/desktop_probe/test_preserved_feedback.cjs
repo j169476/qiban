@@ -26,7 +26,7 @@ function page(){
   'session.lock':()=>{locked=true;return {locked,lock_enabled:true};},
   'session.unlock':()=>{locked=false;return {locked,lock_enabled:true};},
   'config.read':()=>structuredClone(persona),'config.patch':()=>({version:'v2'}),
-  'backups.list':()=>({backups:[]}),'runtime.status':()=>({platforms:[]}),'notifications.list':()=>({items:[],unread:0})
+  'backups.list':()=>({backups:[]}),'runtime.status':()=>({platforms:[]}),'notifications.page':()=>({items:[],unread:0,total:0,page:1,pages:1})
  };
  const webview={addEventListener(_,f){listeners.push(f);},
   postMessage(request){

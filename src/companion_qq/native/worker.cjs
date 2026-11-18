@@ -89,11 +89,13 @@ async function dispatch(request) {
     }
     reply(id, {ok: true, result});
   } catch (error) {
-    if (['group_open', 'private_open', 'group_head', 'private_head'].includes(command)) {
+    const read = ['group_open', 'private_open', 'group_head', 'private_head'].includes(command);
+    if (read) {
       lastReadFailure = {operation: command, reason: readFailureReasons.get(error.message) || 'unclassified',
         sync_phase: session.gate.phase, sync_generation: session.gate.generation};
     }
-    reply(id, {ok: false, error: errors.has(error.message) ? error.message : 'qq_native_read_failed'});
+    const fallback = read ? 'qq_read_' + command + '_' + lastReadFailure.reason : 'qq_native_read_failed';
+    reply(id, {ok: false, error: errors.has(error.message) ? error.message : fallback});
   }
 }
 readline.createInterface({input: process.stdin, crlfDelay: Infinity}).on('line', line => {

@@ -27,13 +27,38 @@ class DesktopModel:
         # when it obtains admission, so it cannot retain an old token.
         self.capacity = asyncio.Semaphore(1)
 
+    async def _refresh_account(self):
+        # A dispatched rotation must settle before another turn acquires capacity.
+        job = asyncio.create_task(asyncio.to_thread(self.broker.refresh_for_platform))
+        try:
+            return await asyncio.shield(job)
+        except asyncio.CancelledError:
+            await job
+            raise
+
+    async def maintain_account(self, wanted):
+        if not await asyncio.to_thread(self.broker.platform_refresh_due):
+            return
+        async with self.capacity:
+            if await asyncio.to_thread(wanted):
+                await self._refresh_account()
+
     async def generate(self, instructions, context, output_schema, images=(), *, native=None,
                        store, policy, guard, phase=lambda value: None):
         if native is not None and native not in self.supported_native:
             raise AssistantError('model_capability_unavailable', '此订阅执行入口不支持该原生工具。')
         async with self.capacity:
             await asyncio.to_thread(guard)
-            access = await asyncio.to_thread(self.broker.model_access)
+            try:
+                access = await asyncio.to_thread(self.broker.model_access)
+            except AssistantError as error:
+                if error.code != 'model_auth':
+                    raise
+                # Resume from sleep can put the first message ahead of maintenance.
+                if not await self._refresh_account():
+                    raise
+                await asyncio.to_thread(guard)
+                access = await asyncio.to_thread(self.broker.model_access)
             model, effort = await asyncio.to_thread(self.catalog.resolve, self.broker.store, access)
 
             def check():

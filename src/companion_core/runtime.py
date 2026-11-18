@@ -16,7 +16,7 @@ from .decision import DecisionService
 from .errors import AssistantError
 from .identity import IdentityService
 from .relationships import RelationshipUpdates
-from .storage import atomic_write, utcnow
+from .storage import atomic_write, read_reply_configurations, utcnow
 from .reply_timing import capture_reply, phase as timing_phase, span as timing_span, timed
 
 
@@ -485,11 +485,8 @@ class Companion(RelationshipUpdates):
             require(self, adapter)
         await self._identity_review(event, batch_events)
         timing_phase("context.build")
-        persona = self.store.read("persona")
-        policy = self.store.read("policy")
-        companion = self.store.read("companion")
-        configurations = {"persona": persona, "policy": policy, "companion": companion,
-                          "manifest": self.store.read("manifest"), "preferences": self.store.read("preferences")}
+        configurations = read_reply_configurations(self.store)
+        persona, policy, companion = (configurations[kind] for kind in ("persona", "policy", "companion"))
         relationship_id = adapter.relationship_id(event.actor) if hasattr(adapter, "relationship_id") else event.actor.key
         relationship = (self.store.read("relationships", relationship_id)
                         if self.store.exists("relationships", relationship_id) else None)
@@ -599,7 +596,8 @@ class Companion(RelationshipUpdates):
                 growth.check()
             if facts:
                 facts.check()
-            if any(self.store.read(k)["version"] != value["version"] for k, value in configurations.items()):
+            current = read_reply_configurations(self.store)
+            if any(current[k]["version"] != value["version"] for k, value in configurations.items()):
                 raise AssistantError("context_changed", "决策期间配置已经变化")
             current_relationship_version = (self.store.read("relationships", relationship_id)["version"]
                                             if self.store.exists("relationships", relationship_id) else None)

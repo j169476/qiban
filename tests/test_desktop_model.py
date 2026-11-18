@@ -333,3 +333,23 @@ async def test_queued_web_work_reads_the_new_account_and_cancelled_queue_sends_n
     assert [request["authorization"] for request in transport.requests] == [
         "Bearer access-client-b"]
     assert not jobs
+
+
+async def test_maintenance_waits_for_current_model_call_and_rechecks_platform(tmp_path):
+    broker, store, active, _ = fixture(tmp_path)
+    model = DesktopModel(broker, executable='unused')
+    store.value['accounts'][active]['session']['expires_at'] = 1400
+    checked = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    due = broker.platform_refresh_due
+    def signal():
+        loop.call_soon_threadsafe(checked.set)
+        return due()
+    broker.platform_refresh_due = signal
+    await model.capacity.acquire()
+    task = asyncio.create_task(model.maintain_account(lambda:False))
+    await asyncio.wait_for(checked.wait(), 2)
+    assert not task.done() and broker.thread is None
+    model.capacity.release()
+    await task
+    assert broker.thread is None

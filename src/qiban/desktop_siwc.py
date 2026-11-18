@@ -212,10 +212,11 @@ class DesktopSiwc(DesktopCodex):
     def _operate_locked(self, operation):
         self._guard()
         value = self._load()
-        if operation == 'refresh':
+        if operation in ('refresh', 'platform_refresh'):
             from qiban.desktop_siwc_sessions import renew
 
             value = renew(value, write=self._retain_rotation, guard=self._guard, clock=self.clock,
+                lead=self.platform_renewal_lead(value) if operation == 'platform_refresh' else 120,
                 verify=self._verify_renewed_identity, exchange=lambda client, token:self.transport(TOKEN, {
                     'grant_type':'refresh_token', 'client_id':client, 'refresh_token':token, 'resource':RESOURCE}))
             self._public(value)

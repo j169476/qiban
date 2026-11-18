@@ -6,6 +6,8 @@
  let backupBusy=false,backupPreview=null;
  let portableBusy=false,portablePreview=null,portableEpoch=0,portableKind='portable';
  let preservedItems=[],preservedCursor='',preservedSelection='';
+ let inboxPage=1,inboxPages=1,inboxSequence=0,inboxSnapshot="",inboxBusy=false,confirmDelete=false;
+ let inboxItems=[],inboxSelected=new Set();
  let runtimeRefreshing=false,lastRuntimeRefresh=0;
  let profileBusy=false,profileDirty=false,profileEpoch=0;
  const profileFields=['persona-name','persona-description','persona-speaking','persona-interests'];
@@ -82,7 +84,7 @@
   element('runtime-panel').hidden=element('management-panel').hidden;
   element('runtime-refresh').disabled=!ready||locked;
   element('runtime-stop-all').disabled=!ready||locked;
-  if(locked||!ready){element('monitor-state').textContent=locked?'已锁定':'等待连接';element('monitor-detail').textContent='';paintMonitor('idle');element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
+  if(locked||!ready){resetInbox();element('monitor-state').textContent=locked?'已锁定':'等待连接';element('monitor-detail').textContent='';paintMonitor('idle');element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
   window.dispatchEvent(new CustomEvent('qiban-management-state',{detail:{ready,locked,
    roomSession:ready&&!locked?identity.room_session:null,lockEnabled:enabled}}));
  }
@@ -434,11 +436,96 @@
   image.src=`/monitor-${animation}.gif`;image.alt=`白发龙娘${names[animation]}`;
   image.dataset.animation=animation;
  }
+ function resetInbox(){
+  inboxSequence++;inboxPage=inboxPages=1;inboxSnapshot='';inboxItems=[];inboxSelected.clear();inboxBusy=confirmDelete=false;
+  element('inbox-tools').hidden=element('inbox-pages').hidden=true;
+  element('inbox-feedback').textContent='';element('inbox-jump').value='';
+ }
+ function inboxControls(){
+  const count=inboxSelected.size,select=element('inbox-select');
+  for(const row of element('notification-items').children){
+   if(row.className?.startsWith('inbox-row'))row.children[0].disabled=inboxBusy;
+  }
+  select.checked=count>0&&count===inboxItems.length;select.indeterminate=count>0&&!select.checked;
+  select.disabled=inboxBusy; element('inbox-read').disabled=inboxBusy||!inboxItems.some(i=>!i.read&&inboxSelected.has(i.id));
+  const remove=element('inbox-delete');remove.disabled=inboxBusy||!count;
+  remove.textContent=confirmDelete?`确认删除 ${count} 条`:'删除所选';
+  element('inbox-cancel').hidden=!confirmDelete;element('inbox-cancel').disabled=inboxBusy;
+  element('inbox-prev').disabled=inboxBusy||inboxPage<=1;element('inbox-next').disabled=inboxBusy||inboxPage>=inboxPages;
+  element('inbox-go').disabled=inboxBusy;
+ }
+ function paintInbox(data){
+  const signature=JSON.stringify(data);
+  if(signature===inboxSnapshot)return;
+  if(inboxPage!==data.page){inboxSelected.clear();confirmDelete=false;}
+  inboxSnapshot=signature;inboxPage=data.page;inboxPages=data.pages;inboxItems=data.items;
+  const selected=new Set(inboxItems.filter(i=>inboxSelected.has(i.id)).map(i=>i.id));
+  if(selected.size!==inboxSelected.size)confirmDelete=false;
+  inboxSelected=selected;
+  element('notification-title').textContent=`应用通知 · ${data.unread} 条未读`;
+  element('inbox-tools').hidden=!data.total;element('inbox-pages').hidden=data.pages<=1;
+  element('inbox-position').textContent=`第 ${data.page} / ${data.pages} 页 · 共 ${data.total} 条`;
+  element('inbox-jump').max=data.pages;
+  const list=element('notification-items');list.replaceChildren();
+  if(!inboxItems.length){const empty=document.createElement('p');empty.textContent='暂无应用通知。';list.append(empty);}
+  const names={qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机'};
+  for(const item of inboxItems){
+   const row=document.createElement('label'),check=document.createElement('input'),message=document.createElement('span'),detail=document.createElement('small');
+   check.type='checkbox';check.checked=selected.has(item.id);check.disabled=inboxBusy;
+   check.onchange=()=>{if(check.checked)inboxSelected.add(item.id);else inboxSelected.delete(item.id);confirmDelete=false;inboxControls();};
+   message.textContent=`${names[item.platform]||'栖伴'} · ${item.message}`;
+   detail.textContent=(item.read?'已读':'未读')+' · '+new Date(item.created_at).toLocaleString();
+   row.className=item.read?'inbox-row':'inbox-row unread';row.append(check,message,detail);list.append(row);
+  }
+  inboxControls();
+ }
+ async function loadInbox(page){
+  const seq=++inboxSequence,epoch=accessEpoch;
+  try{
+   const data=await call('notifications.page',{page});
+   if(seq===inboxSequence&&epoch===accessEpoch&&ready&&identity&&!identity.locked)paintInbox(data);
+  }catch(error){if(seq===inboxSequence)element('inbox-feedback').textContent=error.message;}
+ }
+ async function goInbox(page){
+  if(inboxBusy||!Number.isInteger(page)||page<1||page>inboxPages){
+   if(!inboxBusy)element('inbox-feedback').textContent=`请输入 1 至 ${inboxPages} 的页码。`;
+   return;
+  }
+  if(page===inboxPage)return;
+  inboxBusy=true;inboxControls();
+  const epoch=accessEpoch;confirmDelete=false;element('inbox-feedback').textContent='';
+  try{await loadInbox(page);}finally{if(epoch===accessEpoch){inboxBusy=false;inboxControls();}}
+ }
+ async function updateInbox(action){
+  if(inboxBusy||!inboxSelected.size)return;
+  if(action==='delete'&&!confirmDelete){confirmDelete=true;inboxControls();return;}
+  const epoch=accessEpoch,identifiers=[...inboxSelected];
+  inboxBusy=true;confirmDelete=false;inboxSequence++;inboxControls();
+  try{
+   const result=await call('notifications.update',{action,identifiers});
+   if(epoch!==accessEpoch)return;
+   inboxSelected.clear();
+   for(const row of element('notification-items').children){if(row.className?.startsWith('inbox-row'))row.children[0].checked=false;}
+   element('inbox-feedback').textContent=action==='delete'?`已删除 ${result.changed} 条通知。`:`已将 ${result.changed} 条通知标为已读。`;
+  }catch(error){if(epoch===accessEpoch)element('inbox-feedback').textContent=error.message;}
+  finally{if(epoch===accessEpoch){inboxBusy=false;inboxSnapshot='';await loadInbox(inboxPage);inboxControls();}}
+ }
+ element('inbox-select').onchange=()=>{
+  const checked=element('inbox-select').checked;
+  inboxSelected=new Set(checked?inboxItems.map(i=>i.id):[]);confirmDelete=false;
+  for(const row of element('notification-items').children)row.children[0].checked=checked;
+  inboxControls();
+ };
+ element('inbox-read').onclick=()=>updateInbox('read');element('inbox-delete').onclick=()=>updateInbox('delete');
+ element('inbox-cancel').onclick=()=>{confirmDelete=false;inboxControls();};
+ element('inbox-prev').onclick=()=>goInbox(inboxPage-1);element('inbox-next').onclick=()=>goInbox(inboxPage+1);
+ element('inbox-go').onclick=()=>goInbox(Number(element('inbox-jump').value));
+ element('inbox-jump').onkeydown=event=>{if(event.key==='Enter')element('inbox-go').onclick();};
  async function loadRuntime(){
   if(runtimeRefreshing||!ready||!identity||identity.locked)return;
   runtimeRefreshing=true;const runtimeEpoch=accessEpoch;
   try{
-   const state=await call('runtime.status'),notices=await call('notifications.list');
+   const state=await call('runtime.status');
    if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch)return;
    const activities=state.activities||[],active=activities[0];
    const fault=state.platforms.some(p=>p.scheduler_error||p.failed)||state.handoff_pending;
@@ -473,14 +560,7 @@
     }
     actions.append(stop);row.append(summary,actions,label);platforms.append(row);
    }
-   element('notification-title').textContent=`应用通知 · ${notices.unread} 条未读`;
-   const list=element('notification-items');list.replaceChildren();
-   if(!notices.items.length){const empty=document.createElement('p');empty.textContent='暂无运行通知。';list.append(empty);}
-   for(const item of notices.items){const row=document.createElement('div'),text=document.createElement('p');
-    text.textContent=`${names[item.platform]||'栖伴'} · ${item.message}`;row.append(text);
-    if(!item.read){const button=document.createElement('button');button.textContent='标为已读';button.className='secondary';button.onclick=()=>runtimeAction('notifications.read',{identifier:item.id});row.append(button);}
-    list.append(row);
-   }
+   if(!inboxBusy)await loadInbox(inboxPage);
    lastRuntimeRefresh=Date.now();element('runtime-refresh').hidden=true;
   }catch(error){element('runtime-refresh').hidden=false;element('runtime-refresh').textContent='重试';throw error;}finally{runtimeRefreshing=false;}
  }

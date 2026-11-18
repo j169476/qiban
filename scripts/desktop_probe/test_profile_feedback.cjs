@@ -12,7 +12,7 @@ function page(initial=original){
   'session.unlock':()=>{locked=false;return {locked,lock_enabled:true};},
   'config.read':()=>structuredClone(card),
   'config.patch':args=>{card={version:'v2',data:{...card.data,...args.changes}};return {version:card.version};},
-  'backups.list':()=>({backups:[]}), 'runtime.status':()=>({platforms:[]}), 'notifications.list':()=>({items:[],unread:0})
+  'backups.list':()=>({backups:[]}), 'runtime.status':()=>({platforms:[]}), 'notifications.page':()=>({items:[],unread:0,total:0,page:1,pages:1})
  };
  const webview={addEventListener(_,f){listeners.push(f);},postMessage(request){requests.push(request);Promise.resolve().then(()=>replies[request.operation](request.arguments)).then(
   result=>listeners.forEach(f=>f({data:{type:'management',request_id:request.request_id,response:{ok:true,result}}})),
@@ -22,7 +22,7 @@ function page(initial=original){
   document:{getElementById:node,createElement:create,createTextNode:text=>({textContent:text})},
   window:{chrome:{webview},dispatchEvent(){},addEventListener(){}},
   CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
-  crypto:{randomUUID:()=>String(++sequence)},Date:{now:()=>10000},setTimeout:()=>sequence,clearTimeout(){}
+  crypto:{randomUUID:()=>String(++sequence)},Date:class extends Date{static now(){return 10000;}},setTimeout:()=>sequence,clearTimeout(){}
  });
  const settle=()=>new Promise(resolve=>setImmediate(resolve));
  async function update(ready){listeners.forEach(f=>f({data:{type:'service',management:true,ready}}));await settle();}
@@ -83,4 +83,31 @@ test('editing only name preserves unchanged legacy list strings exactly',async()
  const p=page(card);await p.update(true);p.edit('persona-name','仅改名字');await p.node('save-persona').onclick();
  assert.equal(p.requests.at(-1).arguments.changes.core.speaking_style[0],card.data.core.speaking_style[0]);
  assert.equal(p.requests.at(-1).arguments.changes.core.speaking_style.length,1);
+});
+
+test('inbox page selection, read, confirmed deletion and clamped last page',async()=>{
+ const p=page();
+ const items=Array.from({length:11},(_,i)=>({id:String(i),platform:'qq',message:'测试',read:false,created_at:'2026-11-18T03:00:00Z'}));
+ p.replies['notifications.page']=args=>{
+  const pages=Math.max(1,Math.ceil(items.length/10)),page=Math.min(args.page,pages);
+  return {total:items.length,unread:items.filter(i=>!i.read).length,page,pages,items:structuredClone(items.slice((page-1)*10,page*10))};
+ };
+ p.replies['notifications.update']=({action,identifiers})=>{
+  for(const id of identifiers){
+   const index=items.findIndex(i=>i.id===id);
+   if(action==='delete')items.splice(index,1);else items[index].read=true;
+  }
+  return {changed:identifiers.length};
+ };
+ await p.update(true);
+ const select=()=>{p.node('inbox-select').checked=true;p.node('inbox-select').onchange();};
+ assert.equal(p.node('notification-items').children.length,10);
+ select();await p.node('inbox-read').onclick();assert.equal(p.node('notification-title').textContent,'应用通知 · 1 条未读');
+ p.node('inbox-jump').value='2';await p.node('inbox-go').onclick();
+ assert.equal(p.node('notification-items').children.length,1);
+ select();await p.node('inbox-delete').onclick();assert.equal(items.length,11);
+ p.node('inbox-cancel').onclick();assert.equal(items.length,11);
+ await p.node('inbox-delete').onclick();await p.node('inbox-delete').onclick();
+ assert.equal(items.length,10);assert.equal(p.node('inbox-pages').hidden,true);
+ assert.equal(p.node('notification-title').textContent,'应用通知 · 0 条未读');
 });

@@ -178,6 +178,16 @@ class PostgresStore(Store):
         self.index_stats["parsed"] += 1
         return result
 
+    def reply_configurations(self):
+        from .storage import REPLY_CONFIGURATIONS
+
+        with self.db() as db:
+            rows = db.execute("SELECT kind,version,body FROM content_records WHERE id=? AND kind=ANY(?)",
+                              ("@config", list(REPLY_CONFIGURATIONS))).fetchall()
+        if len(rows) != len(REPLY_CONFIGURATIONS):
+            raise AssistantError("not_found", "资料不存在")
+        return {row["kind"]: self._decode(row["kind"], "@config", row["version"], row["body"]) for row in rows}
+
     def read(self, kind, item_id=None):
         key = self._key(kind, item_id)
         with self.db() as db:

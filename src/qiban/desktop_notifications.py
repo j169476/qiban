@@ -5,9 +5,12 @@ from companion_codex.failures import MESSAGES as MODEL_MESSAGES
 from companion_core.contracts import stable_key
 from companion_core.errors import AssistantError
 from companion_core.storage import utcnow
+from companion_qq.native_process import READ_FAILURE_MESSAGES
 
 MESSAGES = {
     **MODEL_MESSAGES,
+    **READ_FAILURE_MESSAGES,
+    'qq_native_read_failed':'QQ 读取消息失败，请查看本次运行记录。',
     'scheduler_failed':'后台任务调度已停止，请检查诊断并重启应用后台。',
     'inbox_timeout':'收信连续超时，该平台已暂停；请检查连接后重新启动。',
     'network_error':'平台连接连续失败，该平台已暂停；请检查网络后重新启动。',
@@ -27,6 +30,10 @@ MESSAGES = {
 }
 
 
+PAGE_SIZE = 10
+COUNTS_KEY = 'desktop-inbox-counts'
+
+
 class DesktopNotifications:
     def __init__(self, management):
         self.management,self.store = management,management.store
@@ -41,31 +48,81 @@ class DesktopNotifications:
             previous=self.store.state(marker,db=db)
             if previous:
                 return previous['id']
+            counts = self._counts(db)
             now=utcnow()
             identifier=now+':'+secrets.token_hex(8)
             self.store.set_state('desktop-notice:'+identifier,{'id':identifier,'created_at':now,'code':code,
                 'platform':platform,'message':MESSAGES[code],'read':False},db)
             self.store.set_state(marker,{'id':identifier},db)
+            self.store.set_state(COUNTS_KEY, {'total': counts['total'] + 1, 'unread': counts['unread'] + 1}, db)
         return identifier
 
+    def _counts(self, db):
+        counts = self.store.state(COUNTS_KEY, db=db)
+        if counts is None:
+            # Older installations have encrypted notice bodies and no counters.
+            counts = {'total': 0, 'unread': 0}
+            for row in db.execute("SELECT key,value FROM state WHERE key LIKE 'desktop-notice:%'"):
+                item = self.store.ledger_decode('state:' + row['key'], row['value'])
+                counts['total'] += 1
+                counts['unread'] += int(not item['read'])
+            self.store.set_state(COUNTS_KEY, counts, db)
+        return counts
+
+    def _items(self, db, limit, offset=0):
+        rows = db.execute("SELECT key,value FROM state WHERE key LIKE 'desktop-notice:%' "
+                          "ORDER BY key DESC LIMIT ? OFFSET ?", (limit, offset))
+        return [self.store.ledger_decode('state:' + row['key'], row['value']) for row in rows]
+
     def listing(self, request):
-        self.management.authority.require(request,administrator=True)
+        self.management.authority.require(request, administrator=True)
         with self.store.db() as db:
-            keys=[row[0] for row in db.execute("SELECT key FROM state WHERE key LIKE 'desktop-notice:%' ORDER BY key DESC LIMIT 200")]
-            items=[self.store.state(key,db=db) for key in keys]
-        return {'items':items,'unread':sum(not item['read'] for item in items),'limit':200}
+            items = self._items(db, 200)
+        return {'items': items, 'unread': sum(not item['read'] for item in items), 'limit': 200}
+
+    def page(self, request, page):
+        self.management.authority.require(request, administrator=True)
+        if type(page) is not int or page < 1:
+            raise AssistantError('notification_request', '页码无效')
+        with self.store.lock, self.store.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            counts = self._counts(db)
+            pages = max(1, (counts['total'] + PAGE_SIZE - 1) // PAGE_SIZE)
+            page = min(page, pages)
+            items = self._items(db, PAGE_SIZE, (page - 1) * PAGE_SIZE)
+        return {**counts, 'page': page, 'pages': pages, 'items': items}
+
+    def update(self, request, identifiers, action, *, require_existing=False):
+        self.management.authority.require(request, administrator=True)
+        if (action not in ('read', 'delete') or not isinstance(identifiers, list)
+                or not 1 <= len(identifiers) <= PAGE_SIZE
+                or any(not isinstance(i, str) or not 1 <= len(i) <= 100 for i in identifiers)):
+            raise AssistantError('notification_request', '通知选择无效')
+        with self.store.lock, self.store.db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            self.management.authority.require(request, administrator=True)
+            counts = self._counts(db)
+            changed = 0
+            for identifier in dict.fromkeys(identifiers):
+                key = 'desktop-notice:' + identifier
+                item = self.store.state(key, db=db)
+                if item is None:
+                    if require_existing:
+                        raise AssistantError('not_found', '通知不存在')
+                    continue
+                if action == 'delete':
+                    db.execute('DELETE FROM state WHERE key=?', (key,))
+                    counts['total'] -= 1
+                elif item['read']:
+                    continue
+                else:
+                    self.store.set_state(key, {**item, 'read': True}, db)
+                counts['unread'] -= int(not item['read'])
+                changed += 1
+            if changed:
+                self.store.set_state(COUNTS_KEY, counts, db)
+        return {'changed': changed}
 
     def mark_read(self, request, identifier):
-        self.management.authority.require(request,administrator=True)
-        if not isinstance(identifier,str) or len(identifier)>100:
-            raise AssistantError('notification_request','通知标识无效')
-        key='desktop-notice:'+identifier
-        with self.store.lock,self.store.db() as db:
-            db.execute('BEGIN IMMEDIATE')
-            self.management.authority.require(request,administrator=True)
-            value=self.store.state(key,db=db)
-            if not value:
-                raise AssistantError('not_found','通知不存在')
-            if not value['read']:
-                self.store.set_state(key,{**value,'read':True},db)
-        return {'read':True,'id':identifier}
+        self.update(request, [identifier], 'read', require_existing=True)
+        return {'read': True, 'id': identifier}

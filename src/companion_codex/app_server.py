@@ -47,6 +47,7 @@ class RpcProcess:
     def __init__(self, command, *, cwd, env, guard, deadline, max_bytes=8_000_000):
         self.guard, self.deadline, self.max_bytes = guard, deadline, max_bytes
         self.incoming, self.outgoing = queue.Queue(maxsize=128), queue.Queue(maxsize=8)
+        self.output_ready = threading.Event()
         self.failed = threading.Event()
         self.error = None
         self.process_failure = None
@@ -94,6 +95,7 @@ class RpcProcess:
     def _fail(self, code):
         self.error = code
         self.failed.set()
+        self.output_ready.set()
 
     def _read(self):
         total = 0
@@ -119,6 +121,7 @@ class RpcProcess:
                 while not self.stopping.is_set():
                     try:
                         self.incoming.put(row, timeout=.1)
+                        self.output_ready.set()
                         break
                     except queue.Full:
                         if time.monotonic() >= self.deadline:
@@ -184,7 +187,12 @@ class RpcProcess:
                 # With no output to drain, keep revocation responsive. The
                 # longer interval only batches checks during a token burst.
                 self._receive_guard_due = min(self._receive_guard_due, time.monotonic() + .1)
-                await asyncio.sleep(.02)
+                # Clear then recheck so a write between the empty read and wait
+                # cannot be lost. A cancelled waiter never consumes a message.
+                self.output_ready.clear()
+                if self.incoming.empty() and not self.failed.is_set():
+                    timeout = max(0, min(.1, self.deadline - time.monotonic()))
+                    await asyncio.to_thread(self.output_ready.wait, timeout)
 
     async def call(self, method, params, on_event=lambda row: None):
         self.counter += 1

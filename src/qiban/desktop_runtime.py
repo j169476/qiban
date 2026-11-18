@@ -1,4 +1,5 @@
 """Application-owned run identity and lifecycle, independent of Codex chats."""
+import asyncio
 import secrets
 import uuid
 
@@ -118,6 +119,7 @@ class DesktopRuntime:
         self.activity = Activity()
         self.scheduler = None
         self.reconfiguring = set()
+        self.awaiting_model = set()
         self.cores = {}
         for platform in PLATFORMS:
             selected = [a for a in adapters if a.platform==platform]
@@ -194,6 +196,45 @@ class DesktopRuntime:
             raise AssistantError('scheduler_started', '后台任务调度已启动。')
         self.scheduler = DesktopScheduler(self, maintenance=self.maintain)
         self.scheduler.open()
+
+    def account_renewal_wanted(self):
+        if self.closed or self.tasks.blocked:
+            return False
+        with self.store.db() as db:
+            session = self.store.state(SESSION, {}, db)
+            if session.get('instance') != self.instance:
+                return False
+            prefs = self.store.state(PREFERENCES, db=db)
+            held = set(session['held']) | set(self.held_platforms(db))
+            for platform in self.cores:
+                if platform in held:
+                    continue
+                if self.store.state('core-run:' + platform, {}, db).get('status') == 'active':
+                    return True
+                if platform in self.awaiting_model and prefs['platforms'].get(platform):
+                    return True
+        return False
+
+    async def maintain_model_account(self):
+        if not hasattr(self.model, 'maintain_account') or not await asyncio.to_thread(self.account_renewal_wanted):
+            return
+        await self.model.maintain_account(self.account_renewal_wanted)
+        await asyncio.to_thread(self._resume_waiting_autorun)
+
+    def _resume_waiting_autorun(self):
+        for platform in tuple(self.awaiting_model):
+            if self.tasks.blocked or not self.model_ready(platform):
+                continue
+            try:
+                # start() rechecks autorun, account identity and explicit stops.
+                with self.store.lock:
+                    if self.store.state('core-run:' + platform, {}).get('status') != 'active':
+                        self.start(platform, automatic=True)
+            except AssistantError as error:
+                if error.code == 'model_unavailable':
+                    continue
+                self.management.notifications.record(error.code, self.instance, platform)
+            self.awaiting_model.discard(platform)
 
     def maintain(self):
         from companion_core.fact_retirement import cleanup
@@ -380,6 +421,8 @@ class DesktopRuntime:
                 results[platform]=self.start(platform,automatic=True)
             except AssistantError as error:
                 self.management.notifications.record(error.code,self.instance,platform)
+                if error.code == 'model_unavailable':
+                    self.awaiting_model.add(platform)
                 results[platform]={'started':False,'reason':error.code}
         return results
 

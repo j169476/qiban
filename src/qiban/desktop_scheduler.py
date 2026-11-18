@@ -65,6 +65,8 @@ class DesktopScheduler:
         workers = [asyncio.create_task(self._work(platform)) for platform in PLATFORMS]
         if getattr(self.runtime, 'manual', None) is not None:
             workers.append(asyncio.create_task(self._manual_work()))
+        if hasattr(self.runtime, 'maintain_model_account'):
+            workers.append(asyncio.create_task(self._renew_accounts()))
         maintenance = asyncio.create_task(self._maintain()) if self.maintenance is not None else None
         try:
             while not self.stop_requested.is_set():
@@ -86,6 +88,16 @@ class DesktopScheduler:
                         close = getattr(adapter, "close", None)
                         if close:
                             cleanup.push_async_callback(close)
+
+    async def _renew_accounts(self):
+        while not self.stop_requested.is_set():
+            try:
+                await self.runtime.maintain_model_account()
+            except AssistantError as error:
+                if not self.stop_requested.is_set():
+                    await asyncio.to_thread(self.runtime.management.notifications.record,
+                                            error.code, self.runtime.instance, 'local')
+            await asyncio.sleep(30)
 
     async def _maintain(self):
         while not self.stop_requested.is_set():
@@ -224,6 +236,13 @@ class DesktopScheduler:
         run = await asyncio.to_thread(core.guard)
         if run["generation"] != state.generation:
             state.generation, state.next_poll, state.next_cycle, state.failures = run["generation"], 0, 0, 0
+        broker = getattr(getattr(self.runtime, 'management', None), 'codex', None)
+        wait = getattr(broker, 'waiting_for_renewal', None)
+        if wait and await asyncio.to_thread(wait):
+            # Leave incoming messages at their original cursor until the account
+            # is usable, including a provider-requested retry delay after wake.
+            state.next_poll = self.clock() + 2
+            return
         settings = (await asyncio.to_thread(self.runtime.store.read, "companion"))["data"]
         adapters = core.platforms.all()
         custom = bool(adapters) and all(hasattr(adapter, "runtime_poll") for adapter in adapters)

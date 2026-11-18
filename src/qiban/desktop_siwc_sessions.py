@@ -40,7 +40,7 @@ def replacement(tokens, previous, now):
             'expires_at':now+tokens['expires_in'], 'token_type':'Bearer'}
 
 
-def renew(value, *, write, exchange, verify, guard, clock):
+def renew(value, *, write, exchange, verify, guard, clock, lead=120):
     """One attempt; persist dispatch and receipt before publishing a replacement.
 
     Cancellation is honored before dispatch. After dispatch, retaining a verified
@@ -54,7 +54,7 @@ def renew(value, *, write, exchange, verify, guard, clock):
     if status.get('status') in ('pending', 'uncertain', 'invalid_client', 'rejected'):
         return value
     if status.get('status') != 'received':
-        if session['expires_at'] > clock()+120 or status.get('retry_at', 0) > clock():
+        if session['expires_at'] > clock()+lead or status.get('retry_at', 0) > clock():
             return value
         if not session.get('refresh_token'):
             value = {**value, 'renewal':{'status':'reauthorization_required'}}

@@ -17,6 +17,23 @@ from companion_core.process_scope import ProcessScope
 from companion_core.reply_timing import span as timing_span
 
 
+READ_FAILURE_MESSAGES = {
+    'qq_read_' + operation + '_' + reason: f'QQ {step}失败：{message}。'
+    for operation, step in {
+        'private_head': '读取好友最新消息', 'group_head': '读取群最新消息',
+        'private_open': '读取好友历史消息', 'group_open': '读取群历史消息',
+    }.items()
+    for reason, message in {
+        'group_head_timeout': '等待群消息同步超时', 'group_snapshot_unavailable': '群消息列表尚未就绪',
+        'group_contact_unavailable': '群成员列表尚未就绪', 'group_contact_initialization_failed': '群成员列表加载失败',
+        'group_checkpoint_incomplete': '上次读取位置不完整', 'checkpoint_lookup_failed': '找不到上次读取位置',
+        'checkpoint_not_unique': '无法确定上次读取位置', 'checkpoint_identity_changed': '上次读取位置的消息已变化',
+        'sync_generation_changed': '读取期间重新开始了同步', 'sync_timeout': '消息同步超时',
+        'unclassified': 'QQ 未提供具体原因',
+    }.items()
+}
+
+
 class NativeProcess:
     WORKER = "worker.cjs"
     MAX_REPLY = 16 * 1024 * 1024
@@ -24,7 +41,7 @@ class NativeProcess:
         "qq_native_session_failed", "qq_native_catalog_invalid", "qq_native_not_ready",
         "qq_native_protocol_invalid", "qq_native_read_failed", "qq_native_send_state", "qq_native_send_uncertain",
         "qq_media_invalid", "qq_media_state", "qq_media_limit", "qq_media_path", "qq_media_timeout",
-        "qq_media_download_failed", "qq_media_integrity"})
+        "qq_media_download_failed", "qq_media_integrity"}) | READ_FAILURE_MESSAGES.keys()
 
     def __init__(self, config, *, timeout=90):
         self.config, self.timeout = dict(config), timeout

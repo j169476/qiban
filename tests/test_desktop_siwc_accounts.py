@@ -202,3 +202,31 @@ def test_new_identity_activates_only_after_real_signed_callback(tmp_path, signin
 def test_unknown_catalog_format_is_not_silently_reset():
     with pytest.raises(ValueError):
         catalog({"format": 99, "accounts": {}})
+
+
+def test_platform_refresh_rotates_only_selected_account_before_admission_cutoff(tmp_path):
+    from test_desktop_siwc_sessions import fresh
+    broker, store, a, b = fixture(tmp_path)
+    store.value['accounts'][a]['session']['expires_at'] = broker.clock() + 480
+    untouched = copy.deepcopy(store.value['accounts'][b])
+    sent = []
+    broker.transport = lambda *args: sent.append(args) or fresh()
+    assert broker.ready_for_model() and broker.platform_refresh_due()
+    assert broker.refresh_for_platform()
+    assert not broker.refresh_for_platform()
+    assert len(sent) == 1 and sent[0][0] == TOKEN
+    assert broker.model_access().access_token == 'new-access'
+    assert store.value['accounts'][b] == untouched
+    assert broker.status()['automatic_renewal_enabled']
+
+
+def test_unattended_refresh_waits_for_retry_after_and_never_replays_uncertain_rotation(tmp_path):
+    broker, store, a, _ = fixture(tmp_path)
+    value = store.value['accounts'][a]
+    value['session']['expires_at'] = 999
+    value['renewal'] = {'status':'temporary_failure', 'retry_at':1100}
+    assert broker.waiting_for_renewal() and not broker.platform_refresh_due()
+    broker.clock = lambda:1100
+    assert broker.platform_refresh_due()
+    value['renewal'] = {'status':'uncertain'}
+    assert not broker.waiting_for_renewal() and not broker.refresh_for_platform()

@@ -335,7 +335,16 @@
 </div></section>
 
 
-<section class="card" id="notification-panel" hidden data-nav-page="home"><h2 id="notification-title">应用通知</h2><div id="notification-items"></div><img class="probe-rail-art" src="/static/white-dragon-tea.png" alt="捧着茶杯的栖伴白龙娘"></section>
+<section class="card" id="notification-panel" hidden data-nav-page="home"><h2 id="notification-title">应用通知</h2><div class="inbox-toolbar" id="inbox-tools" hidden>
+<label><input type="checkbox" id="inbox-select"> 本页全选</label>
+<button class="secondary" id="inbox-read" disabled>标为已读</button>
+<button class="secondary" id="inbox-delete" disabled>删除所选</button>
+<button class="secondary" id="inbox-cancel" hidden>取消删除</button>
+</div><div id="notification-items"></div>
+<nav class="inbox-toolbar" id="inbox-pages" aria-label="通知翻页" hidden>
+<button class="secondary" id="inbox-prev">上一页</button><span id="inbox-position"></span><button class="secondary" id="inbox-next">下一页</button>
+<label>跳至 <input id="inbox-jump" type="number" min="1" step="1" aria-label="目标页码"> 页</label><button class="secondary" id="inbox-go">跳转</button>
+</nav><p id="inbox-feedback" role="status"></p><img class="probe-rail-art" src="/static/white-dragon-tea.png" alt="捧着茶杯的栖伴白龙娘"></section>
 
 <section class="card" data-nav-page="persona" data-persona-pane="memory"><h2>记忆来源与权限</h2>
 <p id="memory-meta"></p><p id="memory-source"></p><p id="memory-related"></p>
