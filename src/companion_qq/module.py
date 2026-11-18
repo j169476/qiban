@@ -270,7 +270,11 @@ class QQModule:
             self.code = exc.code
             self.failures += 1
             self.retry_at = time.monotonic() + min(60, 2 ** min(self.failures, 6))
-            if self.options.get("launch") or exc.code in {"qq_account_mismatch", "qq_target_unverified"}:
+            # NativeProvider closes its owned worker after a failed handshake.
+            # Reusing it replaces the useful login failure with "disconnected".
+            # Preserve the first error; an explicit restart creates a new provider.
+            if (hasattr(self.provider, "poll_native") or self.options.get("launch")
+                    or exc.code in {"qq_account_mismatch", "qq_target_unverified"}):
                 if self.bridge:
                     await asyncio.to_thread(self.bridge.stop)
                 raise

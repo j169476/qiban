@@ -98,6 +98,27 @@ async def handle(env, raw):
     return [await env.core.handle(event) for event in batch]
 
 
+@pytest.mark.parametrize("code", ["qq_login_required", "qq_login_timeout", "qq_native_protocol_invalid"])
+async def test_native_handshake_failure_keeps_original_error_instead_of_retrying_closed_worker(env, code):
+    calls = []
+
+    def fail():
+        calls.append(True)
+        if len(calls) > 1:
+            raise AssistantError("qq_native_disconnected", "closed worker")
+        raise AssistantError(code, "synthetic handshake failure")
+
+    await env.module.close()
+    env.module.validate_start()
+    env.provider.probe = fail
+    env.provider.poll_native = lambda *args: []
+    with pytest.raises(AssistantError) as error:
+        await env.module.runtime_poll()
+    assert error.value.code == code
+    assert env.module.code == code
+    assert calls == [True]
+
+
 async def test_native_private_recovery_deduplicates_across_caches_and_reports_history(env):
     from tests.test_qq_native_normalization import IDENTITY, raw
 
