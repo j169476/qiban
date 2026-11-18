@@ -5,9 +5,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from companion_core import reply_timing as timing
 from companion_core.errors import AssistantError
 from companion_core.storage import Store
-from companion_core import reply_timing as timing
 
 
 @pytest.fixture

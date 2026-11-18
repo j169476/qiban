@@ -16,7 +16,6 @@ from companion_core.errors import AssistantError
 from companion_core.process_scope import ProcessScope
 from companion_core.reply_timing import span as timing_span
 
-
 READ_FAILURE_MESSAGES = {
     'qq_read_' + operation + '_' + reason: f'QQ {step}失败：{message}。'
     for operation, step in {

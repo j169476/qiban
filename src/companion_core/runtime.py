@@ -16,8 +16,10 @@ from .decision import DecisionService
 from .errors import AssistantError
 from .identity import IdentityService
 from .relationships import RelationshipUpdates
+from .reply_timing import capture_reply, timed
+from .reply_timing import phase as timing_phase
+from .reply_timing import span as timing_span
 from .storage import atomic_write, read_reply_configurations, utcnow
-from .reply_timing import capture_reply, phase as timing_phase, span as timing_span, timed
 
 
 class Companion(RelationshipUpdates):

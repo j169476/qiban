@@ -7,6 +7,7 @@ import time
 from urllib.request import Request, build_opener
 
 from companion_core.errors import AssistantError
+
 from .desktop_siwc import NoRedirect
 
 KEY = 'desktop-model-choice-v1'

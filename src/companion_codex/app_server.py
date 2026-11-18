@@ -21,7 +21,8 @@ from jsonschema import validate as validate_json
 from PIL import Image
 
 from companion_core.errors import AssistantError
-from companion_core.reply_timing import timed, span as timing_span
+from companion_core.reply_timing import span as timing_span
+from companion_core.reply_timing import timed
 
 from .isolation import DISABLED_FEATURES, IsolatedJob, login_params, model_settings
 from .process_scope import ProcessScope

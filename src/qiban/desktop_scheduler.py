@@ -11,7 +11,6 @@ from companion_core.errors import AssistantError
 from companion_core.reply_batch import handle_batch
 from companion_core.runtime_keys import DESKTOP_PLATFORMS as PLATFORMS
 
-
 # Transport read failures share the bounded reconnect policy. Authentication and
 # model errors still stop immediately; delivery owns any uncertain send result.
 READ_RETRY = {"inbox_timeout", "network_error", "read_timeout", "platform_read_error"}

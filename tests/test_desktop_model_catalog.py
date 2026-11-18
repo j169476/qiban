@@ -58,7 +58,8 @@ def test_upstream_defaults_refresh_and_account_isolation():
     saved = catalog.configure(store, account_id='a', expected='', model='upstream-b', effort='high')
     assert catalog.resolve(store,access) == ('upstream-b','high')
     assert calls == ['a']
-    catalog.status(store,refresh=True);assert calls == ['a','a']
+    catalog.status(store, refresh=True)
+    assert calls == ['a', 'a']
     with pytest.raises(AssistantError,match='变化'):
         catalog.configure(store,account_id='a',expected='',model='upstream-a',effort='low')
     with pytest.raises(AssistantError,match='档位'):
