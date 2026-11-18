@@ -83,3 +83,22 @@ python -m pip wheel --no-deps --no-build-isolation packages/companion-core --whe
 构建输出、测试临时目录、Python 缓存、包元数据及阶段记录均不提交。`dist/` 中正在运行的完整应用不应在清理时删除；日常运行数据、数据库、凭据和开发工具环境也不属于构建垃圾。
 
 发布审计按 SHA-256 校验桌面插画与必要上游资源，其他未审查二进制仍拒绝。更新素材后先验收再更新审计摘要。
+
+## 隐藏的单次回复计时
+
+详细计时默认关闭，没有前端按钮。普通回复保留原有摘要记录；开发者显式调用后台后，才采集指定平台的下一次回复。一次只允许一个采集请求，10 分钟没有触发就失效；完成、失败或取消的回复均消耗这次请求，不会继续采集后续回复。
+
+应用后台运行时，在应用目录执行（开发版与安装包共用同一入口）：
+
+```powershell
+$profileConfig = Join-Path $env:LOCALAPPDATA 'Qiban\Profile\data\installation\storage-config.json'
+.\resources\storage\Qiban.Storage.exe --config $profileConfig --developer-reply-timing arm --timing-platform qq
+.\resources\storage\Qiban.Storage.exe --config $profileConfig --developer-reply-timing report
+.\resources\storage\Qiban.Storage.exe --config $profileConfig --developer-reply-timing cancel
+```
+
+`arm` 只开启计时，不启动平台、不发送消息。平台可选 `qq`、`wechat`、`bilibili`、`local`。源码调试时可用 `python scripts/desktop_probe/storage_worker.py` 替代后台程序路径。入口沿用当前 Windows 用户的凭据库和个人资料代次，不启动第二个数据库或模型后台。
+
+报告为 JSON，最多保留最近一次报告、256 个计时区间，不含消息正文、账号、模型输入输出或异常原文。`analysis` 给出总耗时、各主阶段占比、最慢主阶段和未单独归类的时间。`spans` 中 `parent` 表示父阶段，`start_ms` 为相对开始时间，`duration_ms` 含子阶段，`self_ms` 扣除子阶段区间的并集；父子耗时不能直接相加，平行任务的总工作时间也不能当作墙钟时间。超出区间上限时 `limited` 为真。
+
+`reply.total` 从回复处理入口开始，包括会话锁等待、上下文、模型、保存、平台发送和回执，不包括消息到达处理入口之前的平台轮询、合并等待或网络传输。`model.total` 含准备、进程启动、初始化、请求与等待、结果校验及清理；未单独标记的清理等耗时体现在其 `self_ms`。`model.request_and_wait` 是应用观测到的服务往返，不能进一步推断服务器排队与实际推理各占多少。已经完成且未开启详细计时的历史回复不能回填细分耗时。

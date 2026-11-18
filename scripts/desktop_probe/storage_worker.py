@@ -270,6 +270,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--upgrade-host", nargs=3, metavar=("ROOT", "APP", "VERB"))
     parser.add_argument("--config")
+    parser.add_argument("--developer-reply-timing", choices=("arm", "report", "cancel"), help=argparse.SUPPRESS)
+    parser.add_argument("--timing-platform", choices=("qq", "wechat", "bilibili", "local"), default="qq", help=argparse.SUPPRESS)
     parser.add_argument("--application-session")
     parser.add_argument("--authentication-route", choices=('codex', 'siwc-validation'), default='codex')
     # UNINSTALL: the preparation page's own backend. It opens the store and local management (so the
@@ -394,6 +396,27 @@ def main():
             return 1
     if not args.config:
         parser.error("--config is required unless checking resources")
+    if args.developer_reply_timing:
+        # Local owner/credential-vault access, no management listener or UI route.
+        # Connect to the running selected store without migration or another runtime.
+        diagnostic_store = None
+        try:
+            from companion_core.reply_timing import control
+
+            spec = config_spec(args.config)
+            data_key, password = credentials(spec["installation"], spec["keyref"])
+            diagnostic_store = PostgresStore(spec["data"], {**spec["connection"], "password": password}, data_key)
+            emit(control(diagnostic_store, args.developer_reply_timing, args.timing_platform))
+            return 0
+        except AssistantError as error:
+            emit({"ok": False, "error": error.code})
+            return 1
+        except Exception:
+            emit({"ok": False, "error": "timing_unavailable"})
+            return 1
+        finally:
+            if diagnostic_store is not None:
+                diagnostic_store.database.close()
     store = None
     codex = None
     runtime = None

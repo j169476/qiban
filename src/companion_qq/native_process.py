@@ -14,6 +14,7 @@ from pathlib import Path
 
 from companion_core.errors import AssistantError
 from companion_core.process_scope import ProcessScope
+from companion_core.reply_timing import span as timing_span
 
 
 class NativeProcess:
@@ -76,6 +77,13 @@ class NativeProcess:
             raise
 
     def request(self, command, **args):
+        stage = {"identity": "qq.verify_identity", "prepare_text": "qq.prepare_text",
+                 "submit_text": "qq.send_and_receipt", "prepare_voice": "qq.prepare_voice",
+                 "prepare_image": "qq.prepare_image", "prepare_file": "qq.prepare_file"}.get(command, "qq.transport")
+        with timing_span(stage):
+            return self._request(command, **args)
+
+    def _request(self, command, **args):
         with self._lock:
             if self.closed or self.process is None or self.process.poll() is not None:
                 raise AssistantError("qq_native_disconnected", "QQ 后台连接已结束")

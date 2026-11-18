@@ -21,6 +21,7 @@ from jsonschema import validate as validate_json
 from PIL import Image
 
 from companion_core.errors import AssistantError
+from companion_core.reply_timing import timed, span as timing_span
 
 from .isolation import DISABLED_FEATURES, IsolatedJob, login_params, model_settings
 from .process_scope import ProcessScope
@@ -333,6 +334,7 @@ def verify_configuration(config, native):
         raise AssistantError("model_isolation", "Codex 有效权限或认证存储与隔离配置不一致")
 
 
+@timed("model.total")
 async def generate(instructions, context, output_schema, images=(), *, native=None,
                    store, policy, guard, phase, observation, reasoning_effort=None, model=None,
                    plan_access_token=None, executable=None):
@@ -349,68 +351,73 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
     async with AsyncExitStack() as cleanup:
         cleanup.callback(phase, "cycle")
         cleanup.callback(lambda: observation.tokens(evidence.usage))
-        settings = model_settings() if plan_access_token is None else {}
-        if model is not None:
-            settings["model"] = model
-            # A selected model must not inherit an unrelated global effort.
-            settings.pop("model_reasoning_effort", None)
-        if reasoning_effort is not None:
-            settings["model_reasoning_effort"] = reasoning_effort
-        job = IsolatedJob(work, native=native, settings=settings, executable=executable)
-        cleanup.push_async_callback(asyncio.to_thread, job.close)
-        environment = job.environment()
-        if plan_access_token is not None:
-            from . import plan_provider
+        with timing_span("model.prepare"):
+            settings = model_settings() if plan_access_token is None else {}
+            if model is not None:
+                settings["model"] = model
+                # A selected model must not inherit an unrelated global effort.
+                settings.pop("model_reasoning_effort", None)
+            if reasoning_effort is not None:
+                settings["model_reasoning_effort"] = reasoning_effort
+            job = IsolatedJob(work, native=native, settings=settings, executable=executable)
+            cleanup.push_async_callback(asyncio.to_thread, job.close)
+            environment = job.environment()
+            if plan_access_token is not None:
+                from . import plan_provider
 
-            plan_provider.configure(job)
-            environment['ACCESS_TOKEN'] = plan_access_token
-        supplied_images = copy_inputs(job, images)
-        client = await RpcProcess.open(job.command(), cwd=job.work, env=environment, guard=guard,
-                                       deadline=deadline, max_bytes=32_000_000 if native == "image" else 8_000_000)
+                plan_provider.configure(job)
+                environment['ACCESS_TOKEN'] = plan_access_token
+            supplied_images = copy_inputs(job, images)
+        with timing_span("model.process_start"):
+            client = await RpcProcess.open(job.command(), cwd=job.work, env=environment, guard=guard,
+                                           deadline=deadline, max_bytes=32_000_000 if native == "image" else 8_000_000)
         cleanup.push_async_callback(asyncio.to_thread, client.close)
-        initialized = await client.call("initialize", {
-            "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.7"} if plan_access_token is not None
-                           else {"name": "companion_isolated", "version": "0.6.0"}),
-            "capabilities": {"experimentalApi": True},
-        })
-        if Path(initialized.get("codexHome", "")).resolve() != job.home:
-            raise AssistantError("model_isolation", "Codex 未使用隔离配置目录")
-        await asyncio.to_thread(client.send, {"method": "initialized"})
-        configuration = await client.call("config/read", {"includeLayers": False})
-        verify_configuration(configuration.get("config", {}), native)
-        if plan_access_token is None:
-            await client.call("account/login/start", login_params())
-        else:
-            plan_provider.verify(configuration.get('config', {}), model, reasoning_effort)
-        value = await client.call("thread/start", {
-            "cwd": str(job.work), "ephemeral": True, "approvalPolicy": "never", "sandbox": "read-only",
-            "developerInstructions": instructions, "environments": [], "selectedCapabilityRoots": [],
-        }, evidence.update)
-        evidence.thread_id = value["thread"]["id"]
-        evidence.trace["thread_id"] = evidence.thread_id
-        servers = await client.call("mcpServerStatus/list", {})
-        if servers.get("data") != [] or servers.get("nextCursor"):
-            raise AssistantError("model_isolation", "隔离会话意外加载了外部工具服务")
-        value = await client.call("turn/start", {
-            "threadId": evidence.thread_id,
-            "input": [{"type": "text", "text": json.dumps(context, ensure_ascii=False)}, *supplied_images],
-            "outputSchema": strict_schema(output_schema),
-            **({"effort": reasoning_effort} if reasoning_effort is not None else {}),
-            **({"model": model} if model is not None else {}),
-        }, evidence.update)
-        evidence.turn_id = value["turn"]["id"]
-        while not evidence.completed:
-            row = await client.receive()
-            client.reject_request(row)
-            evidence.update(row)
-        await asyncio.to_thread(guard)
-        if len(evidence.answer.encode("utf-8")) > 160_000:
-            raise AssistantError("model_output_size", "模型输出超出本轮上限")
-        try:
-            decision = restore_optional(json.loads(evidence.answer), output_schema)
-            validate_json(decision, output_schema)
-        except (ValueError, ValidationError):
-            raise AssistantError("model_output_invalid", "模型结果未通过结构化协议校验") from None
+        with timing_span("model.initialize"):
+            initialized = await client.call("initialize", {
+                "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.7"} if plan_access_token is not None
+                               else {"name": "companion_isolated", "version": "0.6.0"}),
+                "capabilities": {"experimentalApi": True},
+            })
+            if Path(initialized.get("codexHome", "")).resolve() != job.home:
+                raise AssistantError("model_isolation", "Codex 未使用隔离配置目录")
+            await asyncio.to_thread(client.send, {"method": "initialized"})
+            configuration = await client.call("config/read", {"includeLayers": False})
+            verify_configuration(configuration.get("config", {}), native)
+            if plan_access_token is None:
+                await client.call("account/login/start", login_params())
+            else:
+                plan_provider.verify(configuration.get('config', {}), model, reasoning_effort)
+            value = await client.call("thread/start", {
+                "cwd": str(job.work), "ephemeral": True, "approvalPolicy": "never", "sandbox": "read-only",
+                "developerInstructions": instructions, "environments": [], "selectedCapabilityRoots": [],
+            }, evidence.update)
+            evidence.thread_id = value["thread"]["id"]
+            evidence.trace["thread_id"] = evidence.thread_id
+            servers = await client.call("mcpServerStatus/list", {})
+            if servers.get("data") != [] or servers.get("nextCursor"):
+                raise AssistantError("model_isolation", "隔离会话意外加载了外部工具服务")
+        with timing_span("model.request_and_wait"):
+            value = await client.call("turn/start", {
+                "threadId": evidence.thread_id,
+                "input": [{"type": "text", "text": json.dumps(context, ensure_ascii=False)}, *supplied_images],
+                "outputSchema": strict_schema(output_schema),
+                **({"effort": reasoning_effort} if reasoning_effort is not None else {}),
+                **({"model": model} if model is not None else {}),
+            }, evidence.update)
+            evidence.turn_id = value["turn"]["id"]
+            while not evidence.completed:
+                row = await client.receive()
+                client.reject_request(row)
+                evidence.update(row)
+        with timing_span("model.validate_output"):
+            await asyncio.to_thread(guard)
+            if len(evidence.answer.encode("utf-8")) > 160_000:
+                raise AssistantError("model_output_size", "模型输出超出本轮上限")
+            try:
+                decision = restore_optional(json.loads(evidence.answer), output_schema)
+                validate_json(decision, output_schema)
+            except (ValueError, ValidationError):
+                raise AssistantError("model_output_invalid", "模型结果未通过结构化协议校验") from None
         if native == "image" and decision.get("image_path"):
             export_image(job, evidence, decision, store.runtime)
         if native:

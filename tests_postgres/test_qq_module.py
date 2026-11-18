@@ -98,6 +98,23 @@ async def handle(env, raw):
     return [await env.core.handle(event) for event in batch]
 
 
+async def test_explicit_timing_captures_one_complete_reply_pipeline(env):
+    from companion_core.reply_timing import control
+
+    assert control(env.store, "report")["status"] == "disabled"
+    control(env.store, "arm", "qq")
+    result = await handle(env, incoming(701))
+    assert result and result[0]["action"]["status"] == "succeeded"
+    report = control(env.store, "report")
+    assert report["status"] == "completed"
+    names = {r["stage"] for r in report["spans"]}
+    assert {"reply.total", "reply.lock_wait", "reply.precheck", "context.build",
+            "decision.prepare_and_generate", "result.persist_memory", "delivery.dispatch",
+            "platform.execute", "delivery.finalize"} <= names
+    await handle(env, incoming(702))
+    assert control(env.store, "report") == report
+
+
 @pytest.mark.parametrize("code", ["qq_login_required", "qq_login_timeout", "qq_native_protocol_invalid"])
 async def test_native_handshake_failure_keeps_original_error_instead_of_retrying_closed_worker(env, code):
     calls = []

@@ -17,6 +17,7 @@ from .errors import AssistantError
 from .identity import IdentityService
 from .relationships import RelationshipUpdates
 from .storage import atomic_write, utcnow
+from .reply_timing import capture_reply, phase as timing_phase, span as timing_span, timed
 
 
 class Companion(RelationshipUpdates):
@@ -263,6 +264,7 @@ class Companion(RelationshipUpdates):
                               owner=run["owner"], now=self.clock().isoformat(),
                               config_token=delivery.config_token(self.store)) if allows(run, event)]
 
+    @timed("identity.review")
     async def _identity_review(self, event, batch_events=()):
         from .governance import enabled
 
@@ -276,6 +278,7 @@ class Companion(RelationshipUpdates):
                                                 triggers=batch_events or (event,))
         return await self.identities.review(event.actor, self.model, self.guard)
 
+    @timed("memory.recall")
     def memory_context(self, event, *, dependencies=None):
         with self.store.db() as db:
             visible_events = dict(db.execute("SELECT id,version FROM core_events WHERE deleted=0 AND conversation=?",
@@ -331,8 +334,13 @@ class Companion(RelationshipUpdates):
 
     async def handle(self, event):
         lock = self._conversation_locks.setdefault(event.thread, asyncio.Lock())
-        async with lock:
-            return await self._handle_serial(event)
+        with capture_reply(self.store, event):
+            with timing_span("reply.lock_wait"):
+                await lock.acquire()
+            try:
+                return await self._handle_serial(event)
+            finally:
+                lock.release()
 
     async def _handle_serial(self, event):
         run = self.guard()
@@ -353,6 +361,7 @@ class Companion(RelationshipUpdates):
             delivery.defer(self, event, version, run, exc.code)
             raise
 
+    @timed("memory.recall")
     async def governed_memory(self, governed, event, relationship_id, run, configurations, event_version,
                               *, query=None, source_events=()):
         """Reuse scoped Codex query plans before ranking the authorized corpus."""
@@ -427,6 +436,7 @@ class Companion(RelationshipUpdates):
                                  "conversation_turns", key, sources=["event/" + event.id])) if governed else None)
 
     async def _handle(self, event, run):
+        timing_phase("reply.precheck")
         from .governance import enabled, resource_id
         from .reply_test import require_event
 
@@ -474,6 +484,7 @@ class Companion(RelationshipUpdates):
 
             require(self, adapter)
         await self._identity_review(event, batch_events)
+        timing_phase("context.build")
         persona = self.store.read("persona")
         policy = self.store.read("policy")
         companion = self.store.read("companion")
@@ -670,9 +681,11 @@ class Companion(RelationshipUpdates):
                         for item in excerpts['items']]}
                 adapter.merged.prepared(batch, report)
 
+            timing_phase("decision.prepare_and_generate")
             result = await DecisionService(Budgeted()).decide(context, capabilities, images=images,
                 context_policy=companion["data"], prepare_context=prepare_context if batch else None,
                 context_ready=context_ready)
+        timing_phase("result.persist_memory")
         # PostgreSQL commits derived content, ACLs and dedupe receipts together.
         # A failed permission recheck rolls back the whole local update batch.
         with self.store.lock, (self.store.db() if governed else nullcontext()):
@@ -721,8 +734,10 @@ class Companion(RelationshipUpdates):
             if not governed:
                 identity_dependency = self.identities.decision_context(event.actor)["dependency"]
         point("memory_commit", memories=len(result["memories"]), facts=len(result.get("fact_updates", [])))
+        timing_phase("delivery.dispatch")
         action = await self.dispatch(event, result["action"], context_guard=check_context,
                                       retry_unsent=True, disclosure=governed.proof() if governed else None) if result["action"] else None
+        timing_phase("delivery.finalize")
         with self.store.lock:
             if action and action["status"] == "cancelled" and action.get("error") in delivery.TEMPORARY:
                 delivery.defer(self, event, receipt["version"], run, action["error"])
@@ -806,9 +821,10 @@ class Companion(RelationshipUpdates):
 
         try:
             guard()
-            outcome = await adapter.execute(capability.name, {**proposal["arguments"], "_event": event.as_dict(),
-                                                              "_retry_unsent": retry_unsent,
-                                                              "_disclosure": disclosure}, guard=guard)
+            with timing_span("platform.execute"):
+                outcome = await adapter.execute(capability.name, {**proposal["arguments"], "_event": event.as_dict(),
+                                                                  "_retry_unsent": retry_unsent,
+                                                                  "_disclosure": disclosure}, guard=guard)
             if not isinstance(outcome, ActionResult):
                 outcome = ActionResult("uncertain", error="invalid_connector_result")
         except AssistantError as exc:
