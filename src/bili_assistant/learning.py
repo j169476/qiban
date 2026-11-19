@@ -17,6 +17,7 @@ from companion_core.learning import definition as definition
 from companion_core.learning import goal_versions as goal_versions
 from companion_core.learning import status as status
 from companion_core.learning import update as update
+from companion_core.observability import activity
 
 from .cognition import BOUNDARIES, save_learning, stable_id, text, texts, verify_versions
 from .errors import AssistantError
@@ -134,6 +135,11 @@ def exhausted(engine, goal, reason, gaps=()):
 
 
 
+async def learning_model(scheduler, *args):
+    with activity("learning"):
+        return await scheduler.model(*args)
+
+
 async def step(scheduler):
     """At most one stage per cycle; no goal creation or platform posting in this worker."""
     engine, store = scheduler.engine, scheduler.engine.store
@@ -190,7 +196,7 @@ async def step(scheduler):
         verify_versions(store, config_versions)
 
     if phase == "plan":
-        result = await scheduler.model(PLAN_PROMPT, context(engine, goal), PLAN_SCHEMA)
+        result = await learning_model(scheduler, PLAN_PROMPT, context(engine, goal), PLAN_SCHEMA)
         verify()
         if result["query"].casefold() in {q.casefold() for q in doc["queries"]}:
             exhausted(engine, goal, "搜索词重复，需要换一条补查路径", result["gaps"])
@@ -227,8 +233,8 @@ async def step(scheduler):
             choice, selection_versions = select(engine, candidates, query=doc["query"], seed=doc["id"])
             selectable = [c for c in candidates if c["bvid"] in choice["eligible_ids"]]
             if choice["route"] == "model":
-                result = await scheduler.model(SELECT_PROMPT, {**context(engine, goal), "candidates": selectable},
-                                               SELECT_SCHEMA)
+                result = await learning_model(scheduler, SELECT_PROMPT,
+                                              {**context(engine, goal), "candidates": selectable}, SELECT_SCHEMA)
             else:
                 result = {"bvid": choice["selected"], "reason": choice["reason"]}
             verify()
@@ -259,8 +265,8 @@ async def step(scheduler):
             goal = update(engine, goal, visited_bvids=[*doc["visited_bvids"], video["bvid"]])
             exhausted(engine, goal, "候选无实际材料或属于排除项")
         else:
-            result = await scheduler.model(READ_PROMPT, {**context(engine, goal), "video": video},
-                                           READ_SCHEMA, validated_image_paths(store, video.get("images", [])))
+            result = await learning_model(scheduler, READ_PROMPT, {**context(engine, goal), "video": video},
+                                          READ_SCHEMA, validated_image_paths(store, video.get("images", [])))
             verify()
             if not result["knowledge"].strip():
                 goal = update(engine, goal, visited_bvids=[*doc["visited_bvids"], video["bvid"]])
@@ -318,7 +324,7 @@ async def check_step(scheduler, goal, verify):
             return
         size = max(500, (store.read("companion")["data"]["context_char_limit"] - 12000) // len(sources))
         excerpts = [source_excerpt(s, doc["objective"], size) for s in sources.values()]
-        result = await scheduler.model(QUIZ_PROMPT, {
+        result = await learning_model(scheduler, QUIZ_PROMPT, {
             "objective": doc["objective"], "criteria": doc["criteria"], "sources": excerpts,
         }, QUIZ_SCHEMA)
         verify()
@@ -341,7 +347,7 @@ async def check_step(scheduler, goal, verify):
     data = deepcopy(check["data"])
     if data["status"] == "questions_ready":
         # Deliberately omit expected/rubric/evidence and original sources from the answering call.
-        result = await scheduler.model(ANSWER_PROMPT, {
+        result = await learning_model(scheduler, ANSWER_PROMPT, {
             "questions": [{"id": q["id"], "question": q["question"]} for q in data["questions"]],
             "learned_notes": context(engine, goal)["learned_notes"],
         }, ANSWER_SCHEMA)
@@ -363,7 +369,7 @@ async def check_step(scheduler, goal, verify):
                 e["source_id"] == s["data"]["id"] and e["quote"] in seg["text"] for e in citations
             )],
         } for s in sources]
-        result = await scheduler.model(GRADE_PROMPT, {
+        result = await learning_model(scheduler, GRADE_PROMPT, {
             "questions": data["questions"], "answers": data["answers"], "sources": excerpts,
         }, GRADE_SCHEMA)
         verify()

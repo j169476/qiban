@@ -161,6 +161,10 @@ class WeChatConnector:
                 return ActionResult("uncertain" if submitted else "cancelled", error="wechat_task_cancelled")
             except AssistantError as exc:
                 return ActionResult("uncertain" if submitted else "cancelled", error=exc.code)
+            except TimeoutError:
+                if not submitted:
+                    return ActionResult("cancelled", error="wechat_prepare_timeout")
+                return ActionResult("uncertain", error="wechat_send_unconfirmed")
             except Exception:
                 return ActionResult("uncertain" if submitted else "failed", error="wechat_transport_failed")
             finally:

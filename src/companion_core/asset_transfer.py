@@ -19,14 +19,13 @@ def registry(store):
     visual = store.read("persona")["data"].get("visual_identity") or {}
     for ref in visual.get("references", []):
         result["assets/persona/" + ref["filename"]] = ref["sha256"]
-    if "publication_images" in store.profile.schemas:
-        for item in store.records("publication_images")[0]:
-            doc = item["data"]
-            result["assets/publication/" + doc["filename"]] = doc["sha256"]
-    if "task_assets" in store.profile.schemas:
-        for item in store.records("task_assets")[0]:
-            doc = item["data"]
-            result["assets/tasks/" + doc["filename"]] = doc["sha256"]
+    for kind, directory in (("publication_images", "publication"), ("task_assets", "tasks")):
+        if kind in store.profile.schemas:
+            with store.db() as db, db.stream("SELECT id,version,body FROM content_records WHERE kind=?",
+                                            (kind,)) as rows:
+                for identifier,version,body in rows:
+                    doc = store._decode(kind,identifier,version,body)["data"]
+                    result["assets/" + directory + "/" + doc["filename"]] = doc["sha256"]
     return result
 
 
@@ -53,41 +52,51 @@ def _validate(raw, expected):
         raise AssistantError("asset_integrity", "登记图片格式无效") from None
 
 
-def capture(store):
-    result, total = [], 0
+def iter_assets(store):
     for relative, expected in registry(store).items():
         path = _path(store, relative)
         if not path.is_file() or path.stat().st_size > 10_000_000:
             raise AssistantError("asset_missing", "登记图片缺失，不能声称备份完整")
         raw = path.read_bytes()
-        total += len(raw)
-        if total > 128_000_000:
-            raise AssistantError("asset_limit", "登记图片超过本次备份上限")
         _validate(raw, expected)
-        result.append({"path": relative, "sha256": expected, "body": base64.b64encode(raw).decode("ascii")})
+        yield {"path": relative, "sha256": expected, "body": base64.b64encode(raw).decode("ascii")}
+
+
+def capture(store):
+    result, total = [], 0
+    for item in iter_assets(store):
+        total += len(item["body"])
+        if total > 4 * 128_000_000 // 3 + 4:
+            raise AssistantError("asset_limit", "登记图片超过本次备份上限")
+        result.append(item)
     return result
 
 
 def enqueue(store, assets, db):
     expected = registry(store)
-    if {item["path"] for item in assets} != set(expected) or len(assets) != len(expected):
-        raise AssistantError("asset_integrity", "备份图片与登记资料不一致")
     for item in assets:
+        digest = expected.pop(item["path"], None)
+        if digest != item["sha256"] or digest is None:
+            raise AssistantError("asset_integrity", "备份图片与登记资料不一致")
         _path(store, item["path"])
         raw = base64.b64decode(item["body"], validate=True)
-        _validate(raw, expected[item["path"]])
+        _validate(raw, digest)
         identifier = secrets.token_hex(16)
         encrypted = store.cipher.encrypt(raw, "asset-restore", identifier, item["sha256"])
         db.execute("INSERT INTO asset_restore_jobs VALUES(?,?,?,?)",
                    (identifier, item["path"], item["sha256"], encrypted))
+    if expected:
+        raise AssistantError("asset_integrity", "备份缺少登记图片")
 
 
 def finish(store):
     completed = 0
     with store.lock:
-        with store.db() as db:
-            jobs = list(db.execute("SELECT * FROM asset_restore_jobs ORDER BY id"))
-        for job in jobs:
+        while True:
+            with store.db() as db:
+                job = db.execute("SELECT * FROM asset_restore_jobs ORDER BY id LIMIT 1").fetchone()
+            if job is None:
+                break
             raw = store.cipher.decrypt(bytes(job["body"]), "asset-restore", job["id"], job["digest"])
             _validate(raw, job["digest"])
             path = _path(store, job["path"])

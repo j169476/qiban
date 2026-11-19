@@ -12,8 +12,10 @@ test('WeChat detection is explicit and a reply arriving after lock cannot reveal
  assert.equal(p.node('audience-accounts').textContent,'');
  p.update(true);
  const again=p.node('audience-detect').onclick();
- await p.reply(p.requests.at(-1),{accounts:[]});await again;
- assert.match(p.node('audience-accounts').textContent,/先在电脑微信登录/);
+ await p.reply(p.requests.at(-1),{accounts:[],profiles:{client:{running_versions:['4.2.0.53','4.2.0.53'],supported_versions:['4.2.0.13']}}});await again;
+ assert.equal(p.node('audience-accounts').textContent,'未检测到已登录账号。');
+ assert.equal(p.node('audience-versions').textContent,'运行中的微信：4.2.0.53');
+ p.update(false);assert.equal(p.node('audience-versions').textContent,'');
 });
 
 

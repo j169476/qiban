@@ -9,7 +9,7 @@ from .contracts import stable_key
 from .errors import AssistantError
 from .schema import obj
 
-ATTRIBUTES = ("residence", "preferred_name", "drink_preference", "food_preference")
+ATTRIBUTES = ("residence", "preferred_name", "drink_preference", "food_preference", "conversation_preference")
 TEXT = {"type": "string", "minLength": 1, "maxLength": 160}
 UPDATE = obj({"attribute": {"enum": list(ATTRIBUTES)}, "value": TEXT,
               "quote": {"type": "string", "minLength": 1, "maxLength": 500},
@@ -30,7 +30,8 @@ PROMPT = (
     "personal_facts 是程序按本会话来源计算的人物事实：active 为当前有效，historical 为旧状态，"
     "disputed 表示冲突未解决，future 尚未生效。普通记忆或关系 facts 不能覆盖其明确的更正。"
     "带 correction 的事实值由管理员更正，quote 保留原始来源原话，不代表更正后的值是用户原话；当前状态仍按 status 使用。"
-    "只有当前用户明确讲述自己的居住地、希望的称呼、饮食偏好，才可返回 fact_updates（最多3项）。"
+    "只有用户明确讲述自己的居住地、称呼、饮食或对回复方式的偏好，才可返回 fact_updates（最多3项）。"
+    "conversation_preference 保留完整适用条件与否定词。单次请求不推断为长期偏好。"
     "quote 必须是当前 event.text 的完整原话片段，value 必须逐字出现在 quote；转述、假设、提问不更新。"
     "不确定就返回空数组，不补全未说出的事实。valid_from 仅在原话包含 YYYY-MM-DD 时填写，否则 null。"
     "只有当前原话明确更正或改变同一属性时，supersedes 才可引用 personal_facts 中已有条目的 id；"
@@ -43,6 +44,7 @@ PREDICATES = {
     "preferred_name": re.compile(r"叫|称呼|名字|call|name", re.I),
     "drink_preference": re.compile(r"喝|饮|咖啡|茶|drink|coffee|tea|beverage", re.I),
     "food_preference": re.compile(r"吃|食|饭|菜|eat|food", re.I),
+    "conversation_preference": re.compile(r"(?:希望|喜欢|习惯|不想|更愿意|的时候别|的时候先).*(?:你|回复|建议|听我说|聊天|安慰|追问|称呼)|prefer.*(?:reply|listen|advice)", re.I),
 }
 CHANGE = re.compile(r"更正|纠正|改成|改为|搬到|搬去|搬家|不再|现在只|换成|以后叫|(?:现在|目前|如今)(?:住|居住|叫|喜欢|喝|吃)|correct|moved|instead|no longer", re.I)
 UNSAFE = re.compile(r"[?？]|如果|假如|假设|他说|她说|朋友说|以前|去年|曾经|举例|小说|故事|引用|我听说|used to|if I|he said|she said|I heard|My (?:friend|mother|father|sister|brother)|我(?:的)?(?:朋友|同学|同事|家人)", re.I)
@@ -74,20 +76,12 @@ def assertion_clause(text, quote):
 
 def project(rows, now):
     """An assertion supersedes named predecessors only from its effective time."""
-    active = [row for row in rows if datetime.fromisoformat(row["data"]["fact"]["valid_from"]) <= now]
-    retired = {key for row in active for key in row["data"]["fact"]["supersedes"]}
-    values = {}
-    for row in active:
-        data, fact = row["data"], row["data"]["fact"]
-        if data["id"] not in retired:
-            values.setdefault(fact["attribute"], set()).add(fact["value"].casefold())
+    headers = [fact_index.describe(None, row) for row in rows]
+    states = fact_index.statuses(headers, now)
     result = []
     for row in rows:
         data, fact = row["data"], row["data"]["fact"]
-        state = ("future" if datetime.fromisoformat(fact["valid_from"]) > now else
-                 "historical" if data["id"] in retired else
-                 "disputed" if len(values.get(fact["attribute"], ())) > 1 else "active")
-        result.append({"id": data["id"], "version": row["version"], **fact, "status": state})
+        result.append({"id": data["id"], "version": row["version"], **fact, "status": states[data["id"]]})
     return result
 
 
@@ -207,13 +201,21 @@ class PersonalFacts:
                 rejected += 1
                 continue
             supersedes = update["supersedes"]
-            if (supersedes and not CHANGE.search(quote)) or any(
+            if update["attribute"] == "conversation_preference":
+                if len(quote) > TEXT["maxLength"] or re.search(r"这次|这一次|今天先|just this time", quote, re.I):
+                    rejected += 1
+                    continue
+                # Preserve when, whose preference, and under what conditions it applies.
+                value = quote
+            changed = CHANGE.search(quote) or (update["attribute"] == "conversation_preference"
+                        and re.search(r"现在(?:更)?希望|改主意|以后更希望", quote))
+            if (supersedes and not changed) or any(
                     key not in prior or prior[key]["data"]["fact"]["attribute"] != update["attribute"]
                     for key in supersedes):
                 rejected += 1
                 continue
             if not supersedes and update["valid_from"] is None and any(
-                    row["attribute"] == update["attribute"] and row["value_key"] == fact_index.key(store, value.casefold())
+                    row["attribute"] == update["attribute"] and row["value_key"] == fact_index.value_key(store, update["attribute"], value)
                     for row in current):
                 continue
             effective = event.occurred_at

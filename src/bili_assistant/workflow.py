@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from companion_core.observability import activity
 from companion_core.orchestration import Flow, Stage, Workflow
 
 from . import delivery
@@ -80,12 +81,23 @@ class BilibiliWorkflow:
             engine.store.read("growth")["data"], settings, interest_profile(engine.store),
         ], ensure_ascii=False, sort_keys=True))
         with engine.store.db() as db:
-            used = {row[0] for row in db.execute(
-                "SELECT dedupe FROM actions WHERE account=? AND status NOT IN ('failed','prepared','cancelled')", (account,))}
+            # Dedupe receipts outlive the history window. Check only the incoming batch's
+            # keys in memory; PostgreSQL/SQLite filter persisted candidates using the index.
+            incoming_keys = [f"{account}:{event['kind']}:{event['id']}" for event in state["inbox"]]
+            used = set()
+            for offset in range(0,len(incoming_keys),200):
+                chunk = incoming_keys[offset:offset+200]
+                marks = ','.join('?' for _ in chunk)
+                used.update(row[0] for row in db.execute(
+                    f"SELECT dedupe FROM actions WHERE account=? AND dedupe IN ({marks}) "
+                    "AND status NOT IN ('failed','prepared','cancelled')",(account,*chunk)))
             stamp = "received::timestamptz" if getattr(engine.store, "backend", None) == "postgres" else "julianday(received)"
             cutoff = "?::timestamptz" if getattr(engine.store, "backend", None) == "postgres" else "julianday(?)"
             pending = [engine.store.ledger_decode("events.body", row["body"]) for row in db.execute(
-                f"SELECT id,body FROM events WHERE account=? AND {stamp}>={cutoff} ORDER BY {stamp},id",
+                f"SELECT id,body FROM events WHERE account=? AND {stamp}>={cutoff} "
+                "AND NOT EXISTS(SELECT 1 FROM actions a WHERE a.account=events.account AND "
+                "a.dedupe=events.account || ':' || events.kind || ':' || events.id AND "
+                f"a.status NOT IN ('failed','prepared','cancelled')) ORDER BY {stamp},id",
                 (account, engine.run(check_host=False).get("pending_since", engine.run(check_host=False)["started_at"])),
             ) if not engine.store.state(f"processed:{account}:{row['id']}", db=db)]
         inbox = list({event["id"]: event for event in [*pending, *state["inbox"]]}.values())
@@ -161,10 +173,12 @@ class BilibiliWorkflow:
         selections = engine.store.state(f"selections:{account}", 0)
         every = settings["exploration_every"]
         explore = bool(every and (selections + 1) % every == 0) or diversity(engine)["persistent"]
-        candidates = await engine.adapter.feed(
-            following=settings["feed_source"] == "following" and not explore,
-            limit=settings["candidate_limit"],
-        ) if room and not guided_bvid else []
+        candidates = []
+        if room and not guided_bvid:
+            with activity("browsing"):
+                candidates = await engine.adapter.feed(
+                    following=settings["feed_source"] == "following" and not explore,
+                    limit=settings["candidate_limit"])
 
         def eligible(items):
             return [candidate for candidate in items
@@ -214,7 +228,8 @@ class BilibiliWorkflow:
                     bvid = choice["selected"]
                 elif choice["route"] == "model" and self.scheduler.remaining_model_calls() >= 2:
                     context, versions = packet(engine, {**material, "candidates": selectable})
-                    plan = await self.scheduler.model(PLAN_PROMPT, context, PLAN_SCHEMA)
+                    with activity("browsing"):
+                        plan = await self.scheduler.model(PLAN_PROMPT, context, PLAN_SCHEMA)
                     self.scheduler.alive()
                     verify_versions(engine.store, versions)
                     validate_plan(plan, selectable, context["memory"])
@@ -246,7 +261,8 @@ class BilibiliWorkflow:
 
         engine, material, account = self.engine, state["material"], state["account"]
         growth_version = engine.store.read("growth")["version"]
-        decision = await self.scheduler.decide(material, state["references"])
+        with activity("replying" if material["events"] else "learning"):
+            decision = await self.scheduler.decide(material, state["references"])
         self.scheduler.alive()
         action = validate_decision(decision, material)
         saved = save_learning(engine, material, decision, growth_version)

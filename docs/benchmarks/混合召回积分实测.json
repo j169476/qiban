@@ -1,0 +1,150 @@
+{
+  "date": "2026-11-19",
+  "version": "0.9.7.4",
+  "model": "gpt-5.6-luna",
+  "effort": "low",
+  "corpus": "synthetic",
+  "standard_credits_per_million": {
+    "uncached_input": 5,
+    "cached_input": 0.5,
+    "output": 30
+  },
+  "source": "https://learn.chatgpt.com/docs/pricing#token-rates",
+  "trials": [
+    {
+      "case": "group_b",
+      "arm": "hybrid",
+      "first_ms": 15164,
+      "complete_ms": 16824,
+      "reply": [
+        "你给那盆薄荷取名叫“雨灯”。"
+      ],
+      "usage": [
+        {
+          "stage": "reply.generate",
+          "input_tokens": 12006,
+          "cached_input_tokens": 6144,
+          "output_tokens": 184,
+          "usage_events": 1
+        }
+      ],
+      "estimated_credits": 0.037902
+    },
+    {
+      "case": "group_b",
+      "arm": "legacy",
+      "first_ms": 23306,
+      "complete_ms": 24529,
+      "reply": [
+        "我这边看到的记录有点对不上：一个发言者给薄荷取名叫“海盐”，另一个叫“雨灯”。我没法确认哪条是你的，你还记得是哪个吗？"
+      ],
+      "usage": [
+        {
+          "stage": "recall.expand",
+          "input_tokens": 6775,
+          "cached_input_tokens": 0,
+          "output_tokens": 106,
+          "usage_events": 1
+        },
+        {
+          "stage": "reply.generate",
+          "input_tokens": 11959,
+          "cached_input_tokens": 6144,
+          "output_tokens": 229,
+          "usage_events": 1
+        }
+      ],
+      "estimated_credits": 0.076072
+    },
+    {
+      "case": "withdrawal",
+      "arm": "hybrid",
+      "first_ms": 11444,
+      "complete_ms": 12650,
+      "reply": [
+        "原本约的是周五，但木刻课后来取消了，新的日期还在等老师通知，所以现在还没有约定具体哪天。"
+      ],
+      "usage": [
+        {
+          "stage": "reply.generate",
+          "input_tokens": 12792,
+          "cached_input_tokens": 0,
+          "output_tokens": 142,
+          "usage_events": 1
+        }
+      ],
+      "estimated_credits": 0.06822
+    },
+    {
+      "case": "withdrawal",
+      "arm": "legacy",
+      "first_ms": 22974,
+      "complete_ms": 24600,
+      "reply": [
+        "原先约的是周五，但后来木刻课取消了，新的日期还在等老师通知，所以目前没有确定约哪天。"
+      ],
+      "usage": [
+        {
+          "stage": "recall.expand",
+          "input_tokens": 6771,
+          "cached_input_tokens": 0,
+          "output_tokens": 51,
+          "usage_events": 1
+        },
+        {
+          "stage": "reply.generate",
+          "input_tokens": 12792,
+          "cached_input_tokens": 6144,
+          "output_tokens": 152,
+          "usage_events": 1
+        }
+      ],
+      "estimated_credits": 0.076257
+    },
+    {
+      "case": "group_changed",
+      "arm": "legacy",
+      "first_ms": 23955,
+      "complete_ms": 24990,
+      "reply": [
+        "你在桥边摆摊用的编号是“红杏”。"
+      ],
+      "usage": [
+        {
+          "stage": "recall.expand",
+          "input_tokens": 6771,
+          "cached_input_tokens": 5632,
+          "output_tokens": 59,
+          "usage_events": 1
+        },
+        {
+          "stage": "reply.generate",
+          "input_tokens": 11964,
+          "cached_input_tokens": 6144,
+          "output_tokens": 169,
+          "usage_events": 1
+        }
+      ],
+      "estimated_credits": 0.047523
+    },
+    {
+      "case": "group_changed",
+      "arm": "hybrid",
+      "first_ms": 10882,
+      "complete_ms": 12116,
+      "reply": [
+        "现在用“青苔”这个编号；之前的“红杏”已经作废啦。"
+      ],
+      "usage": [
+        {
+          "stage": "reply.generate",
+          "input_tokens": 11997,
+          "cached_input_tokens": 0,
+          "output_tokens": 153,
+          "usage_events": 1
+        }
+      ],
+      "estimated_credits": 0.064575
+    }
+  ]
+}

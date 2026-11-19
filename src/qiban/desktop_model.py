@@ -1,9 +1,11 @@
 """Application-account model adapter; no global Codex login or paid fallback."""
 import asyncio
+from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 
 from companion_core.errors import AssistantError
 from companion_core.observability import current_stage, measure
+from companion_core.reply_timing import span
 
 from .desktop_model_catalog import ModelCatalog
 
@@ -47,19 +49,25 @@ class DesktopModel:
                        store, policy, guard, phase=lambda value: None):
         if native is not None and native not in self.supported_native:
             raise AssistantError('model_capability_unavailable', '此订阅执行入口不支持该原生工具。')
-        async with self.capacity:
+        async with AsyncExitStack() as admission:
+            with span("model.capacity_wait"):
+                await admission.enter_async_context(self.capacity)
             await asyncio.to_thread(guard)
             try:
-                access = await asyncio.to_thread(self.broker.model_access)
+                with span("model.account_access"):
+                    access = await asyncio.to_thread(self.broker.model_access)
             except AssistantError as error:
                 if error.code != 'model_auth':
                     raise
                 # Resume from sleep can put the first message ahead of maintenance.
-                if not await self._refresh_account():
-                    raise
+                with span("model.account_refresh"):
+                    if not await self._refresh_account():
+                        raise
                 await asyncio.to_thread(guard)
-                access = await asyncio.to_thread(self.broker.model_access)
-            model, effort = await asyncio.to_thread(self.catalog.resolve, self.broker.store, access)
+                with span("model.account_access"):
+                    access = await asyncio.to_thread(self.broker.model_access)
+            with span("model.catalog_resolve"):
+                model, effort = await asyncio.to_thread(self.catalog.resolve, self.broker.store, access)
 
             def check():
                 guard()

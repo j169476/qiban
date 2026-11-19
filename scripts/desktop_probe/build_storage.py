@@ -35,6 +35,13 @@ def copy_licenses(bundle, lock):
             target.parent.mkdir(exist_ok=True)
             target.write_text(dist.read_text("METADATA"),encoding="utf8")
             copied.append(target.relative_to(bundle).as_posix())
+        if not copied and name.lower() in {"flatbuffers", "tokenizers"}:
+            # These wheels omit the license file. Ship the text from the matching upstream tag.
+            original = Path(__file__).with_name("upstream") / f"{name.lower()}-{dist.version}-LICENSE.txt"
+            target = licenses / name / "LICENSE.txt"
+            target.parent.mkdir(exist_ok=True)
+            shutil.copyfile(original, target)
+            copied.append(target.relative_to(bundle).as_posix())
         if not copied:
             raise RuntimeError(f"Missing license text for {name}")
         packages.append({"name": name, "version": dist.version, "license_files": copied})
@@ -96,6 +103,7 @@ def main():
         command[-1:-1] = ["--add-data", str(resource)+";companion_core"]
     command[-1:-1] = ["--add-data", str(ROOT / "src/bili_assistant/defaults/policy.yaml")+";bili_assistant/defaults"]
     command[-1:-1] = ["--add-data", str(ROOT / "src/companion_core/sql")+";companion_core/sql"]
+    command[-1:-1] = ["--add-data", str(ROOT / "src/companion_core/history_model")+";companion_core/history_model"]
     command[-1:-1] = ["--add-data", str(ROOT / "src/companion_qq/native")+";companion_qq/native"]
     command[-1:-1] = ["--add-data", str(ROOT / "src/companion_wechat/native")+";companion_wechat/native"]
     with (work / "build.log").open("w", encoding="utf8") as log:

@@ -36,7 +36,8 @@ def cached_plans(store, config, now):
     return dict(sorted(valid.items(), key=lambda pair: (pair[1]["at"], pair[0]))[-config["cache_entries"]:])
 
 
-async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, generate, guard, clock):
+async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, generate, guard, clock,
+                  local_history=False):
     """A model call reserves one remaining slot for the actual content decision.
 
     There is deliberately no lexical-score confidence threshold: high overlap can
@@ -102,6 +103,8 @@ async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, g
                 store.set_state(CACHE_KEY, cache)
             if key in cache:
                 return finish("cache", "scoped_query_plan", cache[key]["queries"])
+    if local_history:
+        return finish("local", "hybrid_history", aliases)
     if remaining < 2:
         return finish("local", "model_budget", aliases)
     try:

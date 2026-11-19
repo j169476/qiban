@@ -136,3 +136,43 @@ def test_report_is_bounded(store):
                 pass
     report = timing.control(store, "report")
     assert report["limited"] and len(report["spans"]) == 256
+
+
+def test_two_turns_and_local_checks_have_disjoint_wall_times(store, monkeypatch):
+    from companion_core.observability import stage
+
+    clock = [0.]
+    monkeypatch.setattr(timing.time, "perf_counter", lambda: clock[0])
+    timing.control(store, "arm")
+    with timing.capture_reply(store, event()):
+        for purpose in ("recall.expand", "reply.generate"):
+            with timing.span("model.initialize"), timing.span("model.initialize.thread/start"):
+                clock[0] += .025
+            with stage(purpose), timing.model_turn():
+                with timing.model_part("output_wait_ms"):
+                    clock[0] += .1
+                timing.first_model_delta()
+                with timing.model_part("guard_ms"):
+                    clock[0] += .02
+                timing.first_model_delta()
+                clock[0] += .005
+        clock[0] += .01
+    report = timing.control(store, "report")
+    assert report["analysis"]["model_breakdown"] == {
+        "turn_count": 2, "worker_output_wait_ms": 200, "local_receive_checks_ms": 40,
+        "turn_other_ms": 10, "model_session_setup_ms": 50, "outside_setup_and_turns_ms": 10}
+    turns = [r for r in report["spans"] if r["stage"] == "model.request_and_wait"]
+    assert [r["purpose"] for r in turns] == ["recall.expand", "reply.generate"]
+    assert all(r["guard_checks"] == 1 and r["first_delta_ms"] == 100 for r in turns)
+    assert timing.TURN.get() is None
+
+
+def test_partial_model_failure_reports_observed_wait(store):
+    timing.control(store, "arm")
+    with pytest.raises(RuntimeError):
+        with timing.capture_reply(store, event()), timing.model_turn(), timing.model_part("output_wait_ms"):
+            raise RuntimeError("PRIVATE")
+    report = timing.control(store, "report")
+    assert report["spans"][-1]["first_delta_ms"] is None
+    assert report["analysis"]["model_breakdown"]["turn_count"] == 1
+    assert timing.TURN.get() is None and "PRIVATE" not in json.dumps(report)

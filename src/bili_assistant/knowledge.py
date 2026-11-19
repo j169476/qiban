@@ -16,6 +16,7 @@ from companion_core.knowledge import status as status
 from companion_core.knowledge import trial_status as trial_status
 from companion_core.knowledge import valid_review as valid_review
 from companion_core.knowledge import validate_quotes as validate_quotes
+from companion_core.observability import activity
 
 from .cognition import BOUNDARIES, stable_id, verify_versions
 from .errors import AssistantError
@@ -246,7 +247,8 @@ async def maintain(scheduler):
     remaining = settings["data"]["context_char_limit"] - len(json.dumps(payload, ensure_ascii=False))
     size = max(0, (remaining - 1500) // max(1, len(sources)))
     payload["sources"] = [source_excerpt(s, target["content"], size) for s in sources.values()]
-    result = await scheduler.model(REVIEW_PROMPT, payload, REVIEW_RESULT)
+    with activity("learning"):
+        result = await scheduler.model(REVIEW_PROMPT, payload, REVIEW_RESULT)
     scheduler.alive()
     verify_versions(store, [("companion", None, settings["version"])])
     saved = save_review(engine, job, list(sources.values()), payload, result)

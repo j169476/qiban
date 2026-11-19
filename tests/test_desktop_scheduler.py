@@ -11,6 +11,50 @@ from qiban.desktop_scheduler import DesktopScheduler
 from qiban.desktop_tasks import TaskBarrier
 
 
+async def test_maintenance_retries_then_clears_error(monkeypatch):
+    calls, sleeps = [], []
+    def maintain():
+        calls.append(True)
+        if len(calls)<3:
+            raise AssistantError('database_error','synthetic')
+    scheduler = DesktopScheduler(runtime(),maintenance=maintain)
+    async def wait(seconds):
+        sleeps.append((seconds,scheduler.maintenance_error))
+        if len(calls)==3:
+            scheduler.stop_requested.set()
+    monkeypatch.setattr(asyncio,'sleep',wait)
+    await scheduler._maintain()
+    assert sleeps==[(60,'database_error'),(120,'database_error'),(60,None)]
+
+
+@pytest.mark.parametrize('platform',['qq','wechat','bilibili'])
+async def test_capacity_pauses_intake_but_drains_and_resumes(platform):
+    value=runtime()
+    full=[True]
+    value.intake_paused=lambda:full[0]
+    if platform not in value.cores:
+        value.store.runs[platform]={'status':'active','generation':'fixture'}
+        value.cores[platform]=Core(platform,value.store)
+    reads, cycles=[],[]
+    async def poll(*,receive=True):
+        reads.append(receive)
+        return [SimpleNamespace(id='queued',visibility='private',thread='fixture')]
+    async def cycle(*,receive=True):
+        cycles.append(receive)
+    core=value.cores[platform]
+    core.poll,core.cycle=poll,cycle
+    if platform!='bilibili':
+        core.platforms=SimpleNamespace(all=lambda:[SimpleNamespace(runtime_poll=poll)])
+    scheduler=DesktopScheduler(value)
+    await scheduler._step(platform)
+    full[0]=False
+    scheduler.schedules[platform].next_cycle=0
+    await scheduler._step(platform)
+    assert reads==[False,True] and core.handled==['queued','queued']
+    if platform=='bilibili':
+        assert cycles==[False,True]
+
+
 class Store:
     def __init__(self):
         self.runs = {p: {"status": "active", "generation": p + "-1"} for p in ("qq", "wechat")}

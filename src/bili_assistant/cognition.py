@@ -7,7 +7,7 @@ import json
 from zoneinfo import ZoneInfo
 
 from companion_core.conversation_recall import GUIDANCE as RECALL_GUIDANCE
-from companion_core.decision import IDENTITY_INSTRUCTIONS
+from companion_core.decision import IDENTITY_INSTRUCTIONS, SKILL_APPLICATION
 from companion_core.schema import IDENTITY_PROPOSALS
 
 from . import emotions
@@ -116,6 +116,7 @@ DECISION_PROMPT = BOUNDARIES + (
     "区分视频内容、外部用户的观点、已有知识和你自己的推断，不编造未给出的材料。"
     "video_topics 只概括本轮实际视频材料，尽量沿用 diversity 中已有主题名；没有视频则为空。"
     "确有可复用方法时从本轮 knowledge 提炼一张 skill，写清适用场景和局限，否则为 null。"
+    "涉及对话示范时，从可核对的字幕或画面提取具体做法、触发条件及应当停用的情况。区分视频演示与观众意见。"
     "对真实入站事件可给出 relationships：普通礼貌互动可不加分，依据内容而非次数变化；"
     "impression 是可修正的印象，facts 仅记录对方明确表达的事实；只填实际 event_id。"
     "对于标为 is_guide 的大号入站事件，可提炼 interest_signals，注明真实 event_id、主题和依据。"
@@ -143,7 +144,7 @@ DECISION_PROMPT = BOUNDARIES + (
     "历史评论只作背景，不能当成新的入站事件、不能据此增加好感、写兴趣信号或回复第三人。"
     "图片按 material.image_order 顺序输入；只对实际保留在 images 中的图片进行描述。"
 )
-DECISION_PROMPT += IDENTITY_INSTRUCTIONS
+DECISION_PROMPT += IDENTITY_INSTRUCTIONS + SKILL_APPLICATION
 DECISION_PROMPT += RECALL_GUIDANCE.replace("conversation.recalled", "conversation_threads 各会话的 recalled")
 REFLECTION_PROMPT = BOUNDARIES + (
     "根据 reflection_memories 中尚未反思的真实经历写一则日记，并反思角色状态。"

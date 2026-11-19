@@ -106,7 +106,7 @@ def request_body(instructions, context, output_schema, model, reasoning_effort):
     """Fixed request: one native web tool, JSON-schema text, streamed and unretained."""
     body = {
         "model": model,
-        "reasoning": {"effort": reasoning_effort},
+        **({"reasoning": {"effort": reasoning_effort}} if reasoning_effort is not None else {}),
         "store": False,
         "stream": True,
         "instructions": instructions,
@@ -390,7 +390,8 @@ async def generate(instructions, context, output_schema, images=(), *, policy, g
     if images:
         raise _failure("model_input_unsupported")
     if (not isinstance(model, str) or not IDENTIFIER.fullmatch(model)
-            or not isinstance(reasoning_effort, str) or not IDENTIFIER.fullmatch(reasoning_effort)):
+            or reasoning_effort is not None and (
+                not isinstance(reasoning_effort, str) or not IDENTIFIER.fullmatch(reasoning_effort))):
         raise AssistantError("model_config", "订阅网页模型参数无效。")
     token = getattr(access, "access_token", "")
     if not isinstance(token, str) or not token:

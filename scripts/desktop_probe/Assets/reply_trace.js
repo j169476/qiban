@@ -4,13 +4,12 @@
  'use strict';
  const el=id=>document.getElementById('reply-trace-'+id),pending=new Map();
  const PLATFORM={qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机会客室'};
- const STATE={completed:'完成',failed:'失败',cancelled:'取消',running:'处理中'};
  const STAGE={model_selection:'选择模型',context:'组装上下文','recall.expand':'扩展检索',
   query_plan:'检索路线',backlog_context:'积压对话',context_budget:'上下文预算',
   'reply.generate':'生成回复','reply.summarize':'摘要积压对话',outcome:'处理结果',
   memory_commit:'写入记忆',facts_commit:'记录个人事实'};
  const FIELD={observation_id:'观测编号',kind:'记录种类',status:'结果',duration_ms:'用时',
-  error_code:'错误标签',input_tokens:'输入用量',cached_input_tokens:'缓存输入用量',
+  error_code:'原因',error:'原因',outcome_error:'原因',outcome:'处理结果',input_tokens:'输入用量',cached_input_tokens:'缓存输入用量',
   output_tokens:'输出用量',reasoning_output_tokens:'推理输出用量',usage_events:'用量事件',
   requested_model:'请求模型',effort:'推理强度',memory_records:'可用记忆条数',
   catalog_records:'记忆目录条数',recent_turns:'最近对话条数',recalled_turns:'召回对话条数',
@@ -47,9 +46,6 @@
  function platformText(value){
   return typeof value==='string'&&PLATFORM[value]?PLATFORM[value]:valueText(value);
  }
- function stateText(value){
-  return typeof value==='string'&&STATE[value]?STATE[value]:'未识别的状态（'+valueText(value)+'）';
- }
  function paragraph(parent,text,className){
   const node=document.createElement('p');
   if(className)node.className=className;
@@ -70,7 +66,9 @@
   for(const key of Object.keys(value)){
    if(key==='stage')continue;
    const row=document.createElement('li');
-   row.textContent=(FIELD[key]||key)+'：'+valueText(value[key]);
+   const text=['outcome_error','error','error_code'].includes(key)?window.QibanTraceResult.reason({error:value[key]}):
+    (key==='outcome'||(stage==='outcome'&&key==='status'))?window.QibanTraceResult.label({outcome:value[key],status:value[key]}):valueText(value[key]);
+   row.textContent=(FIELD[key]||key)+'：'+text;
    list.append(row);
   }
   if(!list.children.length){
@@ -114,15 +112,16 @@
   feedback(box,'detail');
   if(!allowed||!record)return;
   const head=document.createElement('h3');
-  head.textContent=timeText(record.started)+' · '+platformText(record.platform)+' · '+stateText(record.status);
+  head.textContent=timeText(record.started)+' · '+platformText(record.platform)+' · '+window.QibanTraceResult.label(record);
   box.append(head);
   const running=record.status==='running';
-  paragraph(box,'记录状态：'+stateText(record.status));
+  paragraph(box,'记录状态：'+window.QibanTraceResult.label(record));
   paragraph(box,'平台：'+platformText(record.platform));
   paragraph(box,'开始时间：'+timeText(record.started));
   paragraph(box,'结束时间：'+(running?'仍在处理中，还没有结束时间':endText(record)));
   paragraph(box,'用时：'+(running?'仍在处理中':durationText(record.duration_ms)));
-  if(record.error)paragraph(box,'失败或取消标签：'+valueText(record.error));
+  const reason=window.QibanTraceResult.reason(record);
+  if(reason)paragraph(box,'原因：'+reason);
   renderStages(box,record);
   renderSources(box,record);
   if(typeof record.meaning==='string'&&record.meaning)paragraph(box,record.meaning,'note');
@@ -140,7 +139,7 @@
   for(const row of rows){
    const button=document.createElement('button');
    button.className='quiet';
-   button.textContent=timeText(row.started)+' · '+platformText(row.platform)+' · '+stateText(row.status)+
+   button.textContent=timeText(row.started)+' · '+platformText(row.platform)+' · '+window.QibanTraceResult.label(row)+
     ' · '+durationText(row.duration_ms);
    button.disabled=!allowed;
    if(row.id===selected)button.setAttribute('aria-current','true');

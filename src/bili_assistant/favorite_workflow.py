@@ -2,6 +2,7 @@
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+from companion_core.observability import activity
 from companion_core.schema import obj
 
 from .action_quota import daily_usage
@@ -72,7 +73,8 @@ async def step(scheduler):
         context["quota"] = quota(engine)
         if not any(context["quota"].values()):
             return
-        decision = await scheduler.model(PROMPT, context, SCHEMA, guard=guard)
+        with activity("browsing"):
+            decision = await scheduler.model(PROMPT, context, SCHEMA, guard=guard)
         guard()
         # DecisionService validates production outputs; validate synthetic callers too.
         from jsonschema import validate

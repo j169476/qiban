@@ -48,6 +48,10 @@ class BoundCredentials:
 
 
 class DesktopBiliConnector(BilibiliConnector):
+    def backlog_workflow(self, core):
+        from bili_assistant.governed_workflow import definition
+        return definition(self.engine, core, receive=False)
+
     async def close(self):
         from .desktop_bili import close_sdk_session
         await close_sdk_session()

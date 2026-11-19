@@ -64,7 +64,9 @@ def patch(store, kind, **changes):
 
 
 @pytest.mark.asyncio
-async def test_private_inbox_public_learning_and_sends_are_separate(pg_store):
+@pytest.mark.parametrize('drain',[False,True])
+async def test_private_inbox_public_learning_and_sends_are_separate(pg_store,drain):
+    from qiban.desktop_bili_connector import DesktopBiliConnector
     patch(pg_store, "manifest", account_uid="123")
     patch(pg_store, "policy", min_action_interval_seconds=0)
     patch(pg_store, "companion", memory_maintenance=False, daily_reflection=False, knowledge_review=False,
@@ -74,9 +76,15 @@ async def test_private_inbox_public_learning_and_sends_are_separate(pg_store):
     patch(pg_store, "preferences", blocked_topics=["private-preference-canary"])
     pg_store.set_state("reflection-pending:123", {"leak": "private-state-canary"})
     platform, model, host = Platform(), Model(), Host()
-    core = Companion(pg_store, model, host, [BilibiliConnector(Engine(pg_store, host, platform, lambda: NOW))], clock=lambda: NOW)
+    connector = DesktopBiliConnector if drain else BilibiliConnector
+    core = Companion(pg_store, model, host, [connector(Engine(pg_store, host, platform, lambda: NOW))], clock=lambda: NOW)
     core.start()
-    await core.cycle()
+    if drain:
+        await core.poll()
+        async def forbidden(*args, **kwargs):
+            pytest.fail('capacity hold fetched new platform data')
+        platform.inbox = platform.feed = forbidden
+    await core.cycle(receive=not drain)
     assert len(model.calls) == 3 and len(platform.sent) == 3
     for context in model.calls:
         serialized = json.dumps(context, ensure_ascii=False)

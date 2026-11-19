@@ -21,6 +21,11 @@ from build_desktop_sources import (  # noqa: E402
 
 WHITELIST = (
     'LICENSE',
+    'THIRD_PARTY_NOTICES.md',
+    'docs/桌面声明.md',
+    'docs/微信支持范围.md',
+    'docs/模型选择参考.md',
+    'scripts/desktop_probe/build_public_pages.py',
     'scripts/desktop_probe/Program.cs',
     'scripts/desktop_probe/Search.cs',
     'scripts/desktop_probe/Qiban.DesktopProbe.csproj',

@@ -43,6 +43,8 @@ for line in sys.stdin:
   assert params['model']=='gpt-6.1-terra' and params['effort']=='low'
   assert 'access-client-' not in json.dumps(params)
   (home/'started').write_text('yes')
+  if mode=='release':
+   while not (home/'release').exists():time.sleep(.01)
   if mode=='wait' or (mode=='wait_first' and os.environ['ACCESS_TOKEN']=='access-client-a'):time.sleep(60)
   send({'id':row['id'],'result':{'turn':{'id':'turn'}}})
   answer='invalid-json' if mode=='invalid' else json.dumps({'value':42})
@@ -130,6 +132,37 @@ async def wait_started(jobs):
     async with asyncio.timeout(3):
         while not jobs or not (jobs[-1].home / "started").exists():
             await asyncio.sleep(0.01)
+
+
+@pytest.mark.parametrize("purpose", ["reply.generate", "recall.expand"])
+async def test_text_turn_rechecks_changed_account_at_completion(tmp_path, monkeypatch, purpose):
+    from companion_core.observability import stage
+
+    broker, store, first, _, _, run, jobs, clients = execution(tmp_path, monkeypatch, "release")
+    checks = []
+    original = broker.check_model_access
+
+    def check(access):
+        checks.append(1)
+        return original(access)
+
+    monkeypatch.setattr(broker, "check_model_access", check)
+    with stage(purpose):
+        task = asyncio.create_task(run())
+    try:
+        await wait_started(jobs)
+        before = len(checks)
+        store.value["accounts"][first]["session"]["access_token"] = "rotated-synthetic"
+        await asyncio.sleep(.3)
+        assert not task.done() and len(checks) == before
+        (jobs[-1].home / "release").touch()
+        with pytest.raises(AssistantError) as caught:
+            await task
+        assert caught.value.code == "model_auth" and len(checks) > before
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    assert clients[0].process.poll() is not None
 
 
 async def wait_stream(transport):

@@ -59,6 +59,8 @@ class QQModule:
             self.factory = lambda: OneBot(self.options, config.token(project, self.account))
         self.core = self.provider = self.socket = self.reader = None
         self.native_generation = None
+        self.intake_enabled = asyncio.Event()
+        self.intake_enabled.set()
         self.ready = self.tainted = False
         self.code, self.failures, self.retry_at = "", 0, 0
         self.queue_key = "qq-inbox:" + self.account
@@ -229,6 +231,10 @@ class QQModule:
     async def _read(self, socket):
         try:
             async for raw in socket:
+                runtime = getattr(getattr(self.core, 'host', None), 'runtime', None)
+                while runtime and hasattr(runtime, 'intake_paused') and await asyncio.to_thread(runtime.intake_paused):
+                    await asyncio.sleep(1)
+                await self.intake_enabled.wait()
                 self.accept(json.loads(raw))
         except asyncio.CancelledError:
             raise
@@ -279,8 +285,20 @@ class QQModule:
                     await asyncio.to_thread(self.bridge.stop)
                 raise
 
-    async def runtime_poll(self):
+    async def runtime_poll(self, *, receive=True):
+        from .native_process import TRANSIENT_READ_ERRORS
+
+        if receive:
+            self.intake_enabled.set()
+        else:
+            self.intake_enabled.clear()
         run = await asyncio.to_thread(self.core.guard)
+        if self.code in TRANSIENT_READ_ERRORS and self.native_generation == run["generation"]:
+            async with self.send_lock:
+                await self._close()
+                self.provider = self.factory()
+                self.code, self.retry_at = "", 0
+                await asyncio.to_thread(self.core.guard, run["generation"])
         if self.code not in {"", "qq_provider_unavailable", "qq_login_required"}:
             raise AssistantError(self.code, "QQ连接器需要检查，其他平台保持原状态")
         if hasattr(self.provider, "poll_native"):
@@ -288,7 +306,7 @@ class QQModule:
         await self._connect()
         if not self.ready or run["read_only"]:
             return []
-        if hasattr(self.provider, "poll_native"):
+        if receive and hasattr(self.provider, "poll_native"):
             provider = self.provider
             try:
                 await asyncio.to_thread(provider.poll_native, self,

@@ -116,6 +116,30 @@ async def prepare(env, request=None, sender=None):
     return env.permits.issue(ticket, request)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error,expected", [
+    (TimeoutError(), "wechat_prepare_timeout"),
+    (PermissionError("private path"), "wechat_prepare_access_denied"),
+    (FileNotFoundError("private path"), "wechat_prepare_resource_missing"),
+    (RuntimeError("client_version_unsupported"), "wechat_prepare_version_unsupported"),
+    (RuntimeError("client_not_minimized"), "wechat_prepare_window_not_minimized"),
+    (RuntimeError("private_account_identifier"), "wechat_driver_prepare_failed"),
+    (AssistantError("wechat_binding_changed", "private details"), "wechat_binding_changed"),
+    (AssistantError("private-id", "private details"), "wechat_driver_prepare_failed"),
+    (ValueError("private details"), "wechat_driver_prepare_failed"),
+])
+async def test_prepare_failure_reports_category_without_dispatch(env, monkeypatch, error, expected):
+    async def fail_prepare(request):
+        raise error
+
+    monkeypatch.setattr(env.driver, "prepare", fail_prepare)
+    with pytest.raises(AssistantError) as caught:
+        await env.sender.prepare(env.request)
+    assert caught.value.code == expected
+    assert "private" not in str(caught.value)
+    assert not env.driver.sent
+
+
 def restarted(env, *, driver=None):
     store = EncryptedTestStore(env.store.root)
     return LiveSenderGateway(store, Receiver(store), env.permits, driver or Driver(), Session(store))

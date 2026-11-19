@@ -50,7 +50,13 @@
   }
   el('confirm').disabled=busy||!preview;
  }
+ function showVersions(client){
+  const versions=[...new Set(client?.running_versions||[])].filter(Boolean),note=el('versions');
+  note.textContent=versions.length?'运行中的微信：'+versions.join('、'):'';
+  note.hidden=!versions.length;
+ }
  function reset(){
+  showVersions(null);
   epoch++;busy=false;state=null;profiles=null;accountDetails.clear();el('login').replaceChildren();clearPreview();
   clearDirectory();clearChosen();picker.setRows([]);
   el('accounts').hidden=true;el('accounts').textContent='';paintIdentity(null);
@@ -94,6 +100,7 @@
    const result=await call('wechat.accounts',{});
    if(!live())return;
    profiles=result.profiles;
+   showVersions(profiles?.client||result.client);
    const accounts=result.accounts;
    const picker=el('login');picker.replaceChildren();
    for(const login of new Set([...(profiles?.accounts||[]),...accounts])){
@@ -102,7 +109,7 @@
    }
    if(profiles?.selected)picker.value=profiles.selected;
    status.textContent=profiles?.selected?'当前使用：'+profiles.selected:
-    accounts.length?'请选择要使用的微信账号。':'请先在电脑微信登录，再点击检测。';
+    accounts.length?'请选择要使用的微信账号。':'未检测到已登录账号。';
    const missing=[];
    for(const login of accounts){
     if(!live())return;
@@ -115,7 +122,7 @@
      for(const option of picker.children)if(option.value===login)option.textContent=accountLabel(login)+'（已登录）';
     }catch(error){if(!live())return;missing.push(login);}
    }
-   paintIdentity(profiles?.selected||picker.value);status.textContent=profiles?.selected?'当前使用':picker.value?'待选择':'请先在电脑微信登录，再点击检测。';
+   paintIdentity(profiles?.selected||picker.value);status.textContent=profiles?.selected?'当前使用':picker.value?'待选择':'未检测到已登录账号。';
    el('account-notice').textContent=missing.length?'部分账号资料暂未读取成功，保留原始 ID；可重新检测。':'';
   }catch(error){if(live())status.textContent=error.message;}
  });
@@ -136,6 +143,7 @@
   return work(async live=>{
    picker.status.textContent='正在同步名单…';
    const active=await call('wechat.profiles',{});if(!live())return;
+   showVersions(active.client);
    if(profiles?.selected!==active.selected||profiles?.revision!==active.revision){clearChosen();picker.setRows([]);}
    profiles=active;el('login').replaceChildren();
    for(const login of active.accounts||[]){const option=document.createElement('option');option.value=login;option.textContent=accountLabel(login);el('login').append(option);}

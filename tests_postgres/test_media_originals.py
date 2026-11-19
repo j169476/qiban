@@ -40,6 +40,27 @@ def finish(sample):
     return media.listing()['items'][0]['processed_at']
 
 
+def test_expired_index_remains_for_90_days_and_while_referenced(sample):
+    from datetime import datetime, timedelta, timezone
+
+    from companion_core.history_retention import cleanup
+    media,args,event=sample
+    put(sample)
+    processed=finish(sample)
+    media.clock=lambda:processed+86400*(media.settings()['days']+1)
+    media.cleanup()
+    expired=datetime.fromtimestamp(media.clock(),timezone.utc)
+    cleanup(media.store,now=expired+timedelta(days=89))
+    assert media.listing()['items'][0]['status']=='expired'
+    media.store.set_state('action-provenance:fixture',{'pins':[['event/'+event.id,args[3]]]})
+    cleanup(media.store,now=expired+timedelta(days=91))
+    assert media.listing()['items']
+    with media.store.db() as db:
+        db.execute('DELETE FROM state WHERE key=?',('action-provenance:fixture',))
+    cleanup(media.store,now=expired+timedelta(days=92))
+    assert media.listing()['items']==[]
+
+
 def test_dead_process_hold_recovered_but_live_owner_and_pending_original_protected(sample):
     import os
     import subprocess

@@ -209,8 +209,8 @@ class StickerLibrary:
 
 def verify_stickers(store):
     library = StickerLibrary(store)
-    with store.db() as db:
-        for row in db.execute("SELECT * FROM sticker_library"):
+    with store.db() as db, db.stream("SELECT * FROM sticker_library") as rows:
+        for row in rows:
             summary = library._summary(row)
             describe(summary["name"], summary["tags"])
             actual = inspect(library._decode(row))

@@ -16,6 +16,10 @@ test('different UID shows both names, sends only on explicit confirmation, and l
  const current={uid:'101',name:'原昵称'},candidate={uid:'202',name:'新昵称🙂'},ticket='ticket';
  update('owner');await reply({state:'idle',current:null});assert.equal(el('check').disabled,true);
  el('refresh').onclick();await reply({state:'idle',current});
+ assert.equal(el('status').textContent,'已绑定。');
+ const renewal='本次登录未取得自动续期凭据。需要长期运行时，请使用手机扫码重新登录。';
+ el('refresh').onclick();await reply({state:'idle',current,message:renewal});
+ assert.equal(el('status').textContent,renewal);
  assert.equal(el('check').disabled,false);el('check').onclick();assert.equal(requests.at(-1).operation,'bili.check');
  await reply({state:'checking',current,ticket});assert.equal(el('check').disabled,true);poll();
  await reply({state:'checked',current,message:'已向 B 站核验，当前绑定账号登录有效。'});

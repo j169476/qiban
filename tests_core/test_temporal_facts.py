@@ -151,3 +151,20 @@ def test_model_cannot_supersede_a_fact_removed_by_final_context_budget(store):
     old = facts.context()["items"][0]["id"]
     facts.supplied({"personal_facts": {"items": []}})
     assert facts.save([update("我搬到杭州", "杭州", supersedes=[old])])["rejected"] == 1
+
+
+def test_reply_preference_keeps_its_condition_and_rejects_one_time_request(store):
+    text = "我累的时候希望你先听我说"
+    facts = context(store, text)
+    assert facts.save([update(text, "先听我说", attribute="conversation_preference")])["written"] == 1
+    visible = context(store, "今天又被折腾够了", "second").context()["items"]
+    assert visible[0]["value"] == text
+    once = "我这次希望你直接给建议"
+    assert context(store, once, "third").save([update(once, once, attribute="conversation_preference")])["rejected"] == 1
+
+
+def test_different_explicit_reply_conditions_can_coexist(store):
+    for i, quote in enumerate(("我累的时候希望你听我说", "我问时间时希望你直接回答")):
+        assert context(store, quote, str(i)).save([update(quote, quote, attribute="conversation_preference")])["written"] == 1
+    result = context(store, "还记得吗", "read").context()["items"]
+    assert len(result) == 2 and all(r["status"] == "active" for r in result)

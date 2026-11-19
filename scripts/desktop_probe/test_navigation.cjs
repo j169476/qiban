@@ -7,9 +7,10 @@ const assets=path.join(__dirname,'Assets');
 const html=fs.readFileSync(path.join(assets,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(assets,'probe.css'),'utf8');
 const navigation=fs.readFileSync(path.join(assets,'navigation.js'),'utf8');
-const pages=['home','persona','platforms','model','records','media','settings'];
+const pages=['home','learn','context','model','persona','platforms','records','media','settings'];
 // 每个页面元素只归属一个分区。
 const owners={
+ 'workspace-learn':'learn','workspace-context':'context',
  'profile-panel':'persona','profile-area':'persona','baseline-panel':'persona','relationship-panel':'persona',
  'memory-panel':'persona','sharing-panel':'persona','relation-claims-panel':'persona',
  'bili-panel':'platforms','qq-panel':'platforms','audience-panel':'platforms','growth-panel':'platforms',
@@ -89,7 +90,7 @@ function run(){
   fire,tabOf:(group,target)=>tabs.find(tab=>tab.dataset.tabGroup===group&&tab.dataset.tabTarget===target),
   documentListeners};
 }
-test('导航列出 7 个分区，每个页面元素只归属一个分区且原 id 唯一',()=>{
+test('导航列出 9 个分区，每个页面元素只归属一个分区且原 id 唯一',()=>{
  assert.deepEqual([...html.matchAll(/data-nav-target="([a-z]+)"/g)].map(match=>match[1]),pages);
  for(const [id,page] of Object.entries(owners)){
   const tag=tagOf(id);
@@ -97,11 +98,11 @@ test('导航列出 7 个分区，每个页面元素只归属一个分区且原 i
   assert.equal(pageOf(tag),page,id+' 的分区不对');
   assert.equal(tag.match(/data-nav-page="/g).length,1,id+' 只能有一个分区标记');
  }
- assert.equal(pageOf(html.match(/<div class="probe-page-heading"[^>]*>/)[0]),'home');
+ assert.equal(pageOf(html.match(/<div class="probe-page-heading[^"]*"[^>]*>/)[0]),'home');
  // 顶栏与解锁区在任何分区都可达，诊断区归属设置。
  assert.equal(pageOf(tagOf('management-panel')),'');
  assert.equal(pageOf(tagOf('runtime-panel')),'');
- assert.ok(html.indexOf('id="audience-scope-panel"')<html.indexOf('<aside class="probe-rail runtime-monitor"'));
+ assert.equal(pageOf(tagOf('house-dashboard')),'home');
  assert.equal(pageOf(tagOf('diagnostics-panel')),'settings');
  assert.equal(pageOf(html.match(/<header class="probe-topbar">/)[0]),'');
  assert.deepEqual([...new Set(Object.values(owners))].sort(),[...pages].sort());
@@ -122,7 +123,7 @@ test('切换只改当前分区，保留原节点与未保存输入',()=>{
  assert.equal(page.locked.hidden,true);
  assert.equal(page.draft.id,'persona-name');
  assert.equal(page.links[3].onclick,handler,'切换不重建按钮和监听');
- assert.equal(page.links.length,7);
+ assert.equal(page.links.length,pages.length);
  assert.equal(page.events.at(-1).type,'qiban-nav-change','切换后通知会客室按原 close/reset 关闭');
  assert.equal(page.events.at(-1).detail.page,'model');
 });
@@ -175,18 +176,16 @@ test('键盘可达：普通按钮、Tab 顺序与 Enter 激活，当前分区有
  assert.equal(html.match(/id="room-dialog"/g).length,1);
  assert.match(html,/id="notice"/);
 });
-test('外壳结构：顶栏在前，导航在固定左列，功能与详情分成两栏，会客室在同一外壳内',()=>{
+test('V3 默认监控台使用固定左导航、真实窗景、运行控制及同一会客室',()=>{
  assert.match(html,/<\/header>\s*<div class="probe-shell">\s*<nav class="app-nav"/);
  const shell=html.slice(html.indexOf('<div class="probe-shell">'),html.indexOf('</main>'));
  assert.match(shell,/^<div class="probe-shell">\s*<nav class="app-nav"/);
- const center=shell.indexOf('<div class="probe-center">'),rail=shell.indexOf('<aside class="probe-rail runtime-monitor"');
- assert.ok(center>0&&rail>center,'功能栏必须在详情栏之前（窄窗口时详情栏自然下移）');
- assert.match(shell.slice(center,rail),/id="room-dialog"/,'会客室排在同一外壳的中间栏');
- assert.match(shell.slice(rail),/<aside class="probe-rail runtime-monitor" aria-label="运行监控"/);
- // 顶栏：左侧品牌复用白龙娘资源，右侧“应用设置”展开菜单，且不复制系统窗口按钮。
+ const center=shell.slice(shell.indexOf('<div class="probe-center">'));
+ assert.match(center,/id="room-dialog"/);assert.match(center,/id="monitor-window"/);
+ assert.match(center,/id="runtime-platforms"/);assert.match(center,/id="house-events"/);
+ assert.match(shell,/class="house-nav-foot"[\s\S]*?data-nav-target="settings"/);
  const bar=html.slice(html.indexOf('<header class="probe-topbar">'),html.indexOf('</header>'));
- assert.match(bar,/class="probe-brand"/);
- assert.match(bar,/src="\/static\/white-dragon-tea\.png"/);
+ assert.match(bar,/id="house-monitor"/);assert.match(shell,/src="\/art\/hoodie-avatar\.webp"/);
  assert.match(bar,/id="app-settings"[^>]*aria-expanded="false"[^>]*aria-controls="app-settings-menu"/);
  assert.match(bar,/id="app-settings-menu"/);
  for(const label of ['应用密码锁','收至托盘','应用使用说明','退出应用'])assert.ok(bar.includes(label),label);

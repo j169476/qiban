@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from companion_core.observability import measure
-from companion_core.reply_trace import CURRENT, listing, point, reply
+from companion_core.reply_trace import CURRENT, detail, listing, point, record_outcome, reply
 from companion_core.storage import Store
 
 
@@ -42,3 +42,32 @@ def test_trace_failure_never_converts_successful_action_into_retry(tmp_path, mon
     with reply(store, SimpleNamespace(id="e", platform="qq"), {"generation": "g"}):
         point("outcome", status="succeeded")
     assert store._reply_trace_failures == 2
+
+
+@pytest.mark.parametrize("original_error,displayed", [
+    ("wechat_driver_prepare_failed", "wechat_driver_prepare_failed"),
+    ("private_account_identifier", "other_action_error"),
+])
+def test_cancelled_delivery_survives_stage_limit_without_exception_text(tmp_path, original_error, displayed):
+    store = Store(tmp_path / "trace")
+    with reply(store, SimpleNamespace(id="e", platform="wechat"), {"generation": "g"}) as trace:
+        for _ in range(100):
+            point("context")
+        record_outcome({"action": {"status": "cancelled", "error": original_error}})
+    row = listing(store)[0]
+    assert (row["status"], row["outcome"], row["outcome_error"]) == ("completed", "cancelled", displayed)
+    assert detail(store, trace["id"], None, None)["outcome"] == "cancelled"
+    assert "private_account_identifier" not in str(store.states("reply-trace:%"))
+
+
+def test_legacy_processing_result_is_readable_without_rewriting_history(tmp_path):
+    store = Store(tmp_path / "trace")
+    key = "reply-trace:old"
+    old = {"id": "old", "status": "completed",
+           "steps": [{"stage": "reply.generate", "status": "success"}, {"stage": "outcome", "status": "cancelled"}]}
+    store.set_state(key, old)
+    assert listing(store)[0]["outcome"] == detail(store, "old", None, None)["outcome"] == "cancelled"
+    assert store.state(key) == old
+    old["steps"].pop()
+    store.set_state(key, old)
+    assert "outcome" not in listing(store)[0]

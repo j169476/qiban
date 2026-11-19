@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 from datetime import timedelta
 
@@ -76,6 +77,60 @@ class LearningAdapter(FakeAdapter):
     async def video_context(self, bvid, page_index=0):
         self.read_videos.append(bvid)
         return material(bvid)
+
+
+@pytest.mark.skipif(os.getenv("QIBAN_LIVE_DIALOGUE") != "1", reason="explicit synthetic live-model acceptance")
+@pytest.mark.asyncio
+async def test_live_video_technique_and_feedback(role, monkeypatch):
+    from companion_codex.model import CodexModel
+    from companion_core.decision import DecisionService
+
+    class Player(LearningAdapter):
+        async def video_context(self, bvid, page_index=0):
+            value = material(bvid)
+            value.update(title="用天气速写陪伴倾诉者")
+            value["segments"][0]["text"] = (
+                "来访者感到挫败又不想分析原因时，可以和他做天气速写：用一句天气比喻映照他的感受，"
+                "然后留白让他接着说。比如计划落空像忽然下了一阵雨。对方只问具体时间地点时直接回答，别用天气比喻。")
+            return value
+
+    role.adapter = Player(candidates=[(OTHER, "用天气速写陪伴倾诉者")])
+    scheduler = Scheduler(role, role.run()["generation"])
+    real = DecisionService(CodexModel())
+    visible_cards = []
+
+    async def generate(instructions, context, schema, images=(), **kwargs):
+        if schema == DECISION_SCHEMA:
+            visible_cards.append([r["data"]["id"] for r in context["memory"]["records"] if r["kind"] == "skills"])
+        return await real.generate(instructions, context, schema, images, store=role.store,
+                                   policy=role.store.read("policy")["data"], guard=scheduler.alive)
+
+    monkeypatch.setattr(scheduler, "model", generate)
+    configure(role, select_by_interest=False, search_expansion=False)
+    await scheduler.cycle()
+    cards = role.store.records("skills")[0]
+    assert cards and cards[0]["data"]["knowledge_ids"] and cards[0]["data"]["limitations"]
+    print("合成学习卡", cards[0]["data"]["title"], cards[0]["data"]["when_to_use"], flush=True)
+    role.adapter.candidates = []
+    messages = ("我难过的时候，说一句让我知道你听懂了就好，不用接连问我问题。问具体时间直接告诉我就行。",
+                "准备了半个月的演出突然泡汤了，心里空落落的。我想跟你说说。",
+                "只问个具体时间：周四下午三点换成24小时制怎么写？")
+    sent = []
+    for i, text in enumerate(messages):
+        if i == 1:
+            previous = role.clock()
+            role.clock = lambda: previous + timedelta(days=3)
+        role.adapter.events = [{**event(role, f"dialogue-{i}"), "text": text,
+                                "oid": "100", "root": "200", "parent": "200"}]
+        before = len(role.adapter.sent)
+        await scheduler.cycle()
+        output = [payload.get("text", "") for _, payload in role.adapter.sent[before:]]
+        sent.append(" ".join(output))
+        print("合成视频互动", i + 1, sent[-1], flush=True)
+    weather = ("雨", "云", "晴", "风", "雾", "天色", "阴天", "放晴", "雷", "天气")
+    assert cards[0]["data"]["id"] in visible_cards[-2], "适用场景没有取得已保存技能卡正文"
+    assert any(word in sent[1] for word in weather)
+    assert "15" in sent[2] and not any(word in sent[2] for word in weather)
 
 
 def add_memory(role, template, item_id, content, timestamp=None):

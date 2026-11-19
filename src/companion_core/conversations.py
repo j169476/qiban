@@ -67,7 +67,7 @@ def records(store, account, tid):
     return sorted(selected, key=order)
 
 
-def context(store, account, tid, max_chars=None, *, query="", queries=()):
+def context(store, account, tid, max_chars=None, *, query="", queries=(), ranker=None, current_sender=None):
     from .conversation_recall import MAX_CHARS, recall, size
     from .memory_maintenance import best_summary
 
@@ -122,7 +122,7 @@ def context(store, account, tid, max_chars=None, *, query="", queries=()):
         excluded = {item["data"]["id"] for item in selected
                     if not item.get("content_truncated") and not item.get("content_span")}
         recalled = recall(available, query, queries, excluded=excluded,
-                          max_chars=min(MAX_CHARS, budget // 2))
+                          max_chars=min(MAX_CHARS, budget // 2), ranker=ranker, current_sender=current_sender)
         if recalled:
             selected, used = tail(budget - size(recalled))
     return {"thread_id": tid, "turns": list(reversed(selected)), "total_turns": len(available),

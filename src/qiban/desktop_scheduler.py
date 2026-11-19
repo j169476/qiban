@@ -1,6 +1,7 @@
 """Application-owned platform loops, with no chat or browser lifecycle dependency."""
 
 import asyncio
+import logging
 import threading
 import time
 from contextlib import AsyncExitStack
@@ -10,10 +11,11 @@ from companion_core.delivery import TEMPORARY
 from companion_core.errors import AssistantError
 from companion_core.reply_batch import handle_batch
 from companion_core.runtime_keys import DESKTOP_PLATFORMS as PLATFORMS
+from companion_qq.native_process import TRANSIENT_READ_ERRORS
 
 # Transport read failures share the bounded reconnect policy. Authentication and
 # model errors still stop immediately; delivery owns any uncertain send result.
-READ_RETRY = {"inbox_timeout", "network_error", "read_timeout", "platform_read_error"}
+READ_RETRY = {"inbox_timeout", "network_error", "read_timeout", "platform_read_error", "credential_check_failed"}
 
 
 @dataclass
@@ -25,7 +27,7 @@ class Schedule:
 
 
 class DesktopScheduler:
-    def __init__(self, runtime, *, clock=time.monotonic, tick=0.25, maintenance=None):
+    def __init__(self, runtime, *, clock=time.monotonic, tick=0.25, maintenance=None, wechat_taskbar=None):
         self.runtime, self.clock, self.tick = runtime, clock, tick
         self.lock = threading.RLock()
         self.stop_requested = threading.Event()
@@ -37,6 +39,8 @@ class DesktopScheduler:
         self.busy = set()
         self.failure = None
         self.maintenance, self.maintenance_error = maintenance, None
+        self.wechat_taskbar = wechat_taskbar
+        self.wechat_window_generation = None
         self.schedules = {platform: Schedule() for platform in PLATFORMS}
         self.platform_locks = {platform: asyncio.Lock() for platform in PLATFORMS}
 
@@ -62,6 +66,8 @@ class DesktopScheduler:
         self.loop = asyncio.get_running_loop()
         self.ready.set()
         workers = [asyncio.create_task(self._work(platform)) for platform in PLATFORMS]
+        if self.wechat_taskbar is not None:
+            workers.append(asyncio.create_task(self._watch_wechat_window()))
         if getattr(self.runtime, 'manual', None) is not None:
             workers.append(asyncio.create_task(self._manual_work()))
         if hasattr(self.runtime, 'maintain_model_account'):
@@ -88,6 +94,40 @@ class DesktopScheduler:
                         if close:
                             cleanup.push_async_callback(close)
 
+    async def _watch_wechat_window(self):
+        previous = None
+        while not self.stop_requested.is_set():
+            generation = self.wechat_window_generation
+            if self.runtime.tasks.blocked or "wechat" not in self.runtime.cores:
+                generation = None
+            if generation != previous:
+                self.wechat_taskbar.reset()
+                previous = generation
+            if generation is not None:
+                try:
+                    await asyncio.to_thread(self._update_wechat_window, generation)
+                except Exception as error:
+                    # A desktop/session switch may make USER32 temporarily unavailable.
+                    # Window management must not stop the platform workers.
+                    self.wechat_taskbar.reset()
+                    logging.getLogger(__name__).debug("WeChat window check failed: %s", type(error).__name__)
+                    await asyncio.sleep(5)
+            await asyncio.sleep(0.75)
+
+    def _update_wechat_window(self, generation):
+        window = self.wechat_taskbar.observe()
+        if window is None:
+            return
+        # Check the committed run only when there is a window to move. A stop,
+        # account switch or shutdown may have happened during the observation.
+        with self.runtime.store.lock:
+            if self.stop_requested.is_set() or self.runtime.tasks.blocked:
+                return
+            self.runtime.require_current()
+            run = self.runtime.store.state("core-run:wechat", {})
+            if run.get("status") == "active" and run.get("generation") == generation:
+                self.wechat_taskbar.restore(window)
+
     async def _renew_accounts(self):
         while not self.stop_requested.is_set():
             try:
@@ -99,6 +139,7 @@ class DesktopScheduler:
             await asyncio.sleep(30)
 
     async def _maintain(self):
+        delay = 60
         while not self.stop_requested.is_set():
             operation = asyncio.create_task(asyncio.to_thread(self.maintenance))
             try:
@@ -108,9 +149,17 @@ class DesktopScheduler:
                 await asyncio.gather(operation, return_exceptions=True)
                 raise
             except Exception as error:
-                self.maintenance_error = error.code if isinstance(error, AssistantError) else 'media_cleanup_failed'
-                return  # Visible failure; no silent repeated deletion attempts.
-            await asyncio.sleep(60)
+                self.maintenance_error = (error.code if isinstance(error, AssistantError) else
+                                          'maintenance_io' if isinstance(error, OSError) else 'media_cleanup_failed')
+                if not (isinstance(error, OSError) or self.maintenance_error in
+                        {'database_error', 'database_busy', 'lock_timeout'}):
+                    return
+                await asyncio.sleep(delay)
+                delay = min(900, delay * 2)
+                continue
+            self.maintenance_error = None
+            delay = 60
+            await asyncio.sleep(delay)
 
     async def _manual_work(self):
         while not self.stop_requested.is_set():
@@ -201,7 +250,8 @@ class DesktopScheduler:
                 code = error.code if isinstance(error, AssistantError) else "inbox_timeout"
                 state.failures += 1
                 state.next_poll = self.clock() + min(900, 60 * 2 ** min(state.failures, 4))
-                if code not in TEMPORARY | {"cycle_busy"} and (
+                reconnect = platform == 'qq' and code in TRANSIENT_READ_ERRORS
+                if not reconnect and code not in TEMPORARY | {"cycle_busy"} and (
                     state.failures >= 3 or code not in READ_RETRY
                 ):
                     await asyncio.to_thread(self.runtime.fail, platform, code, state.generation)
@@ -224,6 +274,8 @@ class DesktopScheduler:
             return
         state = self.schedules[platform]
         run = await asyncio.to_thread(self.runtime.store.state, core.run_key, {})
+        if platform == "wechat":
+            self.wechat_window_generation = run.get("generation") if run.get("status") == "active" else None
         if run.get("status") != "active":
             for adapter in core.platforms.all():
                 idle = getattr(adapter, "idle", None)
@@ -245,14 +297,18 @@ class DesktopScheduler:
         settings = (await asyncio.to_thread(self.runtime.store.read, "companion"))["data"]
         adapters = core.platforms.all()
         custom = bool(adapters) and all(hasattr(adapter, "runtime_poll") for adapter in adapters)
+        pressure = getattr(self.runtime, 'intake_paused', None)
+        paused = platform in {'qq','wechat','bilibili'} and pressure and await asyncio.to_thread(pressure)
         if custom:
             incoming = []
             for adapter in adapters:
                 incoming.extend(
-                    await asyncio.wait_for(adapter.runtime_poll(), settings.get("inbox_timeout_seconds", 180))
+                    await asyncio.wait_for(adapter.runtime_poll(receive=False) if paused else adapter.runtime_poll(),
+                                           settings.get("inbox_timeout_seconds", 180))
                 )
         else:
-            incoming = await asyncio.wait_for(core.poll(), settings.get("inbox_timeout_seconds", 180))
+            incoming = await asyncio.wait_for(core.poll(receive=False) if paused else core.poll(),
+                                              settings.get("inbox_timeout_seconds", 180))
             incoming = [event for event in incoming if event.visibility == "private"]
         state.next_poll = self.clock() + min(
             (getattr(a, "poll_interval_seconds", settings.get("inbox_poll_seconds", 60)) for a in adapters),
@@ -263,7 +319,10 @@ class DesktopScheduler:
         )
         await asyncio.to_thread(core.guard, run["generation"])
         if not custom and not run.get("reply_test") and self.clock() >= state.next_cycle:
-            await core.cycle()
+            if paused:
+                await core.cycle(receive=False)
+            else:
+                await core.cycle()
             policy = (await asyncio.to_thread(self.runtime.store.read, "policy"))["data"]
             state.next_cycle = self.clock() + policy.get("cycle_minutes", 15) * 60
         state.failures = 0

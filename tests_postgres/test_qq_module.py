@@ -98,6 +98,25 @@ async def handle(env, raw):
     return [await env.core.handle(event) for event in batch]
 
 
+async def test_native_sync_timeout_reconnects_with_fresh_verified_provider(env):
+    old = env.provider
+    interrupted = []
+    def timeout(*_):
+        raise AssistantError('qq_read_group_head_sync_timeout', 'synthetic')
+    old.poll_native = timeout
+    old.interrupt = lambda: interrupted.append(True)
+    fresh = Provider()
+    polls = []
+    fresh.poll_native = lambda module, guard: polls.append(guard())
+    env.module.factory = lambda: fresh
+    with pytest.raises(AssistantError) as caught:
+        await env.module.runtime_poll()
+    assert caught.value.code == 'qq_read_group_head_sync_timeout' and interrupted
+    await env.module.runtime_poll()
+    assert env.module.provider is fresh and env.module.ready and polls
+    del old.poll_native
+
+
 async def test_explicit_timing_captures_one_complete_reply_pipeline(env):
     from companion_core.reply_timing import control
 

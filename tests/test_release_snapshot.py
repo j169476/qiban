@@ -45,7 +45,7 @@ def test_export_excludes_history_local_state_and_personal_material(tmp_path):
     root = synthetic_source(tmp_path)
     for name in (".git/config", ".dev/private.txt", "bili-assistant-data/persona.yaml",
                  "companion-service-data/secrets.json", "assets/avatars/owner.png",
-                 "docs/evidence/real-chat.json", "docs/personas/private.yaml",
+                 "docs/evidence/real-chat.json", "docs/personas/private.yaml", "docs/design/美术素材/原始文件索引.tsv",
                  "docs/V8.2-manual-results.csv", "docs/V8.2-evidence-20261026/real-chat.json",
                  "docs/V8.2-bug-diagnosis-20261026.txt", "docs/V8.2-browser-test-report-20261026.txt",
                  "docs/V8.2-repair-progress-20261027.md",

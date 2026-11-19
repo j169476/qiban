@@ -214,7 +214,7 @@ internal sealed class ProbeWindow : Form
     readonly Stopwatch clock = Stopwatch.StartNew();
     readonly EventWaitHandle activate;
     readonly string pipeName = Program.Instance + "-service";
-    readonly List<object> events = [];
+    readonly Queue<object> events = new();
     readonly ComponentGroup component;
     readonly ShutdownJournal journal = new(Program.Paths.Data);
     readonly Panel shutdownPanel = new() { Dock=DockStyle.Fill,Visible=false };
@@ -240,13 +240,24 @@ internal sealed class ProbeWindow : Form
     readonly Dictionary<string, string> resources = new()
     {
         ["/"]="index.html", ["/manual"]="manual.html", ["/uninstall"]="uninstall.html",
-        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/auto-read.js"]="auto-read.js", ["/help.js"]="help.js", ["/help.css"]="help.css", ["/contacts.js"]="contacts.js", ["/model-choice.js"]="model-choice.js", ["/monitor-idle.gif"]="monitor-idle.gif", ["/monitor-idle.png"]="monitor-idle.png", ["/monitor-learning.gif"]="monitor-learning.gif", ["/monitor-learning.png"]="monitor-learning.png", ["/monitor-watching.gif"]="monitor-watching.gif", ["/monitor-watching.png"]="monitor-watching.png", ["/monitor-replying.gif"]="monitor-replying.gif", ["/monitor-replying.png"]="monitor-replying.png", ["/dragon-rest.svg"]="dragon-rest.svg",
+        ["/uninstall.js"]="uninstall.js", ["/feedback.js"]="feedback.js", ["/auto-read.js"]="auto-read.js", ["/help.js"]="help.js", ["/help.css"]="help.css", ["/contacts.js"]="contacts.js", ["/model-choice.js"]="model-choice.js", ["/dragon-rest.svg"]="dragon-rest.svg",
         ["/probe.css"]="probe.css", ["/probe.js"]="probe.js",
+        ["/house.css"]="house.css", ["/house.js"]="house.js",
+        ["/room-player.js"]="room-player.js", ["/room-scene.css"]="room-scene.css", ["/room-assets.js"]="room-assets.js",
+        ["/public-reader.js"]="public-reader.js", ["/public-content.js"]="public-content.js",
+        ["/trace-result.js"]="trace-result.js",
+        ["/art/hoodie-avatar.webp"]="hoodie-avatar.webp",
+        ["/workspace.js"]="workspace.js", ["/workspace-map.js"]="workspace-map.js",
+        ["/workspace-context.js"]="workspace-context.js", ["/workspace-learning.js"]="workspace-learning.js",
+        ["/workspace.css"]="workspace.css",
         ["/management.js"]="management.js",["/room.js"]="room.js",["/tasks.js"]="tasks.js",["/model.js"]="model.js",["/bili.js"]="bili.js",["/qq.js"]="qq.js",["/audience.js"]="audience.js",["/reply_quota.js"]="reply_quota.js",["/reply_trace.js"]="reply_trace.js",["/media.js"]="media.js",["/stickers.js"]="stickers.js",["/files.js"]="files.js",["/growth.js"]="growth.js",["/memories.js"]="memories.js",["/baseline.js"]="baseline.js",["/relationship.js"]="relationship.js",["/sharing.js"]="sharing.js",["/relation-claims.js"]="relation-claims.js",["/navigation.js"]="navigation.js",["/static/app.css"]="app.css", ["/static/qiban.css"]="qiban.css",
         ["/static/white-dragon-tea.png"]="white-dragon-tea.png"
     };
     public ProbeWindow(EventWaitHandle activation)
     {
+        foreach (var name in typeof(ProbeWindow).Assembly.GetManifestResourceNames())
+            if (name.StartsWith("room-stills/", StringComparison.Ordinal) && name.EndsWith(".webp", StringComparison.Ordinal))
+                resources.Add("/" + name, name);
         activate = activation;
         component = Program.ShutdownInspect ? new ComponentGroup(ProbeService.Definition(pipeName,"ignore-stop") with {WaitForExplicitForce=true})
             : Program.ManagedInstall ? InstallationComponent.Group(Path.Combine(Program.Paths.Data,"installation"),AppContext.BaseDirectory,pipeName)
@@ -317,8 +328,23 @@ internal sealed class ProbeWindow : Form
     void Log(string name, object? detail = null)
     {
         var item = new { name, milliseconds = clock.ElapsedMilliseconds, detail };
-        events.Add(item);
-        File.AppendAllText(Path.Combine(Program.Paths.Logs, "events.jsonl"), JsonSerializer.Serialize(item) + "\n");
+        lock (events)
+        {
+            if (events.Count >= 256) events.Dequeue();
+            events.Enqueue(item);
+            var path = Path.Combine(Program.Paths.Logs, "events.jsonl");
+            try
+            {
+                if (File.Exists(path) && new FileInfo(path).Length >= 4 * 1024 * 1024)
+                {
+                    if (File.Exists(path + ".1")) File.Move(path + ".1", path + ".2", true);
+                    File.Move(path, path + ".1", true);
+                }
+                File.AppendAllText(path, JsonSerializer.Serialize(item) + "\n");
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
     void HideToTray() {Hide();Log("hidden_to_tray");}
     void RestoreWindow() { Show(); WindowState = FormWindowState.Normal; Activate(); activations++; Log("window_activated"); }
@@ -430,7 +456,7 @@ internal sealed class ProbeWindow : Form
         if (!Allowed(e.Request.Uri) || !resources.TryGetValue(path, out var name))
         { e.Response = environment.CreateWebResourceResponse(null, 403, "Forbidden", ""); return; }
         var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)!;
-        string mime = Path.GetExtension(name) switch { ".css"=>"text/css", ".js"=>"application/javascript", ".png"=>"image/png", ".gif"=>"image/gif", ".svg"=>"image/svg+xml", _=>"text/html" };
+        string mime = Path.GetExtension(name) switch { ".css"=>"text/css", ".js"=>"application/javascript", ".png"=>"image/png", ".gif"=>"image/gif", ".webp"=>"image/webp", ".svg"=>"image/svg+xml", _=>"text/html" };
         e.Response = environment.CreateWebResourceResponse(stream, 200, "OK", "Content-Type: " + mime + "; charset=utf-8\r\n" +
             "Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'\r\nCache-Control: no-store");
     }
@@ -462,7 +488,6 @@ internal sealed class ProbeWindow : Form
                     await control.WaitAsync();
                     try
                     {
-                        Log("management_started");
                         if(exiting || component.State!="ready" || backend is null)throw new IOException("management_unavailable");
                         var request=message.RootElement;
                         string? operation=request.GetProperty("operation").GetString();
@@ -491,7 +516,7 @@ internal sealed class ProbeWindow : Form
                             catch(System.ComponentModel.Win32Exception){throw new IOException("model_login_browser_unavailable");}
                             response=JsonSerializer.SerializeToElement(new{ok=true,result=new{opened=true}});
                         }
-                        Log("management_completed",new{ok=response.GetProperty("ok").GetBoolean()});
+                        if (!response.GetProperty("ok").GetBoolean()) Log("management_failed");
                         Post(new{type="management",request_id=message.RootElement.GetProperty("request_id").GetString(),response});
                     }
                     finally{control.Release();}
@@ -1443,7 +1468,7 @@ internal sealed class ProbeWindow : Form
     {
         await Until(()=>JsBool("document.querySelector('#management-panel').dataset.locked==='false' && document.querySelector('#profile-area').dataset.loaded==='true'"));
         await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#persona-name').value='桌面资料验证';document.querySelector('#persona-description').value='独立应用内保存的测试简介';document.querySelector('#persona-speaking').value='自然交流\\n说清楚数字123';document.querySelector('#persona-interests').value='读书\\n绘画🙂';document.querySelector('#persona-name').dispatchEvent(new Event('input'));document.querySelector('#save-persona').click()");
-        await Until(()=>JsBool("document.querySelector('#management-notice').textContent==='资料已保存。'"));
+        await Until(()=>JsBool("document.querySelector('#profile-notice').textContent==='资料已保存。'"));
         await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#persona-name').value='';document.querySelector('#reload-persona').click()");
         await Until(()=>JsBool("document.querySelector('#persona-name').value==='桌面资料验证'"));Log("check_management_profile_save_pass");
         if(!await JsBool("document.querySelector('#persona-speaking').value==='自然交流\\n说清楚数字123' && document.querySelector('#persona-interests').value==='读书\\n绘画🙂'"))throw new IOException("profile_lists_mismatch");
@@ -1629,7 +1654,7 @@ internal sealed class ProbeWindow : Form
             await Until(()=>JsBool("document.querySelector('#bili-qr').hidden && document.querySelector('#bili-status').textContent.includes('已取消') && document.querySelector('#bili-current').textContent===''"));
             Log("check_bili_live_qr_cancel_pass");
         }
-        await Until(()=>JsBool("document.querySelector('#runtime-platforms').children.length===4 && [...document.querySelectorAll('#runtime-platforms button')].every(x=>x.disabled) && document.querySelector('#notification-items').textContent==='暂无运行通知。'"));
+        await Until(()=>JsBool("document.querySelector('#runtime-platforms').children.length===4 && [...document.querySelectorAll('#runtime-platforms button')].every(x=>x.disabled) && document.querySelector('#notification-items').textContent==='暂无应用通知。'"));
         Log("check_runtime_unavailable_controls_and_inbox_pass");
         await Until(()=>JsBool("document.querySelector('#tasks-submit').disabled && !document.querySelector('#tasks-refresh').disabled && document.querySelector('#tasks-items').textContent==='尚无手动任务。' && document.querySelector('#tasks-availability').textContent.includes('登录')"));
         await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#tasks-panel').scrollIntoView({behavior:'instant'});document.querySelector('#tasks-refresh').click()");

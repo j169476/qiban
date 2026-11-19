@@ -33,6 +33,10 @@ READ_FAILURE_MESSAGES = {
 }
 
 
+TRANSIENT_READ_ERRORS = frozenset(code for code in READ_FAILURE_MESSAGES if code.endswith(
+    ('_sync_generation_changed', '_sync_timeout', '_group_head_timeout')))
+
+
 class NativeProcess:
     WORKER = "worker.cjs"
     MAX_REPLY = 16 * 1024 * 1024

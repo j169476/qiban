@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from filelock import FileLock, Timeout
 
 from companion_codex.model import terminate_tree, worker_command
+from companion_core.observability import activity
 
 from .cognition import (
     DECISION_PROMPT,
@@ -244,7 +245,8 @@ class Scheduler:
         context, versions = packet(self.engine, {})
         context["reflection_memories"] = job["memories"]
         versions += [("memories", item["data"]["id"], item["version"]) for item in job["memories"]]
-        result = await self.model(REFLECTION_PROMPT, context, REFLECTION_SCHEMA)
+        with activity("learning"):
+            result = await self.model(REFLECTION_PROMPT, context, REFLECTION_SCHEMA)
         self.alive()
         verify_versions(self.engine.store, versions)
         growth_version = next(version for kind, _, version in versions if kind == "growth")

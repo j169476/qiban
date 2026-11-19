@@ -2,6 +2,7 @@
 import asyncio
 import secrets
 import uuid
+from datetime import datetime, timezone
 
 from companion_core.contracts import ActorRef
 from companion_core.errors import AssistantError
@@ -71,12 +72,19 @@ class OwnedCompanion(Companion):
             self.host.runtime.management.bili.require_run_account(run["accounts"])
         return run
 
-    async def cycle(self):
-        with self.host.runtime.activity.track(self.run_key.removeprefix('core-run:'), 'browsing'):
-            return await self.host.runtime.tasks.run(super().cycle)
+    async def cycle(self, *, receive=True):
+        from functools import partial
 
-    async def poll(self):
-        return await self.host.runtime.tasks.run(super().poll)
+        from companion_core.observability import observe_activities
+
+        cycle = super().cycle
+        platform = self.run_key.removeprefix('core-run:')
+        with observe_activities(partial(self.host.runtime.activity.track, platform)):
+            return await self.host.runtime.tasks.run(lambda: cycle(receive=receive))
+
+    async def poll(self, *, receive=True):
+        poll = super().poll
+        return await self.host.runtime.tasks.run(lambda: poll(receive=receive))
 
     async def handle(self, event):
         work = super().handle
@@ -188,13 +196,13 @@ class DesktopRuntime:
         value = self.store.state(HOLD, {}, db)
         self.store.set_state(HOLD, {**value, 'platforms': [item for item in held if item != platform]}, db)
 
-    def open(self):
+    def open(self, *, wechat_taskbar=None):
         from .desktop_scheduler import DesktopScheduler
 
         self.require_current()
         if self.scheduler is not None:
             raise AssistantError('scheduler_started', '后台任务调度已启动。')
-        self.scheduler = DesktopScheduler(self, maintenance=self.maintain)
+        self.scheduler = DesktopScheduler(self, maintenance=self.maintain, wechat_taskbar=wechat_taskbar)
         self.scheduler.open()
 
     def account_renewal_wanted(self):
@@ -237,13 +245,20 @@ class DesktopRuntime:
             self.awaiting_model.discard(platform)
 
     def maintain(self):
+        from companion_core import history_retention
         from companion_core.fact_retirement import cleanup
         from companion_core.media_originals import MediaOriginals
 
         MediaOriginals(self.store).cleanup(guard=self.require_current)
+        self.management.notifications.cleanup()
         with self.tasks.idle_maintenance() as idle:
             if idle:
+                history_retention.cleanup(self.store, guard=self.require_current)
                 cleanup(self.store, guard=self.require_current, reclaim_snapshots=True)
+
+    def intake_paused(self):
+        from companion_core.history_retention import intake_paused
+        return intake_paused(self.store)
 
     def configure_platform(self, platform, adapter):
         """Replace a stopped connector without disturbing other platforms."""
@@ -322,7 +337,9 @@ class DesktopRuntime:
             if self.scheduler is not None:
                 platforms[-1].update(self.scheduler.status(platform))
         return {'role':self.role.as_dict(),'application_session':self.application,'runtime_instance':self.instance,
+                'generated_at':datetime.now(timezone.utc).isoformat(),
                 'preference_revision':preferences['revision'],'platforms':platforms,'tasks_blocked':self.tasks.blocked,
+                'intake_paused':self.intake_paused(),
                 'handoff_pending':self.handoff_pending(), 'activities':self.activity.snapshot()}
 
     def platform_model(self, platform):

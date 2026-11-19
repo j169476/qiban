@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-companion-core"
-version = "0.9.7"
+version = "0.9.9"
 description = "Platform-independent local companion cognition, storage and identity services."
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
-dependencies = ["PyYAML>=6.0.2,<7", "jsonschema>=4.23,<5", "filelock>=3.16,<4", "Pillow>=11,<14", "tzdata>=2025.1"]
+dependencies = ["PyYAML>=6.0.2,<7", "jsonschema>=4.23,<5", "filelock>=3.16,<4", "Pillow>=11,<14", "tzdata>=2025.1",
+                "onnxruntime==1.31.0", "tokenizers==0.23.3", "numpy>=2,<3"]
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary,pool]>=3.2,<4", "cryptography>=46,<51"]
@@ -18,4 +19,4 @@ where = ["../../src"]
 include = ["companion_core*"]
 
 [tool.setuptools.package-data]
-companion_core = ["*.json", "sql/*.sql"]
+companion_core = ["*.json", "sql/*.sql", "history_model/*"]

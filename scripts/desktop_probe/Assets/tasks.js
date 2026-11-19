@@ -21,7 +21,7 @@
   el('video-fields').hidden=selected!=='video';el('web-fields').hidden=selected==='video';el('learn-fields').hidden=selected!=='learn';
   el('submit').textContent={video:'提交视频任务',web:'提交查资料任务',learn:'提交学习任务'}[selected];
   canSubmit=!!capability?.available;
-  el('availability').textContent=!session?'请先启动后台并解锁本机管理。':capability?.reason||(selected==='video'?'视频任务可提交；仅执行此次要求，使用现有任务与模型额度。':'任务可提交。');
+  el('availability').textContent=!session?'请先启动后台并解锁本机管理。':capability?.reason||(canSubmit?'可以提交本次任务。':'当前未取得此任务的可用权限。');
   controls();
  }
  const states={queued:'等待执行',running:'正在执行',completed:'已完成',failed:'未完成',cancelled:'已取消'};

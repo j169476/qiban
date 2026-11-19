@@ -6,6 +6,7 @@ from companion_core.errors import AssistantError
 from companion_wechat.collector import collector_account
 from companion_wechat.db_source import validate_checkpoint, validate_enrollment
 from companion_wechat.module import WeChatModule
+from companion_wechat.windows_version import unsupported_message, version_status
 
 SETUP = "desktop-wechat-source-v1"
 
@@ -23,10 +24,14 @@ async def detect_accounts(resources):
         accounts = result.get("accounts") if isinstance(result, dict) else None
         if not isinstance(accounts, list) or not all(personal(name) for name in accounts):
             raise AssistantError("wechat_account_detection", "无法核实微信登录账号，请重新检测")
+        if not accounts:
+            status = version_status()
+            if status["running_versions"] and status["running_versions"] == status["unrecognized_versions"]:
+                raise AssistantError("client_version_unsupported", unsupported_message(status))
         return {"accounts": accounts}
     except WorkerError as exc:
         if exc.code == "client_version_unsupported":
-            raise AssistantError(exc.code, "当前微信版本尚未适配，无法核验登录账号") from None
+            raise AssistantError(exc.code, unsupported_message()) from None
         raise AssistantError(exc.code, "无法核验当前登录账号，请确认微信已登录后重新检测") from None
     finally:
         await worker.close()

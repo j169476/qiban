@@ -15,6 +15,33 @@ from tests_wechat.test_receiver import snapshot
 __all__ = ["desktop_store", "service"]
 
 
+@pytest.mark.parametrize("worker_result", ["empty", "unsupported"])
+async def test_unknown_running_version_is_visible_on_account_check(tmp_path, monkeypatch, worker_result):
+    from companion_wechat import receiver_transport
+    from companion_wechat.providers import uia
+    from qiban.desktop_wechat import detect_accounts, version_status
+
+    monkeypatch.setattr(uia, "running_client_versions", lambda: ["99.0.0.1"])
+    assert version_status()["unrecognized_versions"] == ["99.0.0.1"]
+    (tmp_path / "Qiban.WeChatReader.exe").touch()
+    class Reader:
+        def __init__(self, **kwargs):
+            pass
+
+        async def request(self, command):
+            if worker_result == "unsupported":
+                raise receiver_transport.WorkerError("client_version_unsupported")
+            return {"accounts": []}
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(receiver_transport, "SubprocessTransport", Reader)
+    with pytest.raises(AssistantError, match="99.0.0.1") as failure:
+        await detect_accounts(tmp_path)
+    assert failure.value.code == "client_version_unsupported"
+
+
 def test_directory_search_preserves_account_revision_and_rejects_late_pages(service, tmp_path, monkeypatch):
     from companion_wechat import receiver_transport
 

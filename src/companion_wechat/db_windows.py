@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import PureWindowsPath
 
 from .native.versions import PROFILES
+from .windows_version import file_version as _file_version
 
 SUPPORTED_VERSION = PROFILES[0]["version"]
 SUPPORTED_VERSIONS = frozenset(p["version"] for p in PROFILES)
@@ -236,33 +237,6 @@ class _WindowsAPI:
         user.GetWindowThreadProcessId(user.GetForegroundWindow(), ctypes.byref(foreground_pid))
         return {"window_count": len(states), "minimized_count": sum(states),
                 "all_minimized": bool(states) and all(states), "foreground_is_target": foreground_pid.value == pid}
-
-
-def _file_version(path):
-    api = ctypes.WinDLL("version", use_last_error=True)
-    api.GetFileVersionInfoSizeW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(wintypes.DWORD)]
-    api.GetFileVersionInfoSizeW.restype = wintypes.DWORD
-    api.GetFileVersionInfoW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p]
-    api.GetFileVersionInfoW.restype = wintypes.BOOL
-    api.VerQueryValueW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p),
-                                 ctypes.POINTER(wintypes.UINT)]
-    api.VerQueryValueW.restype = wintypes.BOOL
-    unused = wintypes.DWORD()
-    size = api.GetFileVersionInfoSizeW(path, ctypes.byref(unused))
-    if not 0 < size <= 1024 * 1024:
-        return ""
-    buffer = ctypes.create_string_buffer(size)
-    if not api.GetFileVersionInfoW(path, 0, size, buffer):
-        return ""
-    pointer, length = ctypes.c_void_p(), wintypes.UINT()
-    if (not api.VerQueryValueW(buffer, "\\", ctypes.byref(pointer), ctypes.byref(length))
-            or not pointer.value or length.value < 52):
-        return ""
-    values = ctypes.cast(pointer, ctypes.POINTER(wintypes.DWORD))
-    if values[0] != 0xFEEF04BD:
-        return ""
-    hi, lo = values[2], values[3]
-    return f"{hi >> 16}.{hi & 65535}.{lo >> 16}.{lo & 65535}"
 
 
 def discover_wechat(*, pid=None, api=None):

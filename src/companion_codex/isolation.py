@@ -17,6 +17,7 @@ import tomllib
 from pathlib import Path
 
 from companion_core.errors import AssistantError
+from companion_core.reply_timing import timed
 
 DISABLED_FEATURES = (
     "shell_tool", "plugins", "apps", "computer_use", "browser_use", "in_app_browser",
@@ -152,6 +153,7 @@ class IsolatedJob:
                        r"set TEMP=..\temp&&set TMP=..\temp&&" + name + " app-server --listen stdio://"]
         return command + ["--", *payload]
 
+    @timed("model.workdir_close")
     def close(self):
         # Delete only the exact fresh job we created; never follow a replacement
         # junction/symlink or accept a model-supplied cleanup path.

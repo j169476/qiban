@@ -6,9 +6,9 @@
 // 业务读取、提交或取消；因此切换后表单内容、筛选和未保存输入保持原样，原 [hidden] 规则
 // 仍然优先。菜单与标签只改 aria-expanded / aria-pressed，显隐由 CSS 决定。
 (()=>{
- const pages=['home','persona','platforms','model','records','media','settings'];
  const body=document.body;
  const links=Array.from(document.querySelectorAll('[data-nav-target]'));
+ const pages=links.map(link=>link.dataset.navTarget);
  const tabs=Array.from(document.querySelectorAll('[data-tab-target]'));
  const byId=id=>typeof document.getElementById==='function'?document.getElementById(id):null;
  const toggle=byId('app-settings'), menu=byId('app-settings-menu');

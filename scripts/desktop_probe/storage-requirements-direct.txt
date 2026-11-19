@@ -10,3 +10,6 @@ psycopg-pool==3.3.3
 cryptography==50.0.2
 keyring==25.7.0
 PyJWT==2.15.1
+numpy==2.4.6
+onnxruntime==1.31.0
+tokenizers==0.23.3

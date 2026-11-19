@@ -297,7 +297,9 @@ def test_official_browser_login_verifies_identity_and_requires_account_switch_co
     assert reply["ok"] and reply["result"]["state"] == "confirm"
     assert seen == [cookies] and broker.path.read_bytes() == previous
     assert "synthetic-browser-session" not in json.dumps(reply)
-    assert op("confirm", ticket=browser["ticket"])["result"]["current"]["uid"] == "202"
+    saved = op("confirm", ticket=browser["ticket"])["result"]
+    assert saved["current"]["uid"] == "202"
+    assert "未取得自动续期凭据" in saved["message"]
     assert b"synthetic-browser-session" not in broker.path.read_bytes()
 
 

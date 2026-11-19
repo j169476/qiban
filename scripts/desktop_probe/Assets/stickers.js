@@ -60,7 +60,7 @@
   else preview.removeAttribute('src');
   el('sticker-detail-title').textContent=current
    ?`${current.name} · ${current.enabled?'已启用':'已停用'} · ${current.frames>1?'动图（预览为首帧）':'静态图片'}`
-   :'先在中间栏选择一张表情。';
+   :'请选择一张表情。';
   const draft=current?(drafts.get(current.id)||{name:current.name,tagsText:current.tags.join('，'),enabled:current.enabled})
    :{name:'',tagsText:'',enabled:false};
   el('sticker-detail-name').value=draft.name;
@@ -154,7 +154,7 @@
    for(const id of ['sticker-name','sticker-tags','sticker-detail-name','sticker-detail-tags'])el(id).value='';
    el('sticker-detail-enabled').checked=false;el('sticker-notice').textContent='';
    el('sticker-detail-feedback').textContent='';el('sticker-detail-preview').hidden=true;
-   el('sticker-detail-title').textContent='先在中间栏选择一张表情。';
+   el('sticker-detail-title').textContent='请选择一张表情。';
   }
   render();if(allowed)void perform();
  });

@@ -1,4 +1,6 @@
+from asyncio import CancelledError
 from copy import deepcopy
+from functools import partial
 
 import pytest
 from test_cognition import LearningAdapter, configure
@@ -21,6 +23,8 @@ from bili_assistant.learning import (
     step,
 )
 from bili_assistant.scheduler import Scheduler
+from companion_core.observability import observe_activities
+from qiban.desktop_activity import Activity
 
 
 def request(role, content="请帮我学习最小案例调试法，重点理解控制变量及其适用边界。", key="role", message="request-1"):
@@ -101,6 +105,30 @@ async def test_no_automatic_goals_and_creation_requires_current_role_user_eviden
     with pytest.raises(AssistantError, match="已有一个"):
         create(role, "另一目标", ["边界"], another, quote)
     assert (await call(admin, "learning_goal_status", {}))["goals"][0]["data"] == first["data"]
+
+
+@pytest.mark.asyncio
+async def test_monitor_observes_real_learning_and_releases_cancelled_video(role, monkeypatch):
+    monitor = Activity()
+    scheduler = Scheduler(role, role.run()["generation"])
+    goal(role)
+
+    def assert_state(state):
+        assert [(row["platform"], row["state"]) for row in monitor.snapshot()] == [("bilibili", state)]
+
+    monkeypatch.setattr(scheduler, "model", model_stub(role, [], mutate=lambda *_: assert_state("learning")))
+
+    async def cancelled_video(*args, **kwargs):
+        assert_state("watching")
+        raise CancelledError()
+
+    monkeypatch.setattr(role.adapter, "video_context", cancelled_video)
+    with observe_activities(partial(monitor.track, "bilibili")):
+        await step(scheduler)
+        assert monitor.snapshot() == []
+        with pytest.raises(CancelledError):
+            await role.video_context("BV1xx411c7mD")
+        assert monitor.snapshot() == []
 
 
 @pytest.mark.asyncio

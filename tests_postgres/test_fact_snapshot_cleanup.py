@@ -122,7 +122,7 @@ def test_upgrade_interruption_rolls_back_schema_and_reopen_preserves_records(ser
             service.store.migrate()
     with service.store.db() as db:
         assert db.execute("SELECT to_regclass('source_retention')").fetchone()[0] is None
-        assert db.execute('SELECT MAX(version) FROM schema_migrations').fetchone()[0] == 14
+        assert db.execute('SELECT MAX(version) FROM schema_migrations WHERE version<=15').fetchone()[0] == 14
     service.store.migrate()
     service.store.migrate()
     assert service.store.read('memories', identifier) == before

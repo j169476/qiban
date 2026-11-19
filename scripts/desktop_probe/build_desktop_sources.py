@@ -15,7 +15,7 @@ again afterwards and fails the build when any input changed while publishing. Th
 therefore always belongs to the shell recorded next to it: it is never assembled later from an
 arbitrary source directory. Only the whitelist is read — top-level ``*.cs``, ``*.csproj``,
 ``packages.lock.json``, ``build.ps1`` and this recorder itself in the probe directory, its
-``Assets`` and ``licenses`` trees and the repository ``LICENSE``. Nothing under ``.dev``, no installation configuration,
+``Assets`` and ``licenses`` trees, the public-page generator and its five published documents. Nothing under ``.dev``, no installation configuration,
 ``runtime.json``, log, account, cache or test data is opened, and refused paths fail the build.
 
 Nothing here signs the executable, adds an update source or claims that installation, upgrade or a
@@ -43,11 +43,11 @@ MANIFEST_FIELDS = frozenset({'format', 'exe', 'source_archive', 'files', 'compil
 EXE_FIELDS = frozenset({'file', 'sha256'})
 ARCHIVE_FIELDS = frozenset({'file', 'sha256'})
 COMPILED_FIELDS = frozenset({'managed_application', 'subscription_validation'})
-TOP_NAMES = frozenset({'build.ps1', 'build_desktop_sources.py', 'packages.lock.json'})
+TOP_NAMES = frozenset({'build.ps1', 'build_desktop_sources.py', 'build_public_pages.py', 'packages.lock.json'})
 TOP_SUFFIXES = frozenset({'.cs', '.csproj'})
 TREES = ('Assets', 'licenses')
 PROJECT_FILE = 'LICENSE'
-EMBEDDED = ()
+EMBEDDED = ('THIRD_PARTY_NOTICES.md', 'docs/桌面声明.md', 'docs/微信支持范围.md', 'docs/模型选择参考.md')
 FORBIDDEN_PARTS = frozenset({
     '.dev', 'accounts', 'active-generation.json', 'cache', 'installation-status.json',
     'installation.json', 'logs', 'runtime.json', 'storage-config.json', 'temp', 'test-data'})

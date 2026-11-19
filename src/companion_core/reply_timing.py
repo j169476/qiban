@@ -3,7 +3,7 @@ import inspect
 import secrets
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from functools import wraps
 
@@ -12,6 +12,7 @@ from .errors import AssistantError
 KEY = "developer-reply-timing"
 CURRENT = ContextVar("developer_reply_timing", default=None)
 PARENT = ContextVar("developer_reply_timing_parent", default=None)
+TURN = ContextVar("developer_reply_model_turn", default=None)
 PLATFORMS = {"qq", "wechat", "bilibili", "local"}
 
 
@@ -102,13 +103,13 @@ class Capture:
 def span(name):
     capture = CURRENT.get()
     if capture is None:
-        yield
+        yield None
         return
     row = capture.begin(name, PARENT.get())
     token = PARENT.set(row["id"] if row is not None else PARENT.get())
     status = "completed"
     try:
-        yield
+        yield row
     except BaseException:
         status = "failed_or_cancelled"
         raise
@@ -123,6 +124,92 @@ def phase(name):
         capture.end(capture.phase)
         capture.phase = capture.begin(name, 0)
         PARENT.set(capture.phase["id"] if capture.phase else 0)
+
+
+@contextmanager
+def model_turn():
+    """Measure the client side of one model turn, including failed turns."""
+    from .observability import current_stage
+
+    with span("model.request_and_wait") as row:
+        if row is None:
+            yield
+            return
+        stage = current_stage()
+        row.update(purpose=stage if stage in {"recall.expand", "reply.generate", "reply.summarize"} else "other",
+                   output_wait_ms=0., guard_ms=0., guard_checks=0, first_delta_ms=None)
+        token = TURN.set((row, time.perf_counter()))
+        try:
+            yield
+        finally:
+            TURN.reset(token)
+            for key in ("output_wait_ms", "guard_ms"):
+                row[key] = round(row[key], 3)
+
+
+@contextmanager
+def _measure_part(row, key):
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        row[key] += (time.perf_counter() - start) * 1000
+        if key == "guard_ms":
+            row["guard_checks"] += 1
+
+
+def model_part(key):
+    turn = TURN.get()
+    return _measure_part(turn[0], key) if turn else nullcontext()
+
+
+def first_model_delta():
+    turn = TURN.get()
+    if turn and turn[0]["first_delta_ms"] is None:
+        turn[0]["first_delta_ms"] = round((time.perf_counter() - turn[1]) * 1000, 3)
+
+
+def wall_breakdown(rows):
+    """Attribute each interval once. Parallel spans have no unique wall-time owner."""
+    if not rows:
+        return {}
+    root = rows[0]
+    start, end = root["start_ms"], root["start_ms"] + root["duration_ms"]
+    edges = {start, end}
+    windows = []
+    for row in rows[1:]:
+        left = max(start, row["start_ms"])
+        right = min(end, row["start_ms"] + row["duration_ms"])
+        if right > left:
+            edges.update((left, right))
+            windows.append((left, right, row))
+    amounts = {}
+    edges = sorted(edges)
+    for left, right in zip(edges, edges[1:]):
+        active = [row for a, b, row in windows if a <= left and right <= b]
+        parents = {row["parent"] for row in active}
+        leaves = [row for row in active if row["id"] not in parents]
+        name = leaves[0]["stage"] if len(leaves) == 1 else ("overlap" if leaves else "reply.other")
+        amounts[name] = amounts.get(name, 0.) + right - left
+    return {key: round(value, 3) for key, value in amounts.items()}
+
+
+def model_breakdown(rows, wall, limited):
+    turns = [row for row in rows if row["stage"] == "model.request_and_wait"]
+    if limited or not turns:
+        return None
+    window = wall.get("model.request_and_wait", 0.)
+    if abs(window - sum(turn["duration_ms"] for turn in turns)) > .1:
+        return None  # Parallel work cannot be assigned to a single owner.
+    waiting = sum(turn["output_wait_ms"] for turn in turns)
+    guards = sum(turn["guard_ms"] for turn in turns)
+    setup = sum(ms for name, ms in wall.items()
+                if name == "model.initialize" or name.startswith("model.initialize."))
+    return {"turn_count": len(turns), "worker_output_wait_ms": round(waiting, 3),
+            "local_receive_checks_ms": round(guards, 3),
+            "turn_other_ms": round(max(0, window - waiting - guards), 3),
+            "model_session_setup_ms": round(setup, 3),
+            "outside_setup_and_turns_ms": round(sum(wall.values()) - setup - window, 3)}
 
 
 def timed(name):
@@ -173,9 +260,11 @@ def capture_reply(store, event):
             phases = [{"stage": row["stage"], "duration_ms": row["duration_ms"],
                        "percent": round(row["duration_ms"] / total * 100, 2) if total else 0}
                       for row in rows if row["parent"] == 0]
+            wall = wall_breakdown(rows)
             report = {**request, "status": status, "started_at": capture.started_at, "finished_at": time.time(),
                       "spans": rows, "limited": capture.limited,
-                      "analysis": {"total_ms": total, "phases": phases,
+                      "analysis": {"total_ms": total, "phases": phases, "wall_by_stage_ms": wall,
+                                   "model_breakdown": model_breakdown(rows, wall, capture.limited),
                                    "largest_phase": max(phases, key=lambda row: row["duration_ms"], default=None),
                                    "unattributed_ms": rows[0]["self_ms"] if rows else 0},
                       "scope": "reply_handler_through_delivery; excludes platform polling before handler",

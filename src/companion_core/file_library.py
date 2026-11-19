@@ -154,8 +154,8 @@ class FileLibrary:
 
 def verify_files(store):
     library = FileLibrary(store)
-    with store.db() as db:
-        for row in db.execute("SELECT * FROM file_library"):
+    with store.db() as db, db.stream("SELECT * FROM file_library") as rows:
+        for row in rows:
             item = library._summary(row)
             describe(item["name"], item["tags"])
             check(scopes(item["scopes"]) == item["scopes"], "backup_invalid")

@@ -2,7 +2,11 @@
 *.py text eol=lf
 *.md text eol=lf
 *.json text eol=lf
+src/companion_core/history_model/tokenizer.json -text
+*.onnx binary
 *.yaml text eol=lf
 *.toml text eol=lf
 *.sql text eol=lf
+# Already applied by 0.9.7.4 installations; the final blank line is part of the stored checksum.
+src/companion_core/sql/016_unattended_history.sql whitespace=-blank-at-eof
 scripts/desktop_probe/licenses/Windows-SDK.rtf -text

@@ -137,7 +137,7 @@
   return ()=>{
    retention=value;el('fact-retention-days').value=String(value.days);
    const last=value.last_cleanup;
-   el('fact-retention-notice').textContent='设置已读取。未停用的历史不按时间清理。'+(value.maintenance_error?'后台清理遇到异常并已停止，请检查后台状态。':last?`最近一批检查 ${last.examined} 条，清理 ${last.removed} 条，因引用或有效状态保留 ${last.referenced_or_active} 条。`:'尚未执行后台检查。');
+   el('fact-retention-notice').textContent='设置已读取。未停用的历史不按时间清理。'+(value.maintenance_error?'后台清理遇到异常，请查看后台状态。':last?`最近一批检查 ${last.examined} 条，清理 ${last.removed} 条，因引用或有效状态保留 ${last.referenced_or_active} 条。`:'尚未执行后台检查。');
    if(!value.maintenance_error&&last?.snapshots)el('fact-retention-notice').textContent+=last.snapshots.status==='indexing'?'正在分批核对旧记录的引用，完成前暂不清理。':`本批回收 ${last.snapshots.removed} 条失效且未使用的自动来源记录。`;
    if(!value.maintenance_error&&last?.snapshots?.unverified)el('fact-retention-notice').textContent+=`${last.snapshots.unverified} 条来源关系尚未核实，已保留待检查。`;
   };

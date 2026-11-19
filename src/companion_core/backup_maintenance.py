@@ -42,7 +42,10 @@ class BackupMaintenance:
             previous = self.store.state("service-backup", {})
             if now < previous.get("next_at", 0):
                 return None
-            with self.store.lock:
+            with self.store.backup_lock:
+                previous = self.store.state("service-backup", {})
+                if now < previous.get("next_at", 0):
+                    return None
                 with self.store.db() as db:
                     revision = db.execute("SELECT revision FROM maintenance_revision WHERE singleton=TRUE").fetchone()[0]
                 if previous.get("revision") == revision and previous.get("status") == "saved":

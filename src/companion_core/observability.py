@@ -4,7 +4,7 @@ import re
 import sqlite3
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 
@@ -12,6 +12,22 @@ from .errors import AssistantError
 
 TOKENS = ("input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens")
 _stage = ContextVar("companion_observation_stage", default="unclassified")
+_activity_listener = ContextVar("companion_activity_listener", default=None)
+
+
+@contextmanager
+def observe_activities(listener):
+    """Attach the monitor to work in this task without storing conversation data."""
+    token = _activity_listener.set(listener)
+    try:
+        yield
+    finally:
+        _activity_listener.reset(token)
+
+
+def activity(state):
+    listener = _activity_listener.get()
+    return listener(state) if listener else nullcontext()
 
 
 def current_stage():

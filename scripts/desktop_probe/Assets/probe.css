@@ -47,6 +47,8 @@ body[data-nav-page="platforms"] [data-nav-page]:not([data-nav-page="platforms"])
 body[data-nav-page="model"] [data-nav-page]:not([data-nav-page="model"]),
 body[data-nav-page="records"] [data-nav-page]:not([data-nav-page="records"]),
 body[data-nav-page="media"] [data-nav-page]:not([data-nav-page="media"]),
+body[data-nav-page="learn"] [data-nav-page]:not([data-nav-page="learn"]),
+body[data-nav-page="context"] [data-nav-page]:not([data-nav-page="context"]),
 body[data-nav-page="settings"] [data-nav-page]:not([data-nav-page="settings"]){display:none}
 /* LAYOUT-172 · 分区内的分组标签。形态与分区规则相同：只隐藏与当前标签不匹配的元素，
    标签属性用空白分隔的多个值表示“该元素归属多个标签”，未标记的元素在任何标签下都显示。
@@ -58,6 +60,9 @@ body[data-tab-persona="sharing"] [data-persona-pane]:not([data-persona-pane~="sh
 body[data-tab-platforms="qq"] [data-platform-pane]:not([data-platform-pane~="qq"]),
 body[data-tab-platforms="wechat"] [data-platform-pane]:not([data-platform-pane~="wechat"]),
 body[data-tab-platforms="bilibili"] [data-platform-pane]:not([data-platform-pane~="bilibili"]),
+body[data-tab-model="choice"] [data-model-pane]:not([data-model-pane~="choice"]),
+body[data-tab-model="accounts"] [data-model-pane]:not([data-model-pane~="accounts"]),
+body[data-tab-model="quota"] [data-model-pane]:not([data-model-pane~="quota"]),
 body[data-tab-records="tasks"] [data-records-pane]:not([data-records-pane~="tasks"]),
 body[data-tab-records="trace"] [data-records-pane]:not([data-records-pane~="trace"]),
 body[data-tab-media="attachments"] [data-media-pane]:not([data-media-pane~="attachments"]),

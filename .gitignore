@@ -49,3 +49,16 @@ pytest-of-*/
 *.whl
 *.pdb
 docs/QIBAN_*.md
+
+# Keep local design evidence and superseded art; publish the selected room and its tools.
+docs/design/
+output/*
+!output/design-art/
+output/design-art/*
+!output/design-art/room-static-v1/
+!output/design-review/
+output/design-review/*
+!output/design-review/tools/
+output/design-review/tools/*
+!output/design-review/tools/receive_room_art.py
+!output/design-review/tools/check_pixel_room.py

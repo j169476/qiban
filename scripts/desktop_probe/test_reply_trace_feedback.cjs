@@ -20,7 +20,7 @@ function page(){
  const node=id=>{if(!nodes.has(id))nodes.set(id,element('div'));return nodes.get(id);};
  let sequence=0;
  const webview={addEventListener(_,fn){listeners.push(fn);},postMessage(request){requests.push(request);}};
- vm.runInNewContext(fs.readFileSync(path.join(__dirname,'Assets/reply_trace.js'),'utf8'),{
+ vm.runInNewContext(['trace-result.js','reply_trace.js'].map(f=>fs.readFileSync(path.join(__dirname,'Assets',f),'utf8')).join('\n'),{
   document:{getElementById:node,createElement:element},
   window:{chrome:{webview},addEventListener(name,fn){events[name]=fn;}},
   crypto:{randomUUID:()=>String(++sequence)},
@@ -82,6 +82,31 @@ function listing(items,overrides={}){
 
 function latest(p){return p.requests.at(-1);}
 
+test('a generated reply cancelled before dispatch is visibly unsent in both lists and details',async()=>{
+ const data=trace({platform:'wechat',outcome:'cancelled',outcome_error:'wechat_driver_prepare_failed',duration_ms:7109});
+ const {p}=await opened([data],data);
+ assert.match(p.texts(p.node('reply-trace-list')).join('|'),/微信 · 未发送 · 7109 毫秒/);
+ assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/记录状态：未发送/);
+ assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/微信发送准备失败/);
+ assert.doesNotMatch(p.texts(p.node('reply-trace-detail')).join('|'),/wechat_driver_prepare_failed/);
+});
+
+test('receipt uncertainty and sender-side success remain distinct from delivery',async()=>{
+ for(const [outcome,error,label,reason] of [
+  ['uncertain','wechat_receipt_disconnected','发送结果待确认','发送记录暂时无法核对'],
+  ['cancelled','wechat_prepare_version_unsupported','未发送','当前微信版本暂不支持发送'],
+  ['cancelled','wechat_prepare_window_not_minimized','未发送','请将电脑微信窗口最小化后再试'],
+  ['cancelled','wechat_send_target_changed','未发送','接收会话已变化'],
+  ['succeeded','','发送端已记录',''],['no_action','','无需发送','']
+ ]){
+  const data=trace({platform:'wechat',outcome,outcome_error:error});
+  const {p}=await opened([data],data);
+  const detail=p.texts(p.node('reply-trace-detail')).join('|');
+  assert.ok(detail.includes(label)&&detail.includes(reason));
+  assert.doesNotMatch(detail,/已送达|对方已收到|wechat_(receipt|send|prepare)_/);
+ }
+});
+
 async function loaded(items){
  const p=page();
  p.state(true,true);
@@ -140,7 +165,7 @@ test('a failed read is reported as a failure and the same button retries it',asy
  assert.equal(latest(p).operation,'reply_trace.list');
  await p.reply(latest(p),listing([row()]));
  await p.flush(2);
- assert.match(p.texts(p.node('reply-trace-list')).join('|'),/QQ · 完成 · 1234 毫秒/);
+ assert.match(p.texts(p.node('reply-trace-list')).join('|'),/QQ · 处理结束 · 1234 毫秒/);
 });
 
 test('the recent count is checked before anything is read',async()=>{
@@ -172,7 +197,7 @@ test('the recent count is checked before anything is read',async()=>{
 test('a record shows platform, times, stages and source version state',async()=>{
  const {p}=await opened();
  const text=p.texts(p.node('reply-trace-detail')).join('|');
- assert.match(text,/记录状态：完成/);
+ assert.match(text,/记录状态：处理结束/);
  assert.match(text,/平台：QQ/);
  assert.match(text,/开始时间：2026\/11\/8 12:00:00|开始时间：2026\/11\/8 12:00:00/);
  assert.match(text,/结束时间：/);
@@ -220,7 +245,7 @@ test('unknown states stay readable and an expired record never looks loaded',asy
  await job;
  const text=p.texts(p.node('reply-trace-detail')).join('|');
  assert.match(text,/回复追踪不存在或已过期/);
- assert.equal(text.includes('记录状态：完成'),false);
+ assert.equal(text.includes('记录状态：处理结束'),false);
  assert.equal(p.texts(p.node('reply-trace-detail')).some(line=>line.startsWith('记录标识：')),false);
  // The row stays clickable so the read can be retried.
  assert.equal(p.buttons(p.node('reply-trace-list'))[2].disabled,false);
@@ -311,12 +336,12 @@ test('a pending detail still paints when the reloaded list keeps its record',asy
  assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/正在读取这条记录/);
  await p.reply(detailRequest,trace());
  await job;
- assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/记录状态：完成/);
+ assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/记录状态：处理结束/);
 });
 
 test('locking clears the page and delays no reply back onto it',async()=>{
  const {p,request}=await opened();
- assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/记录状态：完成/);
+ assert.match(p.texts(p.node('reply-trace-detail')).join('|'),/记录状态：处理结束/);
  const late=p.buttons(p.node('reply-trace-list'))[0].onclick();
  const pending=latest(p);
  p.state(true,false);
@@ -334,7 +359,7 @@ test('locking clears the page and delays no reply back onto it',async()=>{
  p.state(true,true);
  await p.reply(latest(p),listing([row()]));
  await p.flush(2);
- assert.match(p.texts(p.node('reply-trace-list')).join('|'),/QQ · 完成/);
+ assert.match(p.texts(p.node('reply-trace-list')).join('|'),/QQ · 处理结束/);
 });
 
 test('a read that never returns times out with a nearby retry',async()=>{
@@ -349,5 +374,5 @@ test('a read that never returns times out with a nearby retry',async()=>{
  await p.flush(2);
  await p.reply(latest(p),listing([row()]));
  await p.flush(2);
- assert.match(p.texts(p.node('reply-trace-list')).join('|'),/QQ · 完成/);
+ assert.match(p.texts(p.node('reply-trace-list')).join('|'),/QQ · 处理结束/);
 });

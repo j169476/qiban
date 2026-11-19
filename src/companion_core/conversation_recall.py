@@ -7,6 +7,14 @@ from .retrieval import scores
 
 MAX_CHARS = 6000
 MAX_ANCHORS = 2
+CONCEPTS = (
+    ("称呼", "叫我", "叫作", "昵称", "绰号", "名字"),
+    ("住在", "我住", "居住", "住哪", "搬到", "搬去", "搬家", "住所"),
+    ("疲惫", "好累", "累的", "筋疲力尽", "耗尽", "被折腾", "精疲力竭"),
+    ("安静陪伴", "陪一会", "听我说", "倾听", "倾诉", "不想说话"),
+    ("会面", "碰面", "见面", "赴约", "相约", "集合"),
+    ("取消", "改期", "改约", "改成", "推迟", "变更", "有何变化", "有什么变化"),
+)
 GUIDANCE = (
     "conversation.recalled 是按当前问题选出的历史原文片段，不是连续对话或已确认事实。"
     "按 speaker、sender_uid、时间和 status 区分用户陈述、助手回答及未成功发送的内容。"
@@ -19,7 +27,7 @@ def size(value):
     return len(json.dumps(value, ensure_ascii=False))
 
 
-def recall(available, query, queries=(), *, excluded=(), max_chars=MAX_CHARS):
+def recall(available, query, queries=(), *, excluded=(), max_chars=MAX_CHARS, ranker=None, current_sender=None):
     """Caller scopes/authorizes the corpus BEFORE this function sees any text.
 
     Keep at most two disjoint three-turn windows. Neighbors are data, not extra
@@ -27,6 +35,10 @@ def recall(available, query, queries=(), *, excluded=(), max_chars=MAX_CHARS):
     keep an assertion while dropping its adjacent correction. No disk index or
     extra model call is used. Coordinates always refer to the original turn.
     """
+    # Expand only concepts present in the question, inside the already-authorized
+    # conversation. The original text and its qualifiers remain the evidence.
+    expanded = [" ".join(words) for words in CONCEPTS if any(word in query for word in words)]
+    queries = [*queries, *expanded][:5]
     query_terms = terms(query, queries)
     if not query_terms or max_chars < 1:
         return []
@@ -35,7 +47,8 @@ def recall(available, query, queries=(), *, excluded=(), max_chars=MAX_CHARS):
                   if item["data"]["id"] not in excluded and item["data"]["content"]]
     spans = {("conversation_turns", item["data"]["id"]): split(item["data"]["content"])
              for item in candidates if len(item["data"]["content"]) > LONG_RECORD_CHARS}
-    ranked = scores(candidates, query, queries, passages=spans)
+    ranked = (ranker(candidates, query, queries, passages=spans, current_sender=current_sender) if ranker
+              else scores(candidates, query, queries, passages=spans))
     positions = {item["data"]["id"]: index for index, item in enumerate(available)}
     matches = sorted((key[1] for key, score in ranked.items() if score > 0),
                      key=lambda key: (ranked["conversation_turns", key], positions[key]), reverse=True)
@@ -65,6 +78,8 @@ def recall(available, query, queries=(), *, excluded=(), max_chars=MAX_CHARS):
                         "message_id", "reply_to", "part", "sequence")},
                     "recorded_at": data["source"]["recorded_at"],
                     "recall_anchor": anchor, "recall_match": data["id"] == anchor}
+            if current_sender and data["speaker"] == "user":
+                view["from_current_sender"] = data["sender_uid"] == current_sender
             view["excerpt"] = metadata(view, [[0, len(data["content"])]])
             views.append(view)
         remaining = max_chars - size(result) - 2 * len(views)

@@ -137,17 +137,16 @@ def identifiers(event):
 def verify_blobs(store):
     """Validate an administrative restore before committing any restored data."""
     with store.db() as db:
-        expected = {row[0] for row in db.execute("SELECT id FROM content_records WHERE kind='input_images'")}
-        seen = set()
-        for row in db.execute("SELECT * FROM input_image_blobs"):
-            identifier = row['id']
-            if identifier not in expected:
-                raise AssistantError('backup_invalid', '恢复图片缺少对应资料')
-            metadata = store.read('input_images', identifier)['data']
-            raw = store.cipher.decrypt(bytes(row['body']), 'input_images', identifier, row['version'])
-            if (hashlib.sha256(raw).hexdigest() != row['version'] or row['version'] != metadata['sha256']
-                    or len(raw) != metadata['bytes'] or len(raw) > MAX_BYTES):
-                raise AssistantError('backup_invalid', '恢复图片未通过完整性校验')
-            seen.add(identifier)
-        if expected != seen:
-            raise AssistantError('backup_invalid', '恢复图片文件不完整')
+        mismatch = db.execute("""SELECT 1 FROM
+            (SELECT id FROM content_records WHERE kind='input_images') m
+            FULL JOIN input_image_blobs b USING(id) WHERE m.id IS NULL OR b.id IS NULL LIMIT 1""").fetchone()
+        if mismatch:
+            raise AssistantError('backup_invalid', '恢复图片与资料不匹配')
+        with db.stream('SELECT * FROM input_image_blobs') as rows:
+            for row in rows:
+                identifier = row['id']
+                metadata = store.read('input_images', identifier)['data']
+                raw = store.cipher.decrypt(bytes(row['body']), 'input_images', identifier, row['version'])
+                if (hashlib.sha256(raw).hexdigest() != row['version'] or row['version'] != metadata['sha256']
+                        or len(raw) != metadata['bytes'] or len(raw) > MAX_BYTES):
+                    raise AssistantError('backup_invalid', '恢复图片未通过完整性校验')

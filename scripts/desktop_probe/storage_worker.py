@@ -306,6 +306,10 @@ def main():
         read_file()
         return
     if args.check_resources:
+        from companion_core.hybrid_history import MODEL_DIR, shared_encoder
+
+        vectors = shared_encoder(MODEL_DIR).encode(["检查本地聊天召回"])
+        assert vectors.shape == (1, 512) and abs(float(vectors[0] @ vectors[0]) - 1) < .001
         import psycopg
         from bilibili_api import BILIBILI_API_VERSION, get_selected_client, video
         from bilibili_api.utils.utils import get_api
@@ -503,7 +507,9 @@ def main():
                                          **desktop_models(codex,args.authentication_route),
                                          adapters=tuple(item for item in (bili_adapter(management.bili),qq,wechat,management.room) if item is not None))
                 runtime.reconcile()
-                runtime.open()
+                from qiban.desktop_wechat_window import WeChatTaskbar, WindowsDesktop
+
+                runtime.open(wechat_taskbar=WeChatTaskbar(WindowsDesktop()) if sys.platform == "win32" else None)
         if args.verify_bili_binding or args.verify_bili_favorites:
             raise AssistantError("bili_check_unavailable","需桌面开发安装。")
         portable = None
@@ -576,6 +582,8 @@ def main():
                 management.bili.close()
             if management is not None and management.qq is not None:
                 management.qq.close()
+            if management is not None:
+                management.learning_index.invalidate(closing=True)
             if runtime is not None:
                 runtime.close()
         finally:

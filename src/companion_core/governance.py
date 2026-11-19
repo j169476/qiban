@@ -566,7 +566,7 @@ class GovernedContext:
         self.versions.update({(item["kind"], item["id"]): item["version"] for item in result["catalog"]})
         return result
 
-    def conversation(self, account, tid, *, query="", queries=()):
+    def conversation(self, account, tid, *, query="", queries=(), ranker=None, current_sender=None):
         from .conversations import context
 
         owner = self
@@ -594,7 +594,8 @@ class GovernedContext:
                     raise AssistantError("access_denied", "对话资料不可在当前会话使用")
                 return value
 
-        result = context(View(), account, tid, query=query, queries=queries)
+        result = context(View(), account, tid, query=query, queries=queries, ranker=ranker,
+                         current_sender=current_sender)
         for item in [*result["turns"], *result["recalled"]]:
             self.resources.add(resource_id("conversation_turns", item["data"]["id"]))
             self.versions["conversation_turns", item["data"]["id"]] = item["version"]

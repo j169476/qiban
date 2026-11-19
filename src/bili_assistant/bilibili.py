@@ -29,7 +29,7 @@ class Bilibili:
             return credentials.load(self.store, optional=True)
         return credentials.load(self.store)
 
-    async def _read(self, operation):
+    async def _read(self, operation, *, endpoint=None):
         for attempt in range(2):
             try:
                 return await asyncio.wait_for(operation(), timeout=20)
@@ -37,21 +37,31 @@ class Bilibili:
                 if attempt == 0:
                     await asyncio.sleep(0.5)
                     continue
-                raise AssistantError("read_timeout", "B站读取超时") from None
+                error = AssistantError("read_timeout", "B站读取超时")
+                if endpoint:
+                    error.diagnostics = {"bili_endpoint": endpoint}
+                raise error from None
             except AssistantError:
                 raise
             except Exception as exc:
                 # Never expose the exception repr: upstream can include cookies or HTTP parameters.
                 code = getattr(exc, "code", None)
                 status = getattr(exc, "status", None)
-                if code == -101:
-                    raise AssistantError("login_required", "B站登录已失效，请重新登录") from None
                 detail = type(exc).__name__
                 if isinstance(code, int):
                     detail += f" code={code}"
                 if isinstance(status, int):
                     detail += f" HTTP={status}"
-                raise AssistantError("platform_read_error", f"B站读取失败 ({detail})") from None
+                error = (AssistantError("login_required", "B站登录已失效，请重新登录") if code == -101
+                         else AssistantError("platform_read_error", f"B站读取失败 ({detail})"))
+                error.diagnostics = {}
+                if endpoint:
+                    error.diagnostics["bili_endpoint"] = endpoint
+                if type(code) is int:
+                    error.diagnostics["bili_code"] = code
+                if type(status) is int and 100 <= status <= 599:
+                    error.diagnostics["http_status"] = status
+                raise error from None
 
     async def me(self):
         from bilibili_api import user
@@ -106,7 +116,7 @@ class Bilibili:
         data = await self._read(
             lambda: search.search_by_type(
                 query, search_type=search.SearchObjectType.VIDEO, page_size=min(limit, 20)
-            )
+            ), endpoint="video_search"
         )
         return [self._candidate(row) for row in (data.get("result") or [])[: min(limit, 20)]]
 
@@ -127,7 +137,7 @@ class Bilibili:
 
         credential = self._credential(optional=not following)
         if following:
-            data = await self._read(lambda: dynamic.get_dynamic_page_info(credential))
+            data = await self._read(lambda: dynamic.get_dynamic_page_info(credential), endpoint="following_feed")
             rows = []
             for item in data.get("items", []):
                 modules = item.get("modules", {})
@@ -136,7 +146,7 @@ class Bilibili:
                     archive["mid"] = modules.get("module_author", {}).get("mid", "")
                     rows.append(archive)
         else:
-            data = await self._read(lambda: homepage.get_videos(credential))
+            data = await self._read(lambda: homepage.get_videos(credential), endpoint="recommended_feed")
             rows = data.get("item", [])
         return [self._candidate(row) for row in rows[: min(limit, 20)] if row.get("bvid")]
 
@@ -146,7 +156,7 @@ class Bilibili:
         if not re.fullmatch(r"BV[A-Za-z0-9]{10}", bvid):
             raise AssistantError("invalid_bvid", "BV 号格式错误")
         v = video.Video(bvid=bvid, credential=self._credential(optional=True))
-        info = await self._read(v.get_info)
+        info = await self._read(v.get_info, endpoint="video_info")
         pages = info.get("pages", [])
         if not 0 <= page_index < len(pages):
             raise AssistantError("invalid_page", "分 P 序号超出范围")
@@ -175,7 +185,7 @@ class Bilibili:
         }
         subtitle_limit = self.store.read("companion")["data"]["subtitle_char_limit"]
         try:
-            sub = await self._read(lambda: v.get_subtitle(cid=page["cid"]))
+            sub = await self._read(lambda: v.get_subtitle(cid=page["cid"]), endpoint="video_subtitle")
             tracks = (sub or {}).get("subtitles", [])
             if not tracks:
                 return result

@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import re
 from datetime import datetime
 
 
@@ -16,11 +17,29 @@ def scope(store, actor, account, conversation):
     return key(store, [actor, account, conversation])
 
 
+def preference_condition(value):
+    # Only an explicit condition can separate two simultaneous preferences.
+    match = re.match(r"^我(.{1,40}?)(?:的时候|时)(?:候)?", value)
+    return match[1] if match else ""
+
+
+def value_key(store, attribute, value):
+    hashed = key(store, value.casefold())
+    if attribute == "conversation_preference":
+        return key(store, preference_condition(value)) + ":" + hashed
+    return hashed
+
+
+def group(row):
+    value = row["value_key"]
+    return row["attribute"], value.partition(":")[0] if ":" in value else ""
+
+
 def describe(store, record):
     data = record["data"]
     fact = data["fact"]
     return {"id": data["id"], "version": record["version"], "attribute": fact["attribute"],
-            "value_key": key(store, fact["value"].casefold()), "valid_from": fact["valid_from"],
+            "value_key": value_key(store, fact["attribute"], fact["value"]), "valid_from": fact["valid_from"],
             "supersedes": fact["supersedes"]}
 
 
@@ -35,7 +54,7 @@ def write(store, db, kind, data, version):
         DO UPDATE SET scope=excluded.scope,attribute=excluded.attribute,value_key=excluded.value_key,
         valid_from=excluded.valid_from,supersedes=excluded.supersedes,version=excluded.version,
         stamp=excluded.stamp""", (kind, data["id"], scope(store, fact["actor"], fact["account"], fact["conversation"]),
-        fact["attribute"], key(store, fact["value"].casefold()), fact["valid_from"],
+        fact["attribute"], value_key(store, fact["attribute"], fact["value"]), fact["valid_from"],
         json.dumps(fact["supersedes"]), version, datetime.fromisoformat(fact["valid_from"]).timestamp()))
 
 
@@ -77,7 +96,7 @@ def statuses(rows, now):
     values = {}
     for row in active:
         if row["id"] not in retired:
-            values.setdefault(row["attribute"], set()).add(row["value_key"])
+            values.setdefault(group(row), set()).add(row["value_key"])
     return {row["id"]: ("future" if datetime.fromisoformat(row["valid_from"]) > now else
                         "historical" if row["id"] in retired else
-                        "disputed" if len(values.get(row["attribute"], ())) > 1 else "active") for row in rows}
+                        "disputed" if len(values.get(group(row), ())) > 1 else "active") for row in rows}

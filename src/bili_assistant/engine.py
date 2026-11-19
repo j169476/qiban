@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from companion_core.execution import ActionExecution
 from companion_core.lifecycle import RunLifecycle
+from companion_core.observability import activity
 from companion_core.relationships import RelationshipUpdates
 
 from .action_quota import daily_usage
@@ -444,13 +445,14 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
                 raise AssistantError("video_quota", "当日视频处理额度已用完")
             if not continuation:
                 db.execute("INSERT INTO videos VALUES (?,?,?) ON CONFLICT DO NOTHING", (run["account"], day, bvid))
-        if end_seconds is not None:
-            context = await self.adapter.video_context(bvid, page_index, detail=detail,
-                                                       start_seconds=start_seconds, end_seconds=end_seconds)
-        elif detail or start_seconds:
-            context = await self.adapter.video_context(bvid, page_index, detail=detail, start_seconds=start_seconds)
-        else:
-            context = await self.adapter.video_context(bvid, page_index)
+        with activity("watching"):
+            if end_seconds is not None:
+                context = await self.adapter.video_context(bvid, page_index, detail=detail,
+                                                           start_seconds=start_seconds, end_seconds=end_seconds)
+            elif detail or start_seconds:
+                context = await self.adapter.video_context(bvid, page_index, detail=detail, start_seconds=start_seconds)
+            else:
+                context = await self.adapter.video_context(bvid, page_index)
         self.run(run["generation"])
         if gap_request:
             context["gap_request"] = gap_request

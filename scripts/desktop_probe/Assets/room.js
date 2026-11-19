@@ -30,10 +30,15 @@
   el('older').disabled=true;el('send').disabled=true;
  }
  function close(){
+  const wasOpen=el('dialog').open;
   reset();
   if(el('dialog').open)el('dialog').close();
   el('open').removeAttribute('aria-current');
   if(document.body)delete document.body.dataset.roomOpen;
+  if(wasOpen)roomChanged();
+ }
+ function roomChanged(){
+  if(typeof CustomEvent==='function'&&typeof window.dispatchEvent==='function')window.dispatchEvent(new CustomEvent('qiban-room-view'));
  }
  function call(operation,args,files){
   const id=crypto.randomUUID().replaceAll('-','');
@@ -60,7 +65,7 @@
    const rows=data.messages.map(message=>{
     const row=document.createElement('article'),label=document.createElement('strong'),body=document.createElement('p');
     row.className=message.speaker==='assistant'?'room-answer':'room-message';
-    label.textContent=message.speaker==='assistant'?'栖伴':'我';body.textContent=message.text;
+    label.textContent=message.speaker==='assistant'?'回复':'我';body.textContent=message.text;
     row.append(label,body);
     for(const [index,attachment] of (message.attachments||[]).entries()){
      const match=/^input-image:([a-f0-9]{32})$/.exec(attachment.url||'');
@@ -92,6 +97,8 @@
   if(document.body)document.body.dataset.roomOpen='true';
   el('open').setAttribute('aria-current','page');
   el('dialog').show();
+  roomChanged();
+  el('window')?.setActivity?.('idle');
   if(typeof window.scrollTo==='function')window.scrollTo({top:0,behavior:'instant'});
   el('queue').open=true;
   void history();
@@ -126,6 +133,7 @@
   try{
    const data=await call('room.queue',{});
    if(view!==epoch||generation!==queueRequest||!el('queue').open)return;
+   el('window')?.setActivity?.(data.messages.some(m=>['processing','dispatching'].includes(m.status))?'replying':'idle');
    const rows=data.messages.map(item=>{
     const row=document.createElement('p');
     const files=item.images?'图片 × '+item.images:'';
@@ -149,9 +157,9 @@
    });
    if(!rows.length){const empty=document.createElement('p');empty.textContent='暂无已提交的消息。';rows.push(empty);}
    el('jobs').replaceChildren(...rows);
-  }catch(error){if(view===epoch&&generation===queueRequest)el('jobs').textContent=error.message;}
+  }catch(error){if(view===epoch&&generation===queueRequest){el('jobs').textContent=error.message;el('window')?.setActivity?.('idle',true);}}
  }
- el('queue').ontoggle=()=>{if(el('queue').open)void queue();else{queueRequest++;el('jobs').replaceChildren();}};
+ el('queue').ontoggle=()=>{if(el('queue').open)void queue();else{queueRequest++;el('jobs').replaceChildren();el('window')?.setActivity?.('idle',true);}};
  el('text').oninput=()=>{nonce=null;controls();};
  el('pick').onchange=async()=>{
   const view=epoch,files=Array.from(el('pick').files);

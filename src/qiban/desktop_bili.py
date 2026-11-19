@@ -141,9 +141,12 @@ class DesktopBili:
                 raise AssistantError("account_changed","B 站绑定账号已改变，请重新核对运行账号。")
 
     def _view(self, account):
+        message = self.notice
+        if account and self.state in {"saved", "checked", "idle"} and not account["cookies"].get("ac_time_value"):
+            message = (message or "B 站账号已绑定。") + "本次登录未取得自动续期凭据。需要长期运行时，请使用手机扫码重新登录。"
         return {"state":self.state, "current":identity(account), "ticket":self.ticket,
                 "candidate":identity(self.candidate) if self.state=="confirm" else None,
-                "qr":self.png, "message":self.notice}
+                "qr":self.png, "message":message}
 
     async def _work(self, ticket, checking=None):
         def publish(state, png=None):

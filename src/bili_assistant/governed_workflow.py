@@ -9,7 +9,7 @@ from .core_binding import CoreScheduler
 from .workflow import BilibiliWorkflow
 
 
-def definition(original, core):
+def definition(original, core, *, receive=True):
     engine = copy(original)
     workspace = PublicWorkspace(core.store)
     engine.store = workspace
@@ -18,6 +18,8 @@ def definition(original, core):
     # Collector and recovery run against trusted ingress, which assigns the
     # actual event's scope. Their private text is never placed in public state.
     async def inbox(*args, **kwargs):
+        if not receive:
+            return []
         result = await original.inbox(*args, **kwargs)
         return [{key: value for key, value in item.items() if key != "relationship_context"}
                 for item in result if item["kind"] != "dm_reply"]
@@ -43,6 +45,10 @@ def definition(original, core):
             return result
         state["fresh"] = [{key: value for key, value in item.items() if key != "relationship_context"}
                           for item in state["fresh"] if item["kind"] != "dm_reply"]
+        if not receive and not state["fresh"]:
+            return Flow.STOP
+        if not receive and not state["guided_bvid"]:
+            state["room"] = 0
         workspace.readable = workspace.repository.readable_resources(workspace.access, workspace.request)
         return result
 
@@ -55,6 +61,8 @@ def definition(original, core):
 
     stages = []
     for stage in flow.definition().stages:
+        if not receive and stage.name in {'native_tools','video_gap','goal_learning','favorite_tools'}:
+            continue
         if stage.name == "favorite_tools":
             stages.append(Stage("favorite_tools", favorite_tools, 75, requires_model=True))
             continue

@@ -23,6 +23,8 @@ def fetch_catalog(access):
             if len(raw) > 4_000_000:
                 raise ValueError('catalog too large')
             return parse_catalog(json.loads(raw))
+    except AssistantError:
+        raise
     except Exception:
         raise AssistantError('model_catalog', '模型列表读取失败，请稍后刷新。') from None
 
@@ -36,11 +38,15 @@ def parse_catalog(value):
         model = row.get('slug')
         if not isinstance(model, str) or not IDENTIFIER.fullmatch(model):
             continue
-        efforts = [e['effort'] for e in row.get('supported_reasoning_levels', [])
+        levels = row.get('supported_reasoning_levels')
+        if not isinstance(levels, list):
+            continue
+        efforts = [e['effort'] for e in levels
                    if isinstance(e, dict) and isinstance(e.get('effort'), str)
                    and IDENTIFIER.fullmatch(e['effort'])]
         default = row.get('default_reasoning_level')
-        if not efforts or default not in efforts or 'text' not in row.get('input_modalities', ['text']):
+        if ((levels and default not in efforts) or (not levels and default is not None)
+                or 'text' not in row.get('input_modalities', ['text'])):
             continue
         name = row.get('display_name')
         priority = row.get('priority', 10000)
@@ -48,7 +54,7 @@ def parse_catalog(value):
                         'efforts': list(dict.fromkeys(efforts)), 'default_effort': default,
                         'priority': priority if type(priority) is int else 10000}
     if not found:
-        raise AssistantError('model_catalog', '上游暂未返回可用模型，请稍后刷新。')
+        raise AssistantError('model_catalog_empty', '上游暂未返回可用模型，请稍后刷新。')
     return sorted(found.values(), key=lambda r: (r['priority'], r['id']))
 
 
@@ -77,15 +83,19 @@ class ModelCatalog:
         effort = saved.get('effort', row['default_effort'] if row else '')
         return {'account_id': access.account_id, 'revision': saved.get('revision', ''),
                 'models': rows, 'model': model, 'effort': effort,
-                'available': bool(row and effort in row['efforts'])}
+                'available': bool(row and effort in (row['efforts'] or [None]))}
 
     def configure(self, store, *, account_id, expected, model, effort):
+        with self.lock:
+            return self._configure(store, account_id, expected, model, effort)
+
+    def _configure(self, store, account_id, expected, model, effort):
         access = self.broker.model_access()
         status = self.status(store, access=access)
         if access.account_id != account_id or status['revision'] != expected:
             raise AssistantError('edit_conflict', '模型账号或选择已变化，请刷新列表。')
         row = next((r for r in status['models'] if r['id'] == model), None)
-        if not row or effort not in row['efforts']:
+        if not row or effort not in (row['efforts'] or [None]):
             raise AssistantError('model_selection', '请选择列表中的模型和推理档位。')
         with store.lock, store.db() as db:
             db.execute('BEGIN IMMEDIATE')
@@ -93,6 +103,8 @@ class ModelCatalog:
             values = store.state(KEY, {}, db)
             if values.get(account_id, {}).get('revision', '') != expected:
                 raise AssistantError('edit_conflict', '模型选择已变化，请刷新列表。')
+            if expected and status['model'] == model and status['effort'] == effort:
+                return status
             values[account_id] = dict(model=model, effort=effort, revision=secrets.token_hex(16))
             store.set_state(KEY, values, db)
         return self.status(store, access=access)

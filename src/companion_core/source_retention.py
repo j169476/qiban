@@ -9,7 +9,8 @@ def tracked(key):
 
 def replace(db, kind, identifier, resources):
     db.execute('DELETE FROM source_retention WHERE owner_kind=? AND owner_id=?', (kind, identifier))
-    values = sorted({r for r in resources if r == '*' or r.startswith((VIEW, 'memories/'))})
+    values = sorted({r for r in resources if r == '*' or r.startswith((
+        VIEW, 'memories/', 'event/', 'conversation_turns/', 'conversation_summaries/'))})
     if values:
         db.executemany('INSERT INTO source_retention VALUES(?,?,?)', [(kind, identifier, r) for r in values])
 

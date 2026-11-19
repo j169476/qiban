@@ -8,7 +8,7 @@
  let preservedItems=[],preservedCursor='',preservedSelection='';
  let inboxPage=1,inboxPages=1,inboxSequence=0,inboxSnapshot="",inboxBusy=false,confirmDelete=false;
  let inboxItems=[],inboxSelected=new Set();
- let runtimeRefreshing=false,lastRuntimeRefresh=0;
+ let runtimeRefreshing=false,lastRuntimeRefresh=0,observationPaused=false,observationRevision=0,lastRender='',refreshAfterAction=false;
  let profileBusy=false,profileDirty=false,profileEpoch=0;
  const profileFields=['persona-name','persona-description','persona-speaking','persona-interests'];
  function profileControls(){
@@ -83,8 +83,9 @@
   element('preserved-preview').disabled=portableBlocked||!preservedSelection;
   element('runtime-panel').hidden=element('management-panel').hidden;
   element('runtime-refresh').disabled=!ready||locked;
+  element('runtime-observe').disabled=!ready||locked;
   element('runtime-stop-all').disabled=!ready||locked;
-  if(locked||!ready){resetInbox();element('monitor-state').textContent=locked?'已锁定':'等待连接';element('monitor-detail').textContent='';paintMonitor('idle');element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
+  if(locked||!ready){resetInbox();observationPaused=false;observationRevision++;lastRender='';element('runtime-observe').textContent='暂停观察';element('monitor-state').textContent=!ready?'等待连接':identity?'已锁定':'正在读取状态';element('monitor-detail').textContent='';paintMonitor('idle',true);window.QibanHouse?.clear();element('runtime-platforms').replaceChildren();element('notification-items').replaceChildren();element('notification-title').textContent='应用通知';}
   window.dispatchEvent(new CustomEvent('qiban-management-state',{detail:{ready,locked,
    roomSession:ready&&!locked?identity.room_session:null,lockEnabled:enabled}}));
  }
@@ -118,7 +119,7 @@
    const result=await call('config.patch',{kind:'persona',expected:before.version,changes});
    if(token!==profileEpoch)return;
    persona={...before,version:result.version,data:{...before.data,...changes}};fillProfile();
-   element('profile-notice').textContent='资料已保存。';notice('资料已保存。');
+   element('profile-notice').textContent='资料已保存。';
   }catch(error){if(token===profileEpoch)element('profile-notice').textContent=error.message;}
   finally{if(token===profileEpoch){profileBusy=false;profileControls();}}
  };
@@ -173,7 +174,9 @@
   return receipt.source!==undefined&&typeof receipt.name==='string'?receipt.name:'';
  }
  async function loadBackups(){
-  const result=await call('backups.list'),selection=element('backup-selection'),selected=selection.value;
+  const epoch=accessEpoch,result=await call('backups.list');
+  if(epoch!==accessEpoch||!ready||!identity||identity.locked)return;
+  const selection=element('backup-selection'),selected=selection.value;
   selection.replaceChildren();
   for(const backup of result.backups){const option=document.createElement('option');option.value=backup.name;option.textContent=`${backup.name} · ${(backup.bytes/1024).toFixed(1)} KB`;selection.append(option);}
   if(result.backups.some(item=>item.name===selected))selection.value=selected;
@@ -418,23 +421,20 @@
  });
  const runtimePending=new Set();
  async function runtimeAction(operation,args){
-  const key=args?.platform;
+  const key=args?.platform,epoch=accessEpoch;
   if(key&&runtimePending.has(key))return;
   if(key)runtimePending.add(key);
-  try{await call(operation,args);await loadRuntime();}
-  catch(error){feedback('运行设置提示',error.message);}
-  finally{if(key)runtimePending.delete(key);void loadRuntime().catch(()=>{});}
+  try{await call(operation,args);}
+  catch(error){if(epoch===accessEpoch)feedback('运行设置提示',error.message);}
+  finally{
+   if(key)runtimePending.delete(key);lastRender='';observationRevision++;
+   if(runtimeRefreshing)refreshAfterAction=true;else await perform(loadRuntime);
+  }
  }
- function paintMonitor(state){
-  const names={idle:'抱着茶杯休息',learning:'翻阅书本',watching:'看平板上的视频',replying:'用电脑撰写回复'};
-  const animation=state==='browsing'?'watching':Object.hasOwn(names,state)?state:'idle';
-  const scene=element('monitor-scene'),image=element('monitor-animation'),still=element('monitor-still');
-  scene.dataset.state=state||'idle';
-  // Status polling must not restart the current GIF on every response.
-  if(image.dataset.animation===animation)return;
-  still.srcset=`/monitor-${animation}.png`;
-  image.src=`/monitor-${animation}.gif`;image.alt=`白发龙娘${names[animation]}`;
-  image.dataset.animation=animation;
+ function paintMonitor(state,frozen=false){
+  const scene=element('monitor-scene');scene.dataset.state=state||'idle';
+  scene.dataset.moving=String(!frozen&&!observationPaused&&['learning','replying','browsing','watching'].includes(state));
+  element('monitor-window').setActivity?.(state,frozen||observationPaused);
  }
  function resetInbox(){
   inboxSequence++;inboxPage=inboxPages=1;inboxSnapshot='';inboxItems=[];inboxSelected.clear();inboxBusy=confirmDelete=false;
@@ -473,7 +473,7 @@
    const row=document.createElement('label'),check=document.createElement('input'),message=document.createElement('span'),detail=document.createElement('small');
    check.type='checkbox';check.checked=selected.has(item.id);check.disabled=inboxBusy;
    check.onchange=()=>{if(check.checked)inboxSelected.add(item.id);else inboxSelected.delete(item.id);confirmDelete=false;inboxControls();};
-   message.textContent=`${names[item.platform]||'栖伴'} · ${item.message}`;
+   message.textContent=`${names[item.platform]||'栖伴'} · ${item.message}${item.occurrences>1?'（累计 '+item.occurrences+' 次）':''}`;
    detail.textContent=(item.read?'已读':'未读')+' · '+new Date(item.created_at).toLocaleString();
    row.className=item.read?'inbox-row':'inbox-row unread';row.append(check,message,detail);list.append(row);
   }
@@ -523,48 +523,92 @@
  element('inbox-jump').onkeydown=event=>{if(event.key==='Enter')element('inbox-go').onclick();};
  async function loadRuntime(){
   if(runtimeRefreshing||!ready||!identity||identity.locked)return;
-  runtimeRefreshing=true;const runtimeEpoch=accessEpoch;
+  runtimeRefreshing=true;const runtimeEpoch=accessEpoch,revision=observationRevision;let snapshotApplied=false;
+  element('runtime-refresh').disabled=true;
   try{
    const state=await call('runtime.status');
-   if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch)return;
+   if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch||revision!==observationRevision)return;
    const activities=state.activities||[],active=activities[0];
    const fault=state.platforms.some(p=>p.scheduler_error||p.failed)||state.handoff_pending;
-   const label={replying:'撰写回复',learning:'学习中',watching:'观看视频',browsing:'浏览与互动'};
+   const activityLabels={replying:'正在撰写回复',learning:'正在学习',watching:'正在观看视频',browsing:'正在浏览内容'};
    paintMonitor(active?.state||'idle');
-   element('monitor-state').textContent=fault?'运行待处理':active?label[active.state]||'处理中':state.platforms.some(p=>p.status==='active')?'空闲 · 等待新消息':'休息中 · 平台未启动';
-   element('monitor-detail').textContent=activities.map(a=>({qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机任务'}[a.platform]||'栖伴')+' · '+(label[a.state]||'处理中')).join(' / ');
-   const platforms=element('runtime-platforms');platforms.replaceChildren();
+   element('monitor-state').textContent=observationPaused?'观察已暂停':active?activityLabels[active.state]||'正在处理':fault?'运行待处理':state.platforms.some(p=>p.status==='active')?'正在等待新消息':'休息中';
+   const details=activities.map(a=>({qq:'QQ',wechat:'微信',bilibili:'B 站',local:'本机会客室'}[a.platform]||a.platform)).filter(Boolean);
+   const generated=typeof state.generated_at==='string'?Date.parse(state.generated_at):NaN;
+   if(Number.isFinite(generated))details.push('快照时间 '+new Date(generated).toLocaleString('zh-CN',{hour12:false}));
+   element('monitor-detail').textContent=details.join(' / ');
+   window.QibanHouse?.snapshot(state);
+   const signature=JSON.stringify([state.platforms,activities.map(a=>[a.platform,a.state]),state.handoff_pending,state.intake_paused,state.tasks_blocked,state.preference_revision,[...runtimePending]]);
+   if(signature!==lastRender){
+   const platforms=element('runtime-platforms');
+   const expanded=new Set(Array.from(platforms.children).filter(n=>n.open).map(n=>n.dataset.platform));
+   const focus=document.activeElement,focusedRow=focus?.closest?.('#runtime-platforms details');
+   const focusKey=focus?.dataset.control||'',focusId=focusedRow?.dataset.platform;
+   platforms.replaceChildren();
    const names={qq:'QQ',wechat:'微信',bilibili:'B站',local:'本机会客室'};
    for(const item of state.platforms){
-    const row=document.createElement('div'),summary=document.createElement('div'),actions=document.createElement('div');
+    const row=document.createElement('details'),summary=document.createElement('summary'),actions=document.createElement('div');
     const title=document.createElement('h3'),status=document.createElement('p');
     summary.className='runtime-summary';actions.className='runtime-actions';
-    row.dataset.platform=item.platform;
-    title.textContent=names[item.platform];
-    status.textContent=item.scheduler_error?'后台任务调度已停止，请重启应用后台':state.handoff_pending?'账号交接未完成，任务保持停止':state.tasks_blocked?'后台任务已停止':item.stopping?'正在停止，请稍候':!item.available?'连接器尚未接入':item.status==='active'?(item.busy?'正在处理任务':'运行中'):item.failed?(item.message||'运行中断，请查看记录'):item.held?'已停止':!item.model_ready?'等待模型就绪':'已停止';
+    row.dataset.platform=item.platform;row.open=expanded.has(item.platform);summary.dataset.control='summary';
+    title.textContent=names[item.platform]||item.platform;
+    status.textContent=item.scheduler_error?'后台任务调度已停止，请重启应用后台':state.handoff_pending?'账号交接未完成，任务保持停止':state.tasks_blocked?'后台任务已停止':item.stopping?'正在停止，请稍候':!item.available?'连接器尚未接入':item.status==='active'&&state.intake_paused&&['qq','wechat','bilibili'].includes(item.platform)?'历史容量已满，暂停接收新消息':item.status==='active'?(item.busy?'正在处理任务':'运行中'):item.failed?(item.message||'运行中断，请查看记录'):item.held?'已停止':!item.model_ready?'等待模型就绪':'已停止';
     const label=document.createElement('label'),toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=item.autorun;
-    toggle.disabled=!item.available&&!item.autorun;
+    toggle.dataset.control='preference';toggle.disabled=runtimePending.has(item.platform)||(!item.available&&!item.autorun);
     toggle.onchange=()=>runtimeAction('runtime.preference',{platform:item.platform,enabled:toggle.checked,expected:state.preference_revision});
     label.append(toggle,document.createTextNode('下次打开时自动运行'));
     label.title='保存偏好，勾选后下次打开栖伴时检查是否可运行。';
     const start=document.createElement('button'),stop=document.createElement('button');start.textContent='启动';stop.textContent='停止本次运行';stop.className='secondary';
     start.disabled=state.tasks_blocked||item.stopping||!!item.scheduler_error||!item.available||!item.model_ready||item.status==='active';stop.disabled=item.stopping||(item.status!=='active'&&(!item.autorun||item.held));
-    start.onclick=()=>{start.disabled=true;start.textContent='正在启动…';status.textContent='正在启动…';return runtimeAction('runtime.control',{platform:item.platform,action:'start'});};stop.onclick=()=>runtimeAction('runtime.control',{platform:item.platform,action:'stop'});
-    if(runtimePending.has(item.platform)){start.disabled=true;start.textContent='处理中…';status.textContent='正在更新运行状态…';}
-    summary.append(title,status);actions.append(start);
+    start.dataset.control='start';stop.dataset.control='stop';
+    start.onclick=()=>{start.disabled=true;start.textContent='正在启动…';status.textContent='正在启动…';return runtimeAction('runtime.control',{platform:item.platform,action:'start'});};
+    stop.onclick=()=>{stop.disabled=true;status.textContent='正在停止…';return runtimeAction('runtime.control',{platform:item.platform,action:'stop'});};
+    if(runtimePending.has(item.platform)){start.disabled=stop.disabled=true;start.textContent='处理中…';status.textContent='正在更新运行状态…';}
+    const badge=document.createElement('span');badge.className='house-badge';
+    const issue=item.failed||item.scheduler_error||state.handoff_pending;
+    badge.dataset.tone=issue?'issue':item.status==='active'?'active':'quiet';
+    badge.textContent=issue?'需处理':item.stopping?'停止中':!item.available?'未接入':item.status==='active'?(item.read_only?'只读运行':'运行中'):item.status==='paused'||item.held?'已停止':!item.model_ready?'待就绪':'已停止';
+    summary.append(title,status,badge);actions.append(start);
     if(item.platform==='bilibili'){
      const readOnly=document.createElement('button');readOnly.textContent='只读启动';readOnly.className='secondary';
+     readOnly.dataset.control='read-only';
      readOnly.disabled=start.disabled;readOnly.onclick=()=>{start.disabled=readOnly.disabled=true;readOnly.textContent='正在启动…';status.textContent='正在启动…';return runtimeAction('runtime.control',{platform:item.platform,action:'start_read_only'});};
      if(item.status==='active'&&item.read_only)status.textContent+='（只读）';
      actions.append(readOnly);
     }
+    const currentActivities=activities.filter(a=>a.platform===item.platform).map(a=>activityLabels[a.state]||'正在处理');
+    if(!runtimePending.has(item.platform)&&currentActivities.length)status.textContent=currentActivities.join(' · ');
     actions.append(stop);row.append(summary,actions,label);platforms.append(row);
+    if(focusId===item.platform&&focusKey)Array.from(row.querySelectorAll('[data-control]')).find(n=>n.dataset.control===focusKey)?.focus({preventScroll:true});
    }
+   if(!state.platforms.length){const empty=document.createElement('p');empty.textContent='当前没有可查看的平台。';platforms.append(empty);}
+   lastRender=signature;
+   }
+   snapshotApplied=true;
    if(!inboxBusy)await loadInbox(inboxPage);
-   lastRuntimeRefresh=Date.now();element('runtime-refresh').hidden=true;
-  }catch(error){element('runtime-refresh').hidden=false;element('runtime-refresh').textContent='重试';throw error;}finally{runtimeRefreshing=false;}
+   lastRuntimeRefresh=Date.now();element('runtime-refresh').textContent='立即刷新';
+  }catch(error){
+   if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch||revision!==observationRevision)return;
+   if(!snapshotApplied){
+    element('monitor-state').textContent='监控连接中断';
+    paintMonitor(element('monitor-scene').dataset.state,true);
+    window.QibanHouse?.disconnected();
+   }
+   element('runtime-refresh').hidden=false;element('runtime-refresh').textContent='重试';throw error;
+  }finally{
+   runtimeRefreshing=false;element('runtime-refresh').disabled=!ready||!identity||identity.locked;
+   if(refreshAfterAction){refreshAfterAction=false;void perform(loadRuntime);}
+  }
  }
  element('runtime-refresh').onclick=()=>perform(loadRuntime);
+ element('runtime-observe').onclick=()=>{
+  if(!ready||!identity||identity.locked)return;
+  observationPaused=!observationPaused;observationRevision++;
+  element('runtime-observe').textContent=observationPaused?'继续观察':'暂停观察';
+  window.QibanHouse?.pause(observationPaused);
+  if(observationPaused){paintMonitor(element('monitor-scene').dataset.state,true);element('monitor-state').textContent='观察已暂停';}
+  else{lastRuntimeRefresh=0;if(runtimeRefreshing)refreshAfterAction=true;else void perform(loadRuntime);}
+ };
  element('runtime-stop-all').onclick=()=>perform(async()=>{
   await call('runtime.stop_all',{});await loadRuntime();
   feedback('已请求停止全部','平台运行和手动任务均已停止接收新工作，正在退出的操作会完成清理。自动运行偏好保持不变。');
@@ -573,7 +617,7 @@
   if(data.type==='service'&&data.management){
    element('management-panel').hidden=false;windowsUser=data.windowsUser||windowsUser;
    const changed=ready!==data.ready;ready=data.ready;if(!ready){accessEpoch++;identity=null;}render();if(changed&&ready)void refresh();
-   if(ready&&!changed&&identity&&!identity.locked&&Date.now()-lastRuntimeRefresh>2000)void loadRuntime().catch(error=>notice(error.message));
+   if(ready&&!changed&&identity&&!identity.locked&&!observationPaused&&!document.hidden&&Date.now()-lastRuntimeRefresh>2000)void loadRuntime().catch(error=>notice(error.message));
   }
   if(data.type==='management'){
    const job=pending.get(data.request_id);if(!job)return;clearTimeout(job.timer);pending.delete(data.request_id);
@@ -581,6 +625,7 @@
   }
   if(data.type==='management_error'){
    for(const job of pending.values()){clearTimeout(job.timer);job.reject(new Error(data.message));}pending.clear();
+   accessEpoch++;identity=null;ready=false;render();notice(data.message||'管理连接已中断。');
   }
  });
  ['reload-persona','backup-refresh'].forEach(id=>window.QibanAutoRead?.register(id));

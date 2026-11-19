@@ -7,6 +7,8 @@ from collections import Counter
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from companion_core.observability import activity
+
 from .conversations import identifier
 from .errors import AssistantError
 from .interests import interest_profile
@@ -48,7 +50,8 @@ async def search(engine, query, limit=10):
         if not usage["remaining"]:
             raise AssistantError("search_quota", "当日 B站搜索额度用完")
         engine.store.set_state(f"search-count:{run['account']}:{day(engine)}", usage["used"] + 1)
-    result = await engine.adapter.search(query, limit=limit)
+    with activity("browsing"):
+        result = await engine.adapter.search(query, limit=limit)
     engine.run(run["generation"])
     return result
 
@@ -169,7 +172,8 @@ async def expand(scheduler, candidates, explore=False):
                    for k, v in config.items()}, "guided_interests": profile,
         "diversity": stats, "previous_queries": seen_queries,
     }
-    result = await scheduler.model(SEARCH_PROMPT, payload, SEARCH_SCHEMA)
+    with activity("browsing"):
+        result = await scheduler.model(SEARCH_PROMPT, payload, SEARCH_SCHEMA)
     scheduler.alive()
     from .memory_maintenance import ensure_versions
 

@@ -1,9 +1,8 @@
 """Local backup previews and native-Windows-authorized restore transactions."""
-import hashlib
 import hmac
 import secrets
 
-from companion_core import asset_transfer, postgres_transfer
+from companion_core import asset_transfer, backup_stream
 from companion_core.errors import AssistantError
 from companion_core.governance import GovernanceRepository
 from companion_core.runtime_keys import RUN_KEYS
@@ -43,8 +42,6 @@ class DesktopBackups:
         path = folder/name
         if not path.is_file() or path.is_symlink() or path.resolve().parent != folder.resolve():
             raise AssistantError('backup_path','备份不存在')
-        if path.stat().st_size > postgres_transfer.MAX_BACKUP:
-            raise AssistantError('backup_limit','备份超过当前恢复上限')
         return path
 
     def listing(self):
@@ -79,16 +76,15 @@ class DesktopBackups:
     def prepare(self, name):
         self.preview = self.pending = None
         request = self.require()
-        with self.store.lock:
+        with self.store.lock,self.store.backup_lock:
             self._paused()
-            raw = self.path(name).read_bytes()
-            snapshot = postgres_transfer.unpack(raw,self.store._backup_key)
+            snapshot = backup_stream.inspect(self.path(name), self.store._backup_key)
             token = secrets.token_urlsafe(32)
-            self.preview = {'token':token,'name':name,'hash':hashlib.sha256(raw).hexdigest(),
-                            'expected':postgres_transfer.fingerprint(self.store),'session':request.session_id,
+            self.preview = {'token':token,'name':name,'hash':snapshot['sha256'],
+                            'expected':backup_stream.fingerprint(self.store),'session':request.session_id,
                             'expires':self.management.clock()+180}
         return {'token':token,'name':name,'expires_in_seconds':180,
-                'records':sum(len(snapshot['tables'][table]['rows']) for table in ('content_records','content_history')),
+                'records':sum(snapshot['counts'][table] for table in ('content_records','content_history')),
                 'effect':'将覆盖当前资料和历史记录；保留当前本机管理员与应用密码锁。角色保持停止，平台授权需重新检查。'}
 
     def begin(self, token):
@@ -109,11 +105,8 @@ class DesktopBackups:
         if (not pending or not isinstance(challenge,str) or not hmac.compare_digest(pending['challenge'],challenge)
                 or pending['session']!=request.session_id or pending['expires']<=self.management.clock()):
             raise AssistantError('restore_verification_expired','恢复验证已失效，请重新预览并验证 Windows 身份')
-        with self.store.lock:
+        with self.store.lock,self.store.backup_lock:
             self._paused()
-            raw = self.path(pending['name']).read_bytes()
-            if hashlib.sha256(raw).hexdigest()!=pending['hash']:
-                raise AssistantError('edit_conflict','备份文件在预览后已改变，请重新检查')
             owner,lock = self.management._owner(),self.management._lock()
             lock = {**lock,'revision':lock['revision']+1}
             # This installation's logical identities survive; a snapshot may carry another one.
@@ -131,7 +124,8 @@ class DesktopBackups:
                 self.store.set_state(RESTORE,receipt,db)
                 GovernanceRepository(self.store).audit(request.actor,'desktop_restore_verified_windows',pending['name'],db=db)
             try:
-                result = postgres_transfer.restore(self.store,raw,self.store._backup_key,
+                result = backup_stream.restore(self.store,self.path(pending["name"]),self.store._backup_key,
+                                                   digest=pending["hash"],
                                                    expected=pending['expected'],finalize=finalize)
             finally:
                 # The database may have committed even if restoring a registered file failed.

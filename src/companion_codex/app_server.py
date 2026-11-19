@@ -21,8 +21,9 @@ from jsonschema import validate as validate_json
 from PIL import Image
 
 from companion_core.errors import AssistantError
+from companion_core.observability import current_stage
+from companion_core.reply_timing import first_model_delta, model_part, model_turn, timed
 from companion_core.reply_timing import span as timing_span
-from companion_core.reply_timing import timed
 
 from .isolation import DISABLED_FEATURES, IsolatedJob, login_params, model_settings
 from .process_scope import ProcessScope
@@ -57,6 +58,7 @@ class RpcProcess:
         self.threads = []
         self.counter = 0
         self._receive_guard_due = 0.0
+        self.poll_permissions = True
         try:
             guard()
             self.process = subprocess.Popen(
@@ -175,9 +177,10 @@ class RpcProcess:
             # token starves the stream consumer. Poll them at most every second
             # while draining; deadline/failure checks still run for every event.
             # send() and final action authorization retain their full checks.
-            check_guard = time.monotonic() >= self._receive_guard_due
+            check_guard = self.poll_permissions and time.monotonic() >= self._receive_guard_due
             if check_guard:
-                await asyncio.to_thread(self.check)
+                with model_part("guard_ms"):
+                    await asyncio.to_thread(self.check)
             else:
                 self.check(check_guard=False)
             if check_guard:
@@ -187,15 +190,23 @@ class RpcProcess:
             except queue.Empty:
                 # With no output to drain, keep revocation responsive. The
                 # longer interval only batches checks during a token burst.
-                self._receive_guard_due = min(self._receive_guard_due, time.monotonic() + .1)
+                if self.poll_permissions:
+                    self._receive_guard_due = min(self._receive_guard_due, time.monotonic() + .1)
                 # Clear then recheck so a write between the empty read and wait
                 # cannot be lost. A cancelled waiter never consumes a message.
                 self.output_ready.clear()
                 if self.incoming.empty() and not self.failed.is_set():
                     timeout = max(0, min(.1, self.deadline - time.monotonic()))
-                    await asyncio.to_thread(self.output_ready.wait, timeout)
+                    with model_part("output_wait_ms"):
+                        await asyncio.to_thread(self.output_ready.wait, timeout)
 
     async def call(self, method, params, on_event=lambda row: None):
+        if method in {"initialize", "config/read", "account/login/start", "thread/start", "mcpServerStatus/list"}:
+            with timing_span("model.initialize." + method):
+                return await self._call(method, params, on_event)
+        return await self._call(method, params, on_event)
+
+    async def _call(self, method, params, on_event):
         self.counter += 1
         request_id = self.counter
         await asyncio.to_thread(self.send, {"id": request_id, "method": method, "params": params})
@@ -217,6 +228,7 @@ class RpcProcess:
         code = "model_auth" if row["method"] == "account/chatgptAuthTokens/refresh" else "model_tool_denied"
         raise AssistantError(code, "模型请求超出本轮授权；请检查 Codex 登录或隔离配置")
 
+    @timed("model.process_close")
     def close(self):
         self.stopping.set()
         try:
@@ -280,6 +292,8 @@ class TurnEvidence:
         if self.turn_id and params.get("turnId", self.turn_id) != self.turn_id:
             raise AssistantError("model_protocol", "模型事件不属于本次轮次")
         method = row.get("method")
+        if method == "item/agentMessage/delta" and params.get("delta"):
+            first_model_delta()
         if method == "thread/tokenUsage/updated":
             usage = params.get("tokenUsage", {}).get("total", {})
             keys = {"input_tokens": "inputTokens", "cached_input_tokens": "cachedInputTokens",
@@ -351,7 +365,8 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
 
     from .isolated_artifacts import export_image
 
-    if plan_access_token is not None and (native not in (None, 'web') or not plan_access_token or not model or not reasoning_effort):
+    if plan_access_token is not None and (native not in (None, 'web') or not plan_access_token or not model
+                                          or reasoning_effort == ''):
         raise AssistantError('model_config', '订阅模型执行参数无效。')
     await asyncio.to_thread(guard)
     work = store.runtime / "worker"
@@ -383,7 +398,7 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
         cleanup.push_async_callback(asyncio.to_thread, client.close)
         with timing_span("model.initialize"):
             initialized = await client.call("initialize", {
-                "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.7"} if plan_access_token is not None
+                "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.9"} if plan_access_token is not None
                                else {"name": "companion_isolated", "version": "0.6.0"}),
                 "capabilities": {"experimentalApi": True},
             })
@@ -405,7 +420,11 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
             servers = await client.call("mcpServerStatus/list", {})
             if servers.get("data") != [] or servers.get("nextCursor"):
                 raise AssistantError("model_isolation", "隔离会话意外加载了外部工具服务")
-        with timing_span("model.request_and_wait"):
+        with model_turn():
+            # A text turn cannot perform a platform action. send() checks before
+            # turn/start; validate_output checks before releasing the result.
+            if native is None and current_stage() in {"recall.expand", "reply.generate"}:
+                client.poll_permissions = False
             value = await client.call("turn/start", {
                 "threadId": evidence.thread_id,
                 "input": [{"type": "text", "text": json.dumps(context, ensure_ascii=False)}, *supplied_images],

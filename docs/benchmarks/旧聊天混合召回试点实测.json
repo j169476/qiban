@@ -1,0 +1,1700 @@
+{
+  "date": "2026-11-19",
+  "model": "gpt-5.6-luna",
+  "effort": "low",
+  "corpus": "synthetic",
+  "timing_unit": "ms",
+  "main_8_medians": {
+    "first_ms": {
+      "current": 19962.0,
+      "hybrid": 9924.5,
+      "paired_saving": 9822.5
+    },
+    "complete_ms": {
+      "current": 20771.0,
+      "hybrid": 11040.5,
+      "paired_saving": 9589.0
+    }
+  },
+  "trials": {
+    "initial": [
+      {
+        "case": "group_a",
+        "arm": "current",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 21084,
+        "complete_ms": 22075,
+        "reply": [
+          "你给那盆薄荷取的名字是“海盐”。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_a",
+        "arm": "hybrid",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 10316,
+        "complete_ms": 11198,
+        "reply": [
+          "你给那盆薄荷取的名字是“海盐”。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_b",
+        "arm": "hybrid",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 11519,
+        "complete_ms": 12934,
+        "reply": [
+          "我这边看到两种记录：有人说叫“海盐”，也有人说叫“雨灯”。但我没法确认哪条是你的，你能给我一点提示吗？"
+        ],
+        "action": "succeeded",
+        "review": "could_not_attribute"
+      },
+      {
+        "case": "group_b",
+        "arm": "current",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 22126,
+        "complete_ms": 23721,
+        "reply": [
+          "你给那盆薄荷取的名字是“雨灯”。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "replacement",
+        "arm": "current",
+        "question": "我取陶杯最后约在哪天、什么地方？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "取陶杯约在周六去南桥。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "店家发消息了，取杯子改在周日的青瓦巷。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 21267,
+        "complete_ms": 22647,
+        "reply": [
+          "店家后来发消息改了安排：最后约在周日，地点是青瓦巷。之前说的周六去南桥已经不是最终安排啦。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "replacement",
+        "arm": "hybrid",
+        "question": "我取陶杯最后约在哪天、什么地方？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "取陶杯约在周六去南桥。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "店家发消息了，取杯子改在周日的青瓦巷。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 10213,
+        "complete_ms": 11423,
+        "reply": [
+          "最后的安排是周日去青瓦巷取陶杯。之前原本约在周六去南桥，但后来店家发消息改了地点和日期。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "withdrawal",
+        "arm": "hybrid",
+        "question": "我现在约了哪天去学木刻？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "跟老师约了周五去上木刻课。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "木刻课先取消了，新的日子等老师通知。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 9510,
+        "complete_ms": 10894,
+        "reply": [
+          "原来约的是周五，但后来木刻课取消了，新的日期还在等老师通知，所以现在还没有确定哪天去。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "withdrawal",
+        "arm": "current",
+        "question": "我现在约了哪天去学木刻？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "跟老师约了周五去上木刻课。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "木刻课先取消了，新的日子等老师通知。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 17341,
+        "complete_ms": 18645,
+        "reply": [
+          "原先约的是周五，不过后来木刻课取消了，新的日期还在等老师通知，所以现在还没有确定哪天去上课。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_changed",
+        "arm": "current",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:07:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:08:00+00:00",
+            "text": "我也在桥边摆摊，我的摊位编号是白榆。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 19909,
+        "complete_ms": 20686,
+        "reply": [
+          "你在桥边摆摊用的编号是“红杏”。"
+        ],
+        "action": "succeeded",
+        "review": "obsolete_fact"
+      },
+      {
+        "case": "group_changed",
+        "arm": "hybrid",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:07:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:08:00+00:00",
+            "text": "我也在桥边摆摊，我的摊位编号是白榆。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 14572,
+        "complete_ms": 15451,
+        "reply": [
+          "你之前说自己的摊位编号是“红杏”。“白榆”是另一位摊主的编号。"
+        ],
+        "action": "succeeded",
+        "review": "obsolete_fact"
+      },
+      {
+        "case": "group_unchanged",
+        "arm": "hybrid",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "20931",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:07:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:08:00+00:00",
+            "text": "我也在桥边摆摊，我的摊位编号是白榆。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 15138,
+        "complete_ms": 15923,
+        "reply": [
+          "用“白榆”这个编号呀～"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_unchanged",
+        "arm": "current",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "20931",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:07:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "20931",
+            "time": "2026-01-01T00:08:00+00:00",
+            "text": "我也在桥边摆摊，我的摊位编号是白榆。"
+          },
+          {
+            "speaker": "10217",
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 20015,
+        "complete_ms": 20856,
+        "reply": [
+          "你用“白榆”这个编号。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      }
+    ],
+    "speaker_aware": [
+      {
+        "case": "group_a",
+        "arm": "hybrid",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 9576,
+        "complete_ms": 10319,
+        "reply": [
+          "你之前给那盆薄荷取的名字是“海盐”。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_b",
+        "arm": "hybrid",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 10215,
+        "complete_ms": 11245,
+        "reply": [
+          "你给那盆薄荷取的名字是“雨灯”。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "replacement",
+        "arm": "hybrid",
+        "question": "我取陶杯最后约在哪天、什么地方？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "取陶杯约在周六去南桥。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "店家发消息了，取杯子改在周日的青瓦巷。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 10252,
+        "complete_ms": 11448,
+        "reply": [
+          "最后约在周日，地点是青瓦巷。具体是哪个日期目前没有记录；之前说的周六去南桥已经改了。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "withdrawal",
+        "arm": "hybrid",
+        "question": "我现在约了哪天去学木刻？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "跟老师约了周五去上木刻课。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "木刻课先取消了，新的日子等老师通知。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 9480,
+        "complete_ms": 11146,
+        "reply": [
+          "原来约的是周五，但后来木刻课先取消了，新的日期还在等老师通知，所以现在还没有确定哪天去。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_changed",
+        "arm": "hybrid",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "桥边摆摊的编号有调整，我这个改成了青苔，原先的编号作废。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 9823,
+        "complete_ms": 10778,
+        "reply": [
+          "现在用“青苔”这个编号；“红杏”已经作废啦。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_unchanged",
+        "arm": "hybrid",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "20931",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:07:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:08:00+00:00",
+            "text": "我也在桥边摆摊，我的摊位编号是白榆。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 10801,
+        "complete_ms": 12091,
+        "reply": [
+          "你在桥边摆摊用“白榆”这个编号。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "unseen_exchange",
+        "arm": "current",
+        "question": "我自己的换书地点最后定在哪儿来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "我也换书，我的碰头地点在长廊。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "窗户修好了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "去邮局寄了包裹。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "我换书的地方挪到了榕树下，免得晒。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:19:00+00:00",
+            "text": "楼下的猫睡着了。"
+          }
+        ],
+        "first_ms": 18893,
+        "complete_ms": 19994,
+        "reply": [
+          "你最后定在榕树下了，说是为了免得晒。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "unseen_exchange",
+        "arm": "hybrid",
+        "question": "我自己的换书地点最后定在哪儿来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:00:00+00:00",
+            "text": "刚收好雨伞。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "我周末跟人换书，碰头地点在石阶。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "窗户修好了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "去邮局寄了包裹。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "我换书的地方挪到了榕树下，免得晒。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:19:00+00:00",
+            "text": "楼下的猫睡着了。"
+          }
+        ],
+        "first_ms": 9334,
+        "complete_ms": 10935,
+        "reply": [
+          "最后定在榕树下，说是免得晒。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "unseen_named_other",
+        "arm": "hybrid",
+        "question": "帮我想想，阿叶选的是哪种布料？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "窗户修好了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "我是阿叶，我选的布料是灯芯绒。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:04:00+00:00",
+            "text": "小路旁开花了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:14:00+00:00",
+            "text": "今天风有点大。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:15:00+00:00",
+            "text": "我是阿舟，我选的布料是粗麻。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          }
+        ],
+        "first_ms": 10026,
+        "complete_ms": 10766,
+        "reply": [
+          "阿叶选的是灯芯绒。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "unseen_named_other",
+        "arm": "current",
+        "question": "帮我想想，阿叶选的是哪种布料？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "窗户修好了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "我是阿叶，我选的布料是灯芯绒。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:04:00+00:00",
+            "text": "小路旁开花了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:14:00+00:00",
+            "text": "今天风有点大。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:15:00+00:00",
+            "text": "我是阿舟，我选的布料是粗麻。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          }
+        ],
+        "first_ms": 19550,
+        "complete_ms": 20036,
+        "reply": [
+          "阿叶选的是灯芯绒。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      }
+    ],
+    "repeat_and_joke": [
+      {
+        "case": "group_b",
+        "arm": "hybrid",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 10532,
+        "complete_ms": 11423,
+        "reply": [
+          "你给那盆薄荷取的名字是“雨灯”。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "group_b",
+        "arm": "current",
+        "question": "上次说我给那盆薄荷取的什么名字来着？",
+        "asker": "20931",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我养的那盆薄荷取名叫海盐。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:10:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:11:00+00:00",
+            "text": "我养的那盆薄荷取名叫雨灯。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:12:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 21670,
+        "complete_ms": 23020,
+        "reply": [
+          "我这边看到过两个名字：海盐和雨灯，但它们来自不同的发言者，没法确定哪个是你给薄荷取的。你再提醒我一下？"
+        ],
+        "action": "succeeded",
+        "review": "could_not_attribute"
+      },
+      {
+        "case": "group_changed",
+        "arm": "current",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:07:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:08:00+00:00",
+            "text": "我也在桥边摆摊，我的摊位编号是白榆。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:09:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 23646,
+        "complete_ms": 24868,
+        "reply": [
+          "你自己的摊位编号是“红杏”呀～别拿成另一位的“白榆”啦。"
+        ],
+        "action": "succeeded",
+        "review": "obsolete_fact"
+      },
+      {
+        "case": "group_changed",
+        "arm": "hybrid",
+        "question": "现在我在桥边摆摊用哪个编号？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "我在桥边摆摊，自己的摊位编号是红杏。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:16:00+00:00",
+            "text": "楼下新开了花店。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": true,
+            "time": "2026-01-01T00:17:00+00:00",
+            "text": "桥边摆摊的编号有调整，我这个改成了青苔，原先的编号作废。"
+          },
+          {
+            "speaker": "20931",
+            "from_current_sender": false,
+            "time": "2026-01-01T00:18:00+00:00",
+            "text": "刚收好雨伞。"
+          }
+        ],
+        "first_ms": 13733,
+        "complete_ms": 15085,
+        "reply": [
+          "现在用“青苔”，原来的“红杏”已经作废啦。"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "joke_control",
+        "arm": "current",
+        "question": "那九加三呢？",
+        "asker": "10217",
+        "calls": [
+          [
+            "recall.expand",
+            "low"
+          ],
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna",
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "每回我玩松果收银台，就来考你几加三，逗你玩。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          }
+        ],
+        "first_ms": 20744,
+        "complete_ms": 22571,
+        "reply": [
+          "九加三等于十二！松果收银台今天也顺利营业～"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      },
+      {
+        "case": "joke_control",
+        "arm": "hybrid",
+        "question": "那九加三呢？",
+        "asker": "10217",
+        "calls": [
+          [
+            "reply.generate",
+            "low"
+          ]
+        ],
+        "models": [
+          "gpt-5.6-luna"
+        ],
+        "rerouted": false,
+        "recalled": [
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:01:00+00:00",
+            "text": "楼下的猫睡着了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:02:00+00:00",
+            "text": "每回我玩松果收银台，就来考你几加三，逗你玩。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:03:00+00:00",
+            "text": "午饭是面。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:04:00+00:00",
+            "text": "小路旁开花了。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:05:00+00:00",
+            "text": "今天风有点大。"
+          },
+          {
+            "speaker": "10217",
+            "from_current_sender": null,
+            "time": "2026-01-01T00:06:00+00:00",
+            "text": "书架收拾完了。"
+          }
+        ],
+        "first_ms": 9211,
+        "complete_ms": 10253,
+        "reply": [
+          "九加三等于十二！松果收银台这题也难不倒我～"
+        ],
+        "action": "succeeded",
+        "review": "correct"
+      }
+    ]
+  }
+}

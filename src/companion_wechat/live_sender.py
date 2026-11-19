@@ -23,6 +23,34 @@ from .contracts import PreparedSend, SendPermit, SendRequest, digest, identifier
 from .gateway import PermitAuthority
 
 
+def _prepare_error(exc):
+    if isinstance(exc, TimeoutError):
+        return "wechat_prepare_timeout"
+    if isinstance(exc, PermissionError):
+        return "wechat_prepare_access_denied"
+    if isinstance(exc, FileNotFoundError):
+        return "wechat_prepare_resource_missing"
+    code = getattr(exc, "code", None)
+    if not isinstance(code, str) and isinstance(exc, RuntimeError) and len(exc.args) == 1:
+        code = exc.args[0]
+    if isinstance(code, str):
+        if code in {"wechat_binding_changed", "wechat_send_target_changed", "wechat_send_target_unverified",
+                    "wechat_send_text_invalid", "wechat_native_closed", "wechat_stale_connection",
+                    "wechat_receipt_unavailable", "wechat_receipt_disconnected"}:
+            return code
+        if code == "client_version_unsupported":
+            return "wechat_prepare_version_unsupported"
+        if code == "client_not_minimized":
+            return "wechat_prepare_window_not_minimized"
+        if code == "process_access_denied":
+            return "wechat_prepare_access_denied"
+        if code in {"client_not_running", "account_unavailable", "worker_disconnected"}:
+            return "wechat_prepare_client_unavailable"
+        if code == "dependency_unavailable":
+            return "wechat_prepare_resource_missing"
+    return "wechat_driver_prepare_failed"
+
+
 @dataclass(frozen=True, repr=False)
 class SendProof:
     """A driver-attested live session, exact UI target, and untouched empty draft.
@@ -193,8 +221,8 @@ class LiveSenderGateway:
                 proof = await asyncio.wait_for(self.driver.prepare(request), self.timeout)
             except asyncio.CancelledError:
                 raise
-            except Exception:
-                raise AssistantError("wechat_driver_prepare_failed", "发送准备未完成") from None
+            except Exception as exc:
+                raise AssistantError(_prepare_error(exc), "微信发送准备未完成") from None
             self._check(request)
             self._proof(request, proof)
         ticket = uuid.uuid4().hex

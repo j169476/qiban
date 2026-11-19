@@ -1,0 +1,630 @@
+{
+  "date": "2026-11-19",
+  "scenario": "synthetic_local_conversation",
+  "reasoning_effort": "low",
+  "recent_context_limit": 4,
+  "old_joke_age_days": 21,
+  "client_wait": "started immediately before handle; ends after confirmed local delivery",
+  "rounds": [
+    {
+      "model": "gpt-6.1-terra",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6.1-terra",
+        "gpt-6.1-terra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 20956.7,
+      "status": "succeeded",
+      "complete_ms": 22352,
+      "synthetic_reply": "八加三等于十一！松果收银台又算上一笔啦 🌰",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 6240.451,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 6485.587,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.2-sol",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6.2-sol",
+        "gpt-6.2-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 20139.3,
+      "status": "succeeded",
+      "complete_ms": 21427.3,
+      "synthetic_reply": "八加三等于十一。松果收银台一共收了 11 颗松果！",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 6092.587,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 7021.35,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-5"
+      ],
+      "rerouted": false,
+      "status": "model_unavailable",
+      "complete_ms": 8952.5,
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 4147.382,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-5.6-terra",
+        "gpt-5.6-terra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 22205.7,
+      "status": "succeeded",
+      "complete_ms": 24652.5,
+      "synthetic_reply": "八加三等于十一。松果收银台这回又往前挪了一格～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 6270.54,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 11102.016,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-5.6-luna",
+        "gpt-5.6-luna"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 18108.5,
+      "status": "succeeded",
+      "complete_ms": 19613.9,
+      "synthetic_reply": "八加三等于十一！松果收银台继续营业～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 5064.25,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 7392.274,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-5.6-sol",
+        "gpt-5.6-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 19341.5,
+      "status": "succeeded",
+      "complete_ms": 21357.8,
+      "synthetic_reply": "八加三等于十一。松果收银台继续营业～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 4720.372,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 7343.616,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6-astra",
+        "gpt-6-astra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 20665.3,
+      "status": "succeeded",
+      "complete_ms": 21561.3,
+      "synthetic_reply": "等于11！松果收银台又记一笔，摊主离下班又近一步啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7303.726,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 6919.937,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6.2-astra",
+        "gpt-6.2-astra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 23213.4,
+      "status": "succeeded",
+      "complete_ms": 24878.8,
+      "synthetic_reply": "十一！松果收银台这单算完，摊主快下班啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7708.503,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 9570.253,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-sol",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6-sol",
+        "gpt-6-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 23868.6,
+      "status": "succeeded",
+      "complete_ms": 24956.9,
+      "synthetic_reply": "八加三等于十一。松果收银台这笔账，算好啦～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 6470.637,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 8378.533,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6-luna",
+        "gpt-6-luna"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 22568.2,
+      "status": "succeeded",
+      "complete_ms": 23579.1,
+      "synthetic_reply": "八加三等于十一。松果收银台今天的账算好啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7590.962,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 6706.552,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6.1-sol",
+        "gpt-6.1-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 23324.5,
+      "status": "succeeded",
+      "complete_ms": 24730.2,
+      "synthetic_reply": "八加三等于十一！松果收银台又进账十一颗，摊主还没下班呢。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7996.185,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 7340.367,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6.1-sol",
+        "gpt-6.1-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 25635,
+      "status": "succeeded",
+      "complete_ms": 26797.2,
+      "synthetic_reply": "八加三等于十一。松果收银台又收进十一颗松果，摊主还没下班呢～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 8223.971,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 10568.371,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6-luna",
+        "gpt-6-luna"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 17866.4,
+      "status": "succeeded",
+      "complete_ms": 18929.5,
+      "synthetic_reply": "八加三等于十一！松果收银台继续营业啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 4964.143,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 5150.983,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-sol",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6-sol",
+        "gpt-6-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 18606,
+      "status": "succeeded",
+      "complete_ms": 20241.5,
+      "synthetic_reply": "八加三等于十一。松果收银台这笔账算好啦～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 5378.048,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 7485.3,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.2-astra",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6.2-astra",
+        "gpt-6.2-astra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 23887.5,
+      "status": "succeeded",
+      "complete_ms": 25649.5,
+      "synthetic_reply": "十一！松果收银台都数到十一了，摊主快下班啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 8258.077,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 9643.611,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6-astra",
+        "gpt-6-astra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 21176.6,
+      "status": "succeeded",
+      "complete_ms": 22552.5,
+      "synthetic_reply": "等于十一！松果收银台又记一笔，摊主离下班又近一步啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7835.488,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 6665.175,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-5.6-sol",
+        "gpt-5.6-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 17087.3,
+      "status": "succeeded",
+      "complete_ms": 20551.4,
+      "synthetic_reply": "十一！松果收银台记账：8＋3＝11。🌰",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 4789.982,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 8492.614,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-5.6-luna",
+        "gpt-5.6-luna"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 17501.7,
+      "status": "succeeded",
+      "complete_ms": 18685.2,
+      "synthetic_reply": "八加三等于十一！松果收银台继续营业～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 4773.084,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 5957.483,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.6-terra",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-5.6-terra",
+        "gpt-5.6-terra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 23607.3,
+      "status": "succeeded",
+      "complete_ms": 25620.2,
+      "synthetic_reply": "十一！松果收银台再记一笔～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 6232.589,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 12649.333,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.2-sol",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6.2-sol",
+        "gpt-6.2-sol"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 22045.6,
+      "status": "succeeded",
+      "complete_ms": 23214,
+      "synthetic_reply": "八加三等于十一。松果收银台，收你 11 颗松果！",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7142.436,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 8052.223,
+          "checks": 0
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.1-terra",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6.1-terra",
+        "gpt-6.1-terra"
+      ],
+      "rerouted": false,
+      "old_joke_in_context": true,
+      "first_text_ms": 18338,
+      "status": "succeeded",
+      "complete_ms": 19005,
+      "synthetic_reply": "八加三等于十一！松果收银台又算对一笔～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 4717.953,
+          "checks": 0
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 5858.787,
+          "checks": 0
+        }
+      ]
+    }
+  ],
+  "previous_polling": [
+    {
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "sample": 1,
+      "thread_models": [
+        "gpt-6.1-sol",
+        "gpt-6.1-sol"
+      ],
+      "rerouted": false,
+      "receive_checks": "previous_polling",
+      "old_joke_in_context": true,
+      "first_text_ms": 22374.9,
+      "status": "succeeded",
+      "complete_ms": 23089.3,
+      "synthetic_reply": "等于十一！松果收银台又记上一笔～",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 8394.958,
+          "checks": 57,
+          "check_ms": 615.25
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 6533.29,
+          "checks": 48,
+          "check_ms": 525.541
+        }
+      ]
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "sample": 2,
+      "thread_models": [
+        "gpt-6.1-sol",
+        "gpt-6.1-sol"
+      ],
+      "rerouted": false,
+      "receive_checks": "previous_polling",
+      "old_joke_in_context": true,
+      "first_text_ms": 20982.3,
+      "status": "succeeded",
+      "complete_ms": 22046.6,
+      "synthetic_reply": "等于十一！松果收银台又算完一笔，摊主离下班又近一步啦。",
+      "calls": [
+        {
+          "purpose": "recall.expand",
+          "ms": 7843.414,
+          "checks": 54,
+          "check_ms": 567.601
+        },
+        {
+          "purpose": "reply.generate",
+          "ms": 7080.758,
+          "checks": 53,
+          "check_ms": 610.398
+        }
+      ]
+    }
+  ]
+}

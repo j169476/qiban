@@ -64,6 +64,8 @@ class DesktopManagement:
         self.codex = None
         self.qq = None
         self.bili = None
+        from .desktop_learning_index import LearningIndex
+        self.learning_index = LearningIndex(store)
         self.wechat_resources = None
         self.wechat_detected = {}
         from .desktop_room import DesktopRoom
@@ -173,6 +175,7 @@ class DesktopManagement:
             self.store.set_state(LOCK,state,db)
             self.repository.audit(self.actor.key,'desktop_locked',self.installation,db=db)
         self.unlocked = False
+        self.learning_index.invalidate()
         if self.runtime:
             self.runtime.manual.stop('desktop_locked')
         if self.bili:
@@ -356,6 +359,9 @@ class DesktopManagement:
                       'media.voice':set(),'media.voice.configure':{'enabled','seconds','expected'},
                       'media.capacity':set(),'media.capacity.configure':{'mib','expected'},
                       'media.list':{'after','limit'},'media.preserve':{'identifier','reasons','expected'}}
+            from . import desktop_learning, desktop_workspace
+            fields.update(desktop_workspace.FIELDS)
+            fields.update(desktop_learning.FIELDS)
             if not isinstance(op,str) or op not in fields or set(args)!=fields[op]:
                 raise AssistantError('management_operation','未知管理操作或参数')
             if op.startswith('config.') and (not isinstance(args['kind'],str) or
@@ -434,6 +440,9 @@ class DesktopManagement:
             raise AssistantError('management_request','请提供基础记忆标识和人物卡版本')
 
     def _operation(self, request, op, args):
+        if op.startswith(("workspace.", "context.", "learning.")):
+            from .desktop_workspace import operate
+            return operate(self, request, op, args)
         if op.startswith("bili."):
             self.authority.require(request,administrator=True)
             if self.bili is None:
@@ -495,10 +504,10 @@ class DesktopManagement:
                        'wechat.targets.verify': verify_targets}[op]
             return asyncio.run(handler(self, request, **args))
         if op in ('wechat.profiles','wechat.select'):
-            from .desktop_wechat import select_account, selection
+            from .desktop_wechat import select_account, selection, version_status
             self.authority.require(request, administrator=True)
             if op == 'wechat.profiles':
-                return selection(self.store, self.installation)
+                return {**selection(self.store, self.installation), "client": version_status()}
             return select_account(self, request, **args)
         if op == 'wechat.accounts':
             import asyncio

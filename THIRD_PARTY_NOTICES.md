@@ -13,6 +13,10 @@ Python 依赖由安装器从各自发行源安装，不在源码包中捆绑。�
 
 原生桥接没有包含或编译 MinHook。上游声明中列出的组件不代表全部进入本项目的受限实现；具体改动与范围见各目录 README 和 NOTICE。
 
+## 旧聊天召回模型
+
+栖伴随包提供 BAAI 的中文 BGE-small-zh-v1.5 模型，使用 Xenova 修订 `75c43b069aac4d136ba6bc1122f995fedcfd2781` 的量化 ONNX 权重和分词器。上游标明模型使用 MIT 许可，原许可随模型保存在 `src/companion_core/history_model/LICENSE.txt`。桌面后台同时保留 ONNX Runtime、NumPy、Tokenizers 及其依赖的许可文本。[模型卡](https://huggingface.co/BAAI/bge-small-zh-v1.5) · [ONNX 来源](https://huggingface.co/Xenova/bge-small-zh-v1.5/tree/75c43b069aac4d136ba6bc1122f995fedcfd2781)
+
 ## 界面素材
 
 v0.9.3 管理界面使用设备已有的系统字体与浏览器通用无衬线字体，不下载或捆绑字体文件。本轮仅调整字号、字重、颜色及间距，未新增第三方字体或图片素材；系统字体仍适用设备与字体发行方的许可。

@@ -62,6 +62,10 @@ def check(wheel):
         assert recall([], "synthetic missing history") == []
         assert callable(project) and not listing(store) and len(PLATFORMS) == 3
         assert 'companion_core/sql/008_input_images.sql' in names
+        from companion_core.hybrid_history import MODEL_DIR, shared_encoder
+
+        assert (MODEL_DIR / "LICENSE.txt").is_file()
+        assert shared_encoder(MODEL_DIR).encode(["聊天记录"]).shape == (1, 512)
         assert 'companion_core/sql/009_personal_fact_index.sql' in names
         assert callable(FactManagement)
         assert ReplyAuthorizations(store).version(ReplyScope("qq", "10001", "private", "10002")) is None

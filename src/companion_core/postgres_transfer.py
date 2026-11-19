@@ -109,6 +109,22 @@ def create(store, backup_key, *, metadata=None):
 
 
 def unpack(blob, backup_key):
+    from . import backup_stream
+    if blob.startswith(backup_stream.MAGIC):
+        import io
+        if len(blob) > MAX_BACKUP:
+            raise AssistantError('backup_limit','备份超过此导入入口的容量上限')
+        result = {"format": 2, "tables": {}, "assets": []}
+        for item in backup_stream.read(io.BytesIO(blob), backup_key, raw_limit=MAX_BACKUP):
+            if item[0] == "schema":
+                result["migrations"] = item[1]
+            elif item[0] == "table":
+                block = result["tables"][item[1]] = {"columns":item[2], "rows":[]}
+            elif item[0] == "row":
+                block["rows"].append(item[1])
+            elif item[0] == "asset":
+                result["assets"].append(item[1])
+        return result
     if len(blob) > MAX_BACKUP or not blob.startswith(b"CCBACKUP1:") or blob[42:43] != b"\n":
         raise AssistantError("backup_invalid", "备份格式无效或超过上限")
     try:
@@ -168,34 +184,44 @@ def restore(store, blob, backup_key, *, expected, finalize=None):
         for key, value in local_state.items():
             if value is not None:
                 store.set_state(key, value, db)
-        db.execute("SELECT setval(pg_get_serial_sequence('content_audit','id'),COALESCE(MAX(id),1),COUNT(*)>0) FROM content_audit")
-        # Decode and validate all records before committing; a mismatched database
-        # encryption key must not leave a partially restored service.
-        if not store.validate_all()["ok"]:
-            raise AssistantError("backup_invalid", "恢复资料未通过结构和解密校验")
-        from .input_images import verify_blobs
-
-        verify_blobs(store)
-        from .media_originals import verify_originals
-
-        verify_originals(store)
-        from .sticker_library import verify_stickers
-
-        verify_stickers(store)
-        from .file_library import verify_files
-        verify_files(store)
-        # Restore requires stopped tasks. Holds belonged to exited task owners;
-        # their processing receipts and unfinished events remain in the snapshot.
-        db.execute('DELETE FROM media_original_holds')
-        GovernanceRepository(store).reset_after_restore()
-        from .reply_authorization import ReplyAuthorizations
-
-        ReplyAuthorizations(store).reset_after_restore()
-        for table in ("actions", "core_actions"):
-            db.execute("UPDATE " + table + " SET status='cancelled' WHERE status='prepared'")
-            db.execute("UPDATE " + table + " SET status='uncertain' WHERE status='dispatching'")
-        asset_transfer.enqueue(store, snapshot.get("assets", []), db)
-        if finalize is not None:
-            finalize(db)
+        finish_restore(store, db, snapshot.get('assets', []), finalize)
     asset_transfer.finish(store)
     return {"restored": True, "role_started": False, "sessions_revoked": True, "grants_require_review": True}
+
+
+def finish_restore(store, db, assets, finalize):
+    from . import asset_transfer
+    # RESTART participates in rollback, including a late archive or asset verification failure.
+    next_id = int(db.execute("SELECT COALESCE(MAX(id),0)+1 FROM content_audit").fetchone()[0])
+    db.execute(f"ALTER TABLE content_audit ALTER COLUMN id RESTART WITH {next_id}")
+    # Decode and validate all records before committing; a mismatched database
+    # encryption key must not leave a partially restored service.
+    if not store.validate_critical()["ok"]:
+        raise AssistantError("backup_invalid", "恢复资料未通过结构和解密校验")
+    with db.stream("SELECT kind,id,version,body FROM content_records") as rows:
+        for row in rows:
+            store._decode(row["kind"], row["id"], row["version"], row["body"])
+    from .input_images import verify_blobs
+
+    verify_blobs(store)
+    from .media_originals import verify_originals
+
+    verify_originals(store)
+    from .sticker_library import verify_stickers
+
+    verify_stickers(store)
+    from .file_library import verify_files
+    verify_files(store)
+    # Restore requires stopped tasks. Holds belonged to exited task owners;
+    # their processing receipts and unfinished events remain in the snapshot.
+    db.execute('DELETE FROM media_original_holds')
+    GovernanceRepository(store).reset_after_restore()
+    from .reply_authorization import ReplyAuthorizations
+
+    ReplyAuthorizations(store).reset_after_restore()
+    for table in ("actions", "core_actions"):
+        db.execute("UPDATE " + table + " SET status='cancelled' WHERE status='prepared'")
+        db.execute("UPDATE " + table + " SET status='uncertain' WHERE status='dispatching'")
+    asset_transfer.enqueue(store, assets, db)
+    if finalize is not None:
+        finalize(db)

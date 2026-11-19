@@ -69,8 +69,8 @@ class MediaOriginals:
         revision = secrets.token_hex(16)
         metadata = self.store.ledger_decode('media-original:' + row['id'], row['metadata'])
         metadata['cleanup_reason'] = reason
-        db.execute("UPDATE media_originals SET body=NULL,status='expired',revision=?,metadata=? WHERE id=?",
-                   (revision, self.store.ledger_encode('media-original:' + row['id'], metadata), row['id']))
+        db.execute("UPDATE media_originals SET body=NULL,status='expired',revision=?,metadata=?,expired_at=? WHERE id=?",
+                   (revision, self.store.ledger_encode('media-original:' + row['id'], metadata), self.clock(), row['id']))
         GovernanceRepository(self.store).audit('media-' + reason, 'media_original_expired', row['id'],
                                               row['revision'], revision, db=db)
 
@@ -267,8 +267,8 @@ def verify_originals(store):
     media = MediaOriginals(store)
     media.settings()
     media.capacity_settings()
-    with store.db() as db:
-        for row in db.execute('SELECT * FROM media_originals'):
+    with store.db() as db, db.stream("SELECT * FROM media_originals") as rows:
+        for row in rows:
             summary = media._summary(row)
             from .reply_authorization import ReplyScope
 

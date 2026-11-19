@@ -409,7 +409,7 @@ def test_restore_process_exit_at_transaction_boundaries(service,boundary):
     changed_image=asset.read_bytes()
     script='''
 import base64,json,os,sys
-from companion_core import asset_transfer,postgres_transfer
+from companion_core import asset_transfer,backup_stream
 from companion_core.postgres import PostgresStore
 from qiban.desktop_management import DesktopManagement
 args=json.loads(sys.stdin.read())
@@ -418,13 +418,13 @@ management=DesktopManagement(store,'installation-test','S-1-5-21-test-owner')
 preview=management.backups.prepare(args['name'])
 challenge=management.backups.begin(preview['token'])['challenge']
 if args['boundary']=='before_commit':
-    restore=postgres_transfer.restore
+    restore=backup_stream.restore
     def interrupted(*a,finalize,**kw):
         def before_commit(db):
             finalize(db)
             os._exit(71)
         return restore(*a,finalize=before_commit,**kw)
-    postgres_transfer.restore=interrupted
+    backup_stream.restore=interrupted
 else:
     asset_transfer.finish=lambda store:os._exit(72)
 management.backups.complete(challenge)

@@ -1,5 +1,4 @@
 """Management operations shared by the authenticated UI and trusted bridge."""
-import hashlib
 import hmac
 import secrets
 import time
@@ -36,7 +35,7 @@ class Management(RecordManagement):
             return self._restore_preview(request, name)
 
     def _restore_preview(self, request, name):
-        from companion_core.postgres_transfer import fingerprint, unpack
+        from companion_core.backup_stream import fingerprint, inspect
 
         self.require(request)
         if (self.service.busy or self.service.platform_runs.busy or self.service.backups.busy or self.service.backup_active
@@ -47,21 +46,20 @@ class Management(RecordManagement):
         if self.service.supervisor:
             self.service.supervisor.pulse()
         try:
-            raw = self.backup_path(name).read_bytes()
-            snapshot = unpack(raw, self.store._backup_key)
+            snapshot = inspect(self.backup_path(name), self.store._backup_key)
         except Exception:
             self.service.maintenance_until = 0
             raise
         token = secrets.token_urlsafe(24)
         self.restore_previews = {token: {"actor": request.actor, "session": request.session_id,
-            "name": name, "hash": hashlib.sha256(raw).hexdigest(), "expected": fingerprint(self.store),
+            "name": name, "hash": snapshot["sha256"], "expected": fingerprint(self.store),
             "expires": time.time() + 120}}
         return {"token": token, "expires_in_seconds": 120, "name": name,
-                "counts": {table: len(block["rows"]) for table, block in snapshot["tables"].items()},
+                "counts": snapshot["counts"],
                 "effect": "恢复覆盖当前数据；全部网页会话和跨账号授权失效，角色保持暂停。"}
 
     def restore(self, request, token, password):
-        from companion_core.postgres_transfer import restore
+        from companion_core.backup_stream import restore
         from companion_core.sessions import password_hash
 
         self.require(request)
@@ -71,11 +69,9 @@ class Management(RecordManagement):
                 or preview["expires"] <= time.time() or not owner
                 or not hmac.compare_digest(owner["hash"], password_hash(password, owner["salt"]))):
             raise AssistantError("restore_denied", "恢复预览或密码无效，请重新检查")
-        raw = self.backup_path(preview["name"]).read_bytes()
-        if hashlib.sha256(raw).hexdigest() != preview["hash"]:
-            raise AssistantError("edit_conflict", "备份在预览后发生变化")
         try:
-            return restore(self.store, raw, self.store._backup_key, expected=preview["expected"])
+            return restore(self.store, self.backup_path(preview["name"]), self.store._backup_key,
+                           digest=preview["hash"], expected=preview["expected"])
         finally:
             self.service.maintenance_until = 0
 

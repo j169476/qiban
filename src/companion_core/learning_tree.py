@@ -44,21 +44,18 @@ def ensure(engine, goal):
 def graph(nodes):
     """Reject missing links, self-links and cycles, including combinations of both edge types."""
     data = {n["data"]["id"]: n["data"] for n in nodes}
-    visiting, visited = set(), set()
+    from graphlib import CycleError, TopologicalSorter
 
-    def visit(key):
-        if key not in data or key in visiting:
-            raise AssistantError("learning_graph", "知识树不能包含跨目标、缺失或成环的依赖")
-        if key in visited:
-            return
-        visiting.add(key)
-        node = data[key]
-        for other in [*node["prerequisites"], *([node["parent_id"]] if node["parent_id"] else [])]:
-            visit(other)
-        visiting.remove(key)
-        visited.add(key)
-    for key in data:
-        visit(key)
+    order = TopologicalSorter()
+    for key, node in data.items():
+        links = [*node["prerequisites"], *([node["parent_id"]] if node["parent_id"] else [])]
+        if any(other not in data for other in links):
+            raise AssistantError("learning_graph", "知识树引用了其他目标或缺失的节点")
+        order.add(key, *links)
+    try:
+        order.prepare()
+    except CycleError:
+        raise AssistantError("learning_graph", "父节点或前置依赖成环") from None
 
 
 def assessment_current(store, goal, node):

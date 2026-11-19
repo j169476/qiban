@@ -16,7 +16,7 @@
   el('candidate').textContent=account('本次登录：',state?.candidate);
   el('candidate').hidden=!state?.candidate;
   el('status').textContent=state?.message||labels[state?.state]||(state?.current?'已绑定。':'');
-  if(state?.state==='idle'&&state.current)el('status').textContent='已绑定。';
+  if(state?.state==='idle'&&state.current&&!state.message)el('status').textContent='已绑定。';
   el('qr').hidden=!state?.qr;
   if(state?.qr)el('qr').src='data:image/png;base64,'+state.qr;else el('qr').removeAttribute('src');
   el('login').textContent=state?.current?'重新登录':'扫码登录';
@@ -28,6 +28,8 @@
   const uid=state?.current?.uid||null;
   if(uid!==policyUid){
    policyUid=uid;policySeq++;policy=null;edits=[];policyDirty=policyBusy=false;
+   if(session&&typeof CustomEvent==='function'&&typeof window.dispatchEvent==='function')
+    window.dispatchEvent(new CustomEvent('qiban-bili-account-change',{detail:{uid}}));
    el('policy').open=false;el('rules').replaceChildren();el('policy-note').textContent='';
    el('policy-day').textContent='';el('policy-save').disabled=el('policy-default').disabled=true;
   }

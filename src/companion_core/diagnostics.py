@@ -17,10 +17,14 @@ def record_exception(store, error, *, stage, generation=None, platform=None, obs
         frames, trace = [], error.__traceback__
         while trace is not None:
             code = trace.tb_frame.f_code
-            try:
-                source = Path(code.co_filename).resolve().relative_to(SOURCE).as_posix()
-            except ValueError:
-                source = None
+            path = Path(code.co_filename)
+            source = None
+            if path.is_absolute():
+                if path.is_relative_to(SOURCE):
+                    source = path.relative_to(SOURCE).as_posix()
+            elif ".." not in path.parts:
+                # Frozen modules use package-relative filenames, regardless of the desktop working directory.
+                source = path.as_posix()
             if source and source.startswith(("companion_", "bili_assistant/", "qiban/")):
                 frames.append({"file": _label(source), "function": _label(code.co_name), "line": trace.tb_lineno})
             trace = trace.tb_next
@@ -30,6 +34,12 @@ def record_exception(store, error, *, stage, generation=None, platform=None, obs
                  "observation_id": _label(observation_id) if observation_id else None}
         details = getattr(error, "diagnostics", {})
         if isinstance(details, dict):
+            if details.get("bili_endpoint") in {"following_feed", "recommended_feed", "video_info", "video_search", "video_subtitle"}:
+                entry["bili_endpoint"] = details["bili_endpoint"]
+            if type(details.get("bili_code")) is int:
+                entry["bili_code"] = details["bili_code"]
+            if type(details.get("http_status")) is int and 100 <= details["http_status"] <= 599:
+                entry["http_status"] = details["http_status"]
             if type(details.get("process_exit_code")) is int:
                 entry["process_exit_code"] = details["process_exit_code"]
             if details.get("process_failure") in {"state_database", "startup_configuration"}:

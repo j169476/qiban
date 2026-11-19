@@ -85,6 +85,18 @@ def test_removed_model_and_account_switch_during_fetch_do_not_silently_fall_back
         catalog.status(store,refresh=True)
 
 
+def test_explicit_automatic_effort_survives_save_and_is_omitted_from_requests():
+    from companion_codex.plan_web import request_body
+    catalog, _, store, _, access = fixture()
+    automatic = {**upstream("automatic"), "supported_reasoning_levels": [], "default_reasoning_level": None}
+    catalog.fetch = lambda _: parse_catalog({"models": [automatic, upstream("adjustable")]})
+    saved = catalog.configure(store, account_id="a", expected="", model="automatic", effort=None)
+    assert saved["available"] and catalog.resolve(store, access) == ("automatic", None)
+    assert "reasoning" not in request_body("example", {}, {"type": "string"}, "automatic", None)
+    with pytest.raises(AssistantError, match="档位"):
+        catalog.configure(store, account_id="a", expected=saved["revision"], model="automatic", effort="high")
+
+
 def test_activity_nested_tasks_and_failure_clear_correctly():
     activity=Activity()
     with activity.track('bilibili','watching'):

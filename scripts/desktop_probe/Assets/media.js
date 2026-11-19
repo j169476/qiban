@@ -51,7 +51,7 @@
    el('media-capacity-usage').textContent=`已用 ${mib(capacity.used_bytes)} MiB，其中受保护 ${mib(capacity.protected_bytes)} MiB、可回收 ${mib(capacity.reclaimable_bytes)} MiB。`+(capacity.over_limit?' 当前超过所设容量，正在按规则回收；受保护内容不会删除。':'');
   }
   if(budget)for(const key of Object.keys(ranges))el('media-'+key).value=String(budget.limits[key]);
-  if(result.maintenance_error)el('media-notice').textContent='附件自动清理未完成，已停止本轮清理。请重启应用后台后检查。';
+  if(result.maintenance_error)el('media-notice').textContent=['maintenance_io','database_error','database_busy','lock_timeout'].includes(result.maintenance_error)?'附件自动清理未完成，稍后自动重试。':'附件自动清理未完成，请检查后台状态。';
  }
  async function perform(action,noticeId='media-notice'){
   if(!allowed||busy)return;busy=true;const token=epoch;render();

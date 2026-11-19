@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qiban"
-version = "0.9.7"
+version = "0.9.9"
 description = "A local companion with shared memory and independent Bilibili, WeChat and QQ connectors."
 requires-python = ">=3.11"
 license = {text = "MIT for project-owned code; third-party components retain their original licenses (see THIRD_PARTY_NOTICES.md)"}
@@ -20,6 +20,7 @@ dependencies = [
   "tzdata>=2025.1",
   "Pillow>=11,<14",
   "python-docx>=1.1,<2",
+  "onnxruntime==1.31.0", "tokenizers==0.23.3", "numpy>=2,<3",
 ]
 
 [project.optional-dependencies]
@@ -46,7 +47,7 @@ license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 [tool.setuptools.package-data]
 bili_assistant = ["defaults/*.yaml", "schemas/*.json"]
-companion_core = ["*.json", "sql/*.sql"]
+companion_core = ["*.json", "sql/*.sql", "history_model/*"]
 companion_qq = ["native/*.cjs", "native/*.c", "native/*.def", "native/*.json", "native/LICENSE.*"]
 companion_wechat = ["third_party/*.txt", "native/*.json", "native/*.cpp", "native/*.h", "native/*.inc", "native/*.helper", "native/*.md"]
 

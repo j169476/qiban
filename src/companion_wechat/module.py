@@ -277,6 +277,10 @@ class WeChatModule:
             if delegate is not None:
                 delegate.session.close()  # Preflight does not open workers or native processes.
             if isinstance(exc, (ProbeFailure, OSError, ValueError)):
+                if isinstance(exc, ProbeFailure) and str(exc).startswith("unsupported_"):
+                    from .windows_version import unsupported_message
+
+                    raise AssistantError("client_version_unsupported", unsupported_message()) from None
                 messages = {
                     "bridge_build_changed": "微信桥接构建与当前源码不一致，请在接入向导重新准备微信连接依赖。",
                     "bridge_build_missing": "微信桥接构建或清单缺失，请在接入向导准备微信连接依赖。",
@@ -303,7 +307,11 @@ class WeChatModule:
     async def receive(self, cursor):
         return await self.delegate.receive(cursor)
 
-    async def runtime_poll(self):
+    async def runtime_poll(self, *, receive=True):
+        if not receive:
+            if self.delegate.receiver.status()["state"] != "connected":
+                return []
+            return self.delegate.admitted_pending()
         incoming = await self.delegate.collect_once()
         if not incoming and getattr(self.store, "backend", None) == "postgres":
             await self.alias_reviews.poll(self.core, self.delegate.receiver)

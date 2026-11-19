@@ -267,6 +267,21 @@ async def test_change_during_window_preparation_cancels_before_send(env, change)
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("phase,expected", [
+    ("prepare", ("cancelled", "wechat_prepare_timeout")),
+    ("commit", ("uncertain", "wechat_send_unconfirmed")),
+])
+async def test_timeout_distinguishes_preparation_from_submission(env, monkeypatch, phase, expected):
+    async def expire(*args, **kwargs):
+        raise TimeoutError()
+
+    monkeypatch.setattr(env.gateway, phase, expire)
+    result = await dispatch(env, await incoming(env))
+    assert (result["status"], result["error"]) == expected
+    assert not env.gateway.sent
+
+
+@pytest.mark.asyncio
 async def test_stop_after_permit_before_commit_revokes_generation(env):
     event = await incoming(env)
     env.gateway.before_commit = env.core.stop

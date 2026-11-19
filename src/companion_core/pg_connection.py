@@ -109,6 +109,15 @@ class Connection:
         cursor.executemany(parameters(sql), arguments)
         return Cursor(cursor)
 
+    @contextmanager
+    def stream(self, sql, arguments=(), *, batch=2):
+        """Use a server-side cursor so iterating a table does not buffer its entire result."""
+        from uuid import uuid4
+        with self.connection.cursor(name='qiban_' + uuid4().hex) as cursor:
+            cursor.itersize = batch
+            cursor.execute(parameters(sql), arguments)
+            yield cursor
+
     def executescript(self, sql):
         # Only checked-in migration SQL, never text supplied by a model or web form.
         return Cursor(self.connection.execute(sql, prepare=False))

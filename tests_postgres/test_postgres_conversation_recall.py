@@ -139,7 +139,8 @@ class Model:
 
 
 @pytest.mark.asyncio
-async def test_history_only_uses_one_shared_expansion_and_scoped_plan_cache(pg_store):
+async def test_history_only_uses_one_shared_expansion_and_scoped_plan_cache(pg_store, monkeypatch):
+    monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", "off")
     seed(pg_store)
     assert not pg_store.records("memories")[0]
     model, adapter = Model(), Adapter()
@@ -159,7 +160,8 @@ async def test_history_only_uses_one_shared_expansion_and_scoped_plan_cache(pg_s
 
 
 @pytest.mark.asyncio
-async def test_failed_expansion_falls_back_to_original_history_query(pg_store):
+async def test_failed_expansion_falls_back_to_original_history_query(pg_store, monkeypatch):
+    monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", "off")
     seed(pg_store)
     model, adapter = Model(fail_expansion=True), Adapter()
     core = Companion(pg_store, model, Host(), [adapter])

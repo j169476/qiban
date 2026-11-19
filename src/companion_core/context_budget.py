@@ -25,7 +25,7 @@ def measure(context, instructions="", schema=None):
     return {"chars": len(raw), "estimated_tokens": len(raw.encode("utf-8"))}
 
 
-def pack(context, settings, instructions="", schema=None):
+def pack(context, settings, instructions="", schema=None, *, explain_sources=False):
     limits = {key: (settings or {}).get(key, value) for key, value in DEFAULTS.items()}
     if any(type(value) is not int or value <= 0 for value in limits.values()) or limits["reply_context_tokens"] <= limits["reply_output_reserve"]:
         raise AssistantError("context_budget", "统一上下文预算配置无效")
@@ -36,10 +36,36 @@ def pack(context, settings, instructions="", schema=None):
 
         install_notice(result, documents)
     candidates, sections = [], {}
+    choices = []
+
+    def mark(section, item, reason, grouped):
+        if not explain_sources:
+            return
+        for row in item if grouped else [item]:
+            if len(choices) >= 100 or not isinstance(row, dict):
+                return
+            default_kind = {"current_facts": "memories", "fact_history": "memories",
+                            "recent_turns": "conversation_turns", "recalled_turns": "conversation_turns",
+                            "summary": "conversation_summaries"}.get(section)
+            kind = row.get("kind") if section in {"memory_records", "catalog"} else default_kind
+            identifier = row.get("data", {}).get("id") or row.get("id")
+            if kind and identifier and row.get("version"):
+                choices.append({"resource": kind + "/" + identifier, "version": row["version"],
+                                "section": section, "reason": reason})
+    from .context_workspace import LAYERS
+
+    order = (settings or {}).get("workspace_order", list(LAYERS))
+    # Only reorder optional layers amongst their original slots.
+    priorities = dict(zip(order, (20, 50, 60, 70, 90, 94, 95), strict=True))
+    disabled = (settings or {}).get("workspace_disabled", [])
 
     def candidate(section, priority, path, value, *, grouped=False):
         sections.setdefault(section, {"offered": 0, "kept": 0, "duplicates": 0})["offered"] += len(value) if grouped else 1
-        candidates.append((priority, len(candidates), section, path, value, grouped))
+        if section in disabled:
+            sections[section]["reason"] = "disabled"
+            mark(section, value, "disabled", grouped)
+            return
+        candidates.append((priorities.get(section, priority), len(candidates), section, path, value, grouped))
 
     def nested(path):
         parent = result
@@ -118,6 +144,7 @@ def pack(context, settings, instructions="", schema=None):
                 for name in ("turns", "recalled") for item in result.get("conversation", {}).get(name, [])))
         if duplicate:
             sections[section]["duplicates"] += 1
+            mark(section, value, "duplicate", grouped)
             continue
         parent, key = nested(path)
         previous = parent[key]
@@ -130,8 +157,10 @@ def pack(context, settings, instructions="", schema=None):
         if (usage["chars"] + 512 <= limits["reply_context_chars"]
                 and usage["estimated_tokens"] + 512 + limits["reply_output_reserve"] <= limits["reply_context_tokens"]):
             sections[section]["kept"] += len(value) if grouped else 1
+            mark(section, value, "kept", grouped)
         else:
             parent[key] = previous
+            mark(section, value, "budget", grouped)
     limited = any(row["kept"] + row["duplicates"] < row["offered"] for row in sections.values())
     result["context_selection"]["limited"] = limited
     if facts:
@@ -167,4 +196,12 @@ def pack(context, settings, instructions="", schema=None):
               "fixed": fixed_usage,
               "limits": limits, "sections": sections, "limited": limited,
               "token_estimator": "utf8_bytes_upper_estimate", "image_tokens_included": False}
+    report["workspace_version"] = (settings or {}).get("workspace_version", "initial")
+    if explain_sources:
+        report["source_choices"] = choices
+    for key, section in sections.items():
+        if key != "attachment_text":
+            section["skipped"] = section["offered"] - section["duplicates"] - section["kept"]
+            if section["skipped"]:
+                section.setdefault("reason", "budget")
     return result, report

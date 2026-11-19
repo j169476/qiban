@@ -24,7 +24,7 @@ from .errors import AssistantError
 from .pg_connection import Database
 from .policy_json import PolicyJSON
 from .profiles import default_profile
-from .storage import Store, StrictLoader, atomic_write, digest
+from .storage import Store, StrictLoader, digest
 
 
 def migrate(database, profile):
@@ -81,6 +81,7 @@ class PostgresStore(Store):
         self.runtime = self.root / "runtime"
         self.runtime.mkdir(parents=True, exist_ok=True)
         self.lock = FileLock(str(self.runtime / "write.lock"), timeout=20)
+        self.backup_lock = FileLock(str(self.runtime / "backup.lock"), timeout=20)
         self.database = Database(connection_options)
         self.cipher = ContentCipher(key)
         from cryptography.hazmat.primitives import hashes
@@ -294,6 +295,8 @@ class PostgresStore(Store):
         if tracked(key):
             state_refs(db, key, value)
         if key.startswith("core-processed:"):
+            db.execute("UPDATE ordinary_history SET retry_at=NULL WHERE family='core_events' AND k1=? "
+                       "AND retry_at IS NOT NULL", (key[15:],))
             db.execute("""INSERT INTO core_event_receipts VALUES(?,?) ON CONFLICT(event_id)
                        DO UPDATE SET version=excluded.version""", (key[15:], value))
             # Retention begins only with the durable processing receipt, in the
@@ -301,6 +304,8 @@ class PostgresStore(Store):
             db.execute("""UPDATE media_originals SET processed_at=COALESCE(processed_at,EXTRACT(EPOCH FROM clock_timestamp()))
                        WHERE event_id=? AND source_version=?""", (key[15:], value))
         elif key.startswith("merged-consumed:"):
+            db.execute("UPDATE ordinary_history SET retry_at=NULL WHERE family='core_events' AND k1=? "
+                       "AND retry_at IS NOT NULL", (key[16:],))
             # A merged reply retires every member, not only its anchor event.
             # Consumption is not a claim that omitted media was read.
             db.execute("""UPDATE media_originals SET processed_at=COALESCE(processed_at,EXTRACT(EPOCH FROM clock_timestamp()))
@@ -337,32 +342,35 @@ class PostgresStore(Store):
                         event.get("before"), event.get("after"), json.dumps(metadata)))
 
     def backup(self, force=False):
-        from .postgres_transfer import create, unpack
+        from . import backup_stream
 
         folder = self.root / "history" / "backups"
         folder.mkdir(parents=True, exist_ok=True)
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         target = folder / (day + ("-" + secrets.token_hex(4) if force else "") + ".ccbackup")
-        with self.lock:
+        with self.backup_lock:
+            # The archive lock excludes another local backup writer. An abrupt process
+            # exit can leave only its unpublished temporary file in this directory.
+            for partial in folder.glob('.qiban-backup-*.tmp'):
+                if partial.is_file() and not partial.is_symlink() and partial.resolve().parent == folder.resolve():
+                    partial.unlink()
             reused = False
             metadata = {}
             if target.is_file() and not target.is_symlink():
                 try:
-                    unpack(target.read_bytes(), self._backup_key)
+                    metadata["sha256"] = backup_stream.inspect(target, self._backup_key)["sha256"]
                     reused = True
                 except AssistantError:
                     pass
             if not reused:
-                blob = create(self, self._backup_key, metadata=metadata)
-                unpack(blob, self._backup_key)
-                atomic_write(target, blob)
+                metadata = backup_stream.create(self, target, self._backup_key)
             keep = self.read("policy")["data"]["backup_keep"]
             older = sorted((path for path in folder.glob("*.ccbackup") if path != target),
                            key=lambda path: path.stat().st_mtime_ns, reverse=True)
             for old in older[max(0, keep - 1):]:
                 if old.resolve().is_relative_to(folder.resolve()) and not old.is_symlink():
                     old.unlink()
-        return {"path": str(target), "sha256": digest(target.read_bytes()), "encrypted": True,
+        return {"path": str(target), "encrypted": True,
                 "reused": reused, **metadata}
 
     def checkpoint(self):

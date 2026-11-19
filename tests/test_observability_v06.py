@@ -49,6 +49,27 @@ def test_nested_stages_inherit_and_restore_with_safe_failure_code(store):
     assert result["recent"][0]["error_code"] == "model_timeout"
 
 
+@pytest.mark.asyncio
+async def test_bili_read_failure_identifies_endpoint_without_retaining_platform_response(store, monkeypatch):
+    from bilibili_api import dynamic
+    from bilibili_api.exceptions import ResponseCodeException
+
+    from bili_assistant.bilibili import Bilibili
+
+    async def rejected(*_):
+        raise ResponseCodeException(-403, "private-upstream-detail", {"cookie":"private-cookie"})
+
+    adapter = Bilibili(store)
+    monkeypatch.setattr(adapter, "_credential", lambda **kwargs: None)
+    monkeypatch.setattr(dynamic, "get_dynamic_page_info", rejected)
+    with pytest.raises(AssistantError) as failure, measure(store, "exploration"):
+        await adapter.feed(following=True)
+    assert failure.value.code == "platform_read_error"
+    row = report(store)["recent"][0]["diagnostic"]
+    assert row["bili_endpoint"] == "following_feed" and row["bili_code"] == -403
+    assert "private-" not in json.dumps(row)
+
+
 def test_unexpected_error_preserves_only_bounded_source_metadata(store):
     from companion_core.contracts import Event
     from companion_core.diagnostics import KEY

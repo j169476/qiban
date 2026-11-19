@@ -8,6 +8,7 @@ capability probes rather than promises about a particular client/account.
 from __future__ import annotations
 
 import ctypes
+import os
 import re
 from collections import deque
 from ctypes import wintypes
@@ -15,6 +16,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import PureWindowsPath
 
 from ..probe import DesktopSnapshot, ProbeUnavailable, Structure, TargetSnapshot
+from ..windows_version import file_version
 
 MAIN = "mmui::MainWindow"
 LOGIN = "mmui::LoginWindow"
@@ -63,8 +65,6 @@ def _processes():
 
 def _file_version(pid):
     """Read the executable's version resource, never a profile or data directory."""
-    import win32api
-
     kernel = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
     kernel.OpenProcess.restype = wintypes.HANDLE
@@ -83,13 +83,21 @@ def _file_version(pid):
         path = buffer.value
         if PureWindowsPath(path).name.lower() not in {"weixin.exe", "wechat.exe"}:
             return ""
-        values = win32api.GetFileVersionInfo(path, "\\")
-        high, low = values["FileVersionMS"], values["FileVersionLS"]
-        return f"{high >> 16}.{high & 65535}.{low >> 16}.{low & 65535}"
+        return file_version(path)
     except Exception:
         return ""
     finally:
         kernel.CloseHandle(handle)
+
+
+def running_client_versions():
+    """Process image versions, independent of the optional UIA package."""
+    if os.name != "nt":
+        return []
+    try:
+        return sorted({version for pid in _processes() if (version := _file_version(pid))})
+    except (OSError, ProbeUnavailable):
+        return []
 
 
 def inspect_structure(window, *, target=False, max_nodes=256, max_depth=8):
