@@ -12,7 +12,7 @@ from pathlib import Path
 from . import asset_transfer
 from .cipher import ContentCipher
 from .errors import AssistantError
-from .postgres_transfer import LOCAL_STATE_KEYS, _decode, _encode, _identifier, _raw, tables
+from .postgres_transfer import ADDITIVE_TABLES, LOCAL_STATE_KEYS, _decode, _encode, _identifier, _raw, tables
 from .runtime_keys import RUN_KEYS
 
 MAGIC = b"CCBACKUP2\n"
@@ -53,6 +53,7 @@ def records(store, db, *, ordered=False):
             "input_image_blobs",
             "sticker_library",
             "file_library",
+            "library_version_bodies",
             "asset_restore_jobs",
         }
         with db.stream(
@@ -216,14 +217,20 @@ def restore(store, path, key, *, expected, digest, finalize=None):
         db.execute("SET LOCAL statement_timeout=0")
         reader = DigestReader(handle)
         entries = read(reader, key)
-        if next(entries, None) != ["schema", migrations(db)]:
+        actual = migrations(db)
+        header = next(entries, None)
+        supported = [n for n in (16, 17, 18) if header == ["schema", actual[:n]] and n <= len(actual)]
+        if not supported:
             raise AssistantError("backup_schema", "备份数据库版本不一致")
+        missing_tables = {t for n, fields in ADDITIVE_TABLES.items() if n > supported[0] for t in fields}
         local = {k: store.state(k, db=db) for k in LOCAL_STATE_KEYS}
         names = tables(store)
         for table in reversed(names):
             db.execute("DELETE FROM " + _identifier(table))
         item = next(entries, None)
         for table in names:
+            if table in missing_tables:
+                continue
             name = _identifier(table)
             cols = [c.name for c in db.execute("SELECT * FROM " + name + " LIMIT 0").cursor.description]
             if item != ["table", table, cols]:

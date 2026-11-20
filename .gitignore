@@ -31,8 +31,13 @@ companion-service-data/
 *.cckey
 
 # Personal authoring material and acceptance evidence stay local.
-docs/evidence/
-docs/personas/
+/docs/*
+!/docs/DEVELOPMENT.md
+!/docs/GETTING_STARTED.md
+!/docs/RELEASE_NOTES.md
+!/docs/微信支持范围.md
+!/docs/桌面声明.md
+!/docs/模型选择参考.md
 assets/avatars/
 docs/V8.2-*
 docs/V0_9_DEVELOPMENT.md

@@ -92,7 +92,8 @@ class StickerLibrary:
         digest = hashlib.sha256(content).hexdigest()
         with self.store.lock, self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            old = db.execute("SELECT * FROM sticker_library WHERE sha256=?", (digest,)).fetchone()
+            old = db.execute("SELECT * FROM sticker_library WHERE sha256=? ORDER BY created_at,id LIMIT 1",
+                             (digest,)).fetchone()
             if old:
                 return {"item": self._summary(old), "duplicate": True}
             from .media_originals import MediaOriginals
@@ -157,6 +158,10 @@ class StickerLibrary:
             check(row is not None, "sticker_missing", "表情不存在或已移除。")
             check(row["revision"] == expected, "edit_conflict", "表情已改变，请重新读取。")
             metadata = self.store.ledger_decode("sticker:" + identifier, row["metadata"])
+            if (values["name"], values["tags"]) != (metadata["name"], metadata["tags"]):
+                from .library_versions import LibraryVersions
+
+                LibraryVersions(self.store, "stickers").archive(db, row)
             revision = secrets.token_hex(16)
             db.execute(
                 "UPDATE sticker_library SET metadata=?,enabled=?,revision=? WHERE id=?",

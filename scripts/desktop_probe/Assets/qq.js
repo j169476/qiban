@@ -3,6 +3,7 @@
  const el=id=>document.getElementById(id),pending=new Map();
  let allowed=false,state=null,submitting=false,refreshing=false,refreshQueued=false,epoch=0,signature='';
  let targetRevision=null;
+ let followingLogin=false;
  let operationArea='login';
  const picker=new window.QibanContacts.Picker(el('qq-contact-picker'),{selected:row=>numbers(row.kind==='group'?'qq-group-targets':'qq-private-targets').includes(row.id),toggle:(row,on)=>{const id=row.kind==='group'?'qq-group-targets':'qq-private-targets';const values=new Set(numbers(id));if(on)values.add(row.id);else values.delete(row.id);el(id).value=[...values].join('\n');render();},sync:()=>perform('directory')});
  let entrySync=false;
@@ -17,7 +18,7 @@
  function call(operation,args={}){
   const id=crypto.randomUUID().replaceAll('-','');
   return new Promise((resolve,reject)=>{
-   const timer=setTimeout(()=>{pending.delete(id);reject(new Error('连接未及时返回，请重新检查。'));},12000);
+   const timer=setTimeout(()=>{pending.delete(id);const error=new Error('连接未及时返回，请重新检查。');error.timedOut=true;reject(error);},12000);
    pending.set(id,{resolve,reject,timer});
    window.chrome.webview.postMessage({action:'management',operation:'qq.'+operation,arguments:args,request_id:id});
   });
@@ -45,7 +46,8 @@
   }
   const png=allowed&&['qr_ready','qr_scanned'].includes(state?.state)?state.png_base64:null;
   el('qq-qr-area').hidden=!png;
-  if(png)el('qq-qr').src='data:image/png;base64,'+png;else el('qq-qr').removeAttribute('src');
+  if(png){const src='data:image/png;base64,'+png;if(el('qq-qr').src!==src)el('qq-qr').src=src;}
+  else el('qq-qr').removeAttribute('src');
   el('qq-selection-area').hidden=accounts.length===0;
   for(const name of ['login','refresh'])el('qq-'+name).disabled=!allowed||busy;
   el('qq-cancel').disabled=!allowed||submitting||!state?.busy;
@@ -71,7 +73,9 @@
   if(!allowed)return;
   if(refreshing){refreshQueued=true;return;}
   refreshing=true;const current=epoch;
-  try{const value=await call('status');if(allowed&&current===epoch){state=value;el('qq-refresh').hidden=true;render();}}
+  try{const value=await call('status');if(allowed&&current===epoch){
+   if(followingLogin){el('qq-notice').textContent='';followingLogin=!!value.busy;}
+   state=value;el('qq-refresh').hidden=true;render();}}
   catch(error){if(allowed&&current===epoch){el('qq-notice').textContent=error.message;el('qq-refresh').hidden=false;el('qq-refresh').textContent='重试';}}
   finally{refreshing=false;if(entrySync&&state?.running)entrySync=false;if(entrySync&&allowed&&!submitting&&!state?.busy&&state?.selected){entrySync=false;void perform('directory');}if(refreshQueued){refreshQueued=false;void refresh();}}
  }
@@ -89,7 +93,10 @@
     operation='password';args.account=el('qq-login-account').value.trim();args.password=el('qq-login-password').value;
     el('qq-login-password').value='';
    }
-   try{await call(operation,args);}finally{if('password' in args)args.password='';}
+   const login=operation==='login'||operation==='password';
+   try{await call(operation,args);if(login&&allowed&&current===epoch)followingLogin=true;}
+   catch(error){if(login&&error.timedOut&&allowed&&current===epoch)followingLogin=true;throw error;}
+   finally{if('password' in args)args.password='';}
    if(!allowed||current!==epoch)return;
    await refresh();
    if(operation==='select'){notice.textContent='账号已保存。';entrySync=document.body.dataset.navPage==='platforms'&&document.body.dataset.tabPlatforms==='qq';}
@@ -106,7 +113,7 @@
  window.addEventListener('qiban-management-state',({detail})=>{
   const changed=allowed!==(detail.ready&&!detail.locked);allowed=detail.ready&&!detail.locked;
   el('qq-panel').hidden=el('management-panel').hidden;
-  if(!allowed){el('qq-login-password').value='';state=null;epoch++;el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
+  if(!allowed){el('qq-login-password').value='';followingLogin=false;state=null;epoch++;el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
   render();if(allowed&&changed)void refresh();
  });
  window.chrome.webview.addEventListener('message',({data})=>{
@@ -116,6 +123,6 @@
   }
   if(data.type==='management_error'){for(const item of pending.values()){clearTimeout(item.timer);item.reject(new Error(data.message));}pending.clear();}
  });
- setInterval(()=>{if(allowed&&state?.busy)void refresh();},500);
+ setInterval(()=>{if(allowed&&!submitting&&(followingLogin||state?.busy))void refresh();},500);
  render();
 })();

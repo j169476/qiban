@@ -91,6 +91,7 @@ def prepare(service, tmp_path, monkeypatch, wire):
     monkeypatch.setattr(httpx.AsyncHTTPTransport, 'handle_async_request', forbidden)
     model = DesktopModel(service.codex, executable='never-launch-real-codex',
                          web_transport=httpx.MockTransport(wire.handle))
+    model.catalog.fetch = lambda access: [{'id': 'gpt-6.1-terra', 'efforts': ['low'], 'default_effort': 'low'}]
     runtime = DesktopRuntime(service, 'direct-web-157', room_model=model)
     return runtime, book
 

@@ -52,6 +52,7 @@ class InteractionGrowth:
         self.key = stable_key("private-growth", event.account, event.actor.key, event.thread)
         self.previous_id = self.store.state(self.key)
         previous = governed.read("interaction_growth", self.previous_id) if self.previous_id else None
+        self.previous_version = previous["version"] if previous else None
         if previous and any(previous["data"][key] != value for key, value in (
                 ("account", event.account), ("actor", event.actor.key), ("conversation", event.thread),
                 ("channel", event.platform))):
@@ -88,6 +89,8 @@ class InteractionGrowth:
 
     def save(self, update, memories, event_version):
         self.check()
+        if self.previous_version and self.store.version("interaction_growth", self.previous_id) != self.previous_version:
+            raise AssistantError("context_changed", "该会话的成长记录已修改")
         identifier = stable_key("growth", self.event.id, event_version)
         # A revoked, edited or deleted record is never silently regenerated.
         if self.store.state("growth-recorded:" + identifier):
@@ -121,7 +124,7 @@ class InteractionGrowth:
         pending.extend({"event_id": self.event.id, "content": value[:1200], "excerpt": len(value) > 1200}
                        for value in memories if value.strip())
         state["pending_experiences"] = pending[-12:]
-        self.store.write("interaction_growth", {"schema_version": 1, "id": identifier,
+        saved = self.store.write("interaction_growth", {"schema_version": 1, "id": identifier,
             "account": self.event.account, "actor": self.event.actor.key, "conversation": self.event.thread,
             "channel": self.event.platform, "state": state, "locked": False,
             "source": {"type": "interaction", "recorded_at": self.now.isoformat(), "reference": self.event.id}},
@@ -130,3 +133,4 @@ class InteractionGrowth:
         self.store.set_state(self.key, identifier)
         self.store.set_state("growth-recorded:" + identifier, True)
         self.previous_id = identifier
+        self.previous_version = saved["version"]

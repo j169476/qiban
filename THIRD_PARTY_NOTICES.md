@@ -1,5 +1,26 @@
 # 第三方来源与许可证
 
+## 桌面许可索引
+
+| 主要上游项目 | 许可 |
+| --- | --- |
+| [wechatauto-replica](https://github.com/fanyuantaier/wechatauto-replica)、[Waylay](https://github.com/Micuks/waylay-qq-bridge) | Apache-2.0 |
+| [helper](https://github.com/Prometheus-first/helper) | 自定义非商业许可 |
+| [bilibili-api-python](https://github.com/Nemo2011/bilibili-api) | GPL-3.0-or-later |
+| [BGE-small-zh-v1.5](https://huggingface.co/BAAI/bge-small-zh-v1.5)、[Xenova 量化模型](https://huggingface.co/Xenova/bge-small-zh-v1.5)、[ONNX Runtime](https://github.com/microsoft/onnxruntime) | MIT |
+| [Whisper](https://github.com/openai/whisper)、[faster-whisper](https://github.com/SYSTRAN/faster-whisper)、[CTranslate2](https://github.com/OpenNMT/CTranslate2) | MIT |
+| [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)、[Kokoro 中文模型](https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh)、[Tokenizers](https://github.com/huggingface/tokenizers) | Apache-2.0 |
+| [silk-wasm](https://github.com/idranme/silk-wasm) | MIT，底层编解码器另附 Russell BSD 与 Skype SILK SDK 声明 |
+| [PostgreSQL](https://github.com/postgres/postgres) | PostgreSQL License |
+| [CPython](https://github.com/python/cpython) | Python Software Foundation License 及随附声明 |
+| [.NET Runtime](https://github.com/dotnet/runtime)、[C#/WinRT](https://github.com/microsoft/CsWinRT)、[Node.js](https://github.com/nodejs/node) | MIT 及随附第三方声明 |
+| [WebView2 SDK](https://www.nuget.org/packages/Microsoft.Web.WebView2)、[Windows SDK .NET](https://www.nuget.org/packages/Microsoft.Windows.SDK.NET.Ref) | 各自的 Microsoft 软件许可条款 |
+| [pypdf](https://github.com/py-pdf/pypdf) | BSD-3-Clause |
+| [python-docx](https://github.com/python-openxml/python-docx)、[python-pptx](https://github.com/scanny/python-pptx)、[openpyxl](https://foss.heptapod.net/openpyxl/openpyxl) | MIT |
+| [PyInstaller](https://github.com/pyinstaller/pyinstaller) | GPL-2.0-or-later，附打包例外 |
+
+## 分发声明
+
 本项目自有代码及随仓库分发的白龙娘界面插画、SVG 图标采用 [MIT License](LICENSE)。第三方代码、第三方代码的派生实现及外部依赖继续适用各自的原始许可证；根目录 MIT 许可不替代或重新授权这些部分。保留所有随附的原始许可与声明。
 
 尤其是 `src/companion_wechat/db_windows.py` 中改编的读取算法适用下述 Apache-2.0 条款，`src/companion_wechat/native/` 和 `scripts/wechat_native_probe/` 中改编自 helper 的部分继续适用其非商业许可。包含这些组件的完整发行包不能仅按 MIT 许可解释。
@@ -9,7 +30,7 @@
 | 微信数据库读取中的布局与提取算法 | `fanyuantaier/wechatauto-replica`，提交 `d322c4a9b1124228820bab363e5676016f188fc6` | Apache-2.0；`src/companion_wechat/third_party/NOTICE.txt` 及同目录许可证 |
 | 微信原生发送 ABI、指纹及账号链等改编代码 | `Prometheus-first/helper`，提交 `a81c495770b397646ba0661118927c83589c41fc` | 自定义非商业许可；`src/companion_wechat/native/LICENSE.helper` 及原始第三方声明；实验探针目录也保留同样许可 |
 
-Python 依赖由安装器从各自发行源安装，不在源码包中捆绑。版本约束见 `pyproject.toml`、`constraints-windows.txt` 和 `requirements/`。SQLCipher、sqlcipher3、PostgreSQL、QQ/微信客户端以及 OneBot 桥接分别适用其发行方条款；本仓库不包含这些产品的登录资料或二进制安装包。
+Python 依赖由安装器从各自发行源安装，不在源码包中捆绑。版本约束见 `pyproject.toml`、`constraints-windows.txt` 和 `requirements/`。SQLCipher、sqlcipher3、PostgreSQL、QQ/微信客户端分别适用其发行方条款；本仓库不包含这些产品的登录资料或二进制安装包。
 
 原生桥接没有包含或编译 MinHook。上游声明中列出的组件不代表全部进入本项目的受限实现；具体改动与范围见各目录 README 和 NOTICE。
 
@@ -73,7 +94,6 @@ v0.9.3 管理界面使用设备已有的系统字体与浏览器通用无衬线�
 
 `qqnt-lifecycle.c` 与 `QQNT-lifecycle.def` 为此前自有实验生命周期转接层，MIT。源码包包含源文件，不包含测试账号、官方 QQ 内核或 Node 二进制；本机实机验证复用忽略目录中按摘要核验的运行资源。正式运行资源分发清单与安装集成仍须完成，不以源码包的 MIT／Apache 声明重新授权官方组件。
 
-群列表更新类型仅参考 [NapCat 公开接口类型声明](https://github.com/NapNeko/NapCatQQ/blob/main/packages/napcat-core/types/group.ts) 的协议枚举事实，自行实现更新处理，未复制其桥接实现。固定内核实机额外观察到的空 mode-4 通知仅记录为无成员断言，不将未知非空通知解释为成员变更。
 
 
 ## 正式文件解析接入（2026-10-31）

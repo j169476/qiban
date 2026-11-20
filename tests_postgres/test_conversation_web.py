@@ -161,8 +161,9 @@ def test_input_image_backup_restore_and_integrity(service):
     assert service.local.images.read(request, key) == picture()
     with service.store.db() as db:
         db.execute('DELETE FROM input_image_blobs WHERE id=?', (key,))
-    with pytest.raises(AssistantError, match='不完整'):
+    with pytest.raises(AssistantError) as error:
         verify_blobs(service.store)
+    assert error.value.code == 'backup_invalid'
 
 
 def test_image_normalization_applies_orientation_and_transparency(service):

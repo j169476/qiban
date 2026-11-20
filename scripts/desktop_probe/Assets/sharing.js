@@ -15,7 +15,7 @@
  const KIND={diaries:'日记',knowledge:'知识',memories:'记忆'};
  const PURPOSE={reply:'回复',maintenance:'维护'};
  // "维护" never authorizes a reply: AccessService only accepts the granted purpose.
- const PURPOSE_HINT={reply:'可在私聊回复中使用',maintenance:'只供维护流程使用，不能用于回复'};
+ const PURPOSE_HINT={reply:'可在私聊回复中使用',maintenance:'仅用于资料维护'};
  // Shape names come from the backend; the older and the current spellings both map.
  const SHAPE={private:'私聊读取',private_reply:'归属账号私聊',conversation:'原会话',
   public:'公开场合读取',public_read:'公开场合'};

@@ -2,12 +2,15 @@
  'use strict';
  const el=id=>document.getElementById(id),pending=new Map();
  let allowed=false,busy=false,state=null,epoch=0,entered=false,account=null,authorizationReady=false,saveTimer=null,noticeTimer=null;
+ let ultrafast=false;
  const status=text=>el('model-choice-status').textContent=text;
  const chosen=()=>state?.models.find(row=>row.id===el('model-choice').value);
  function controls(){
   const blocked=!allowed||busy,row=chosen();
   el('model-catalog-refresh').disabled=blocked;
   el('model-choice').disabled=blocked||!state?.models.length;
+  const speed=el('model-ultrafast');
+  speed.hidden=row?.ultrafast!==true;speed.disabled=blocked||speed.hidden;speed.setAttribute('aria-pressed',String(!speed.hidden&&ultrafast));
   el('model-effort').disabled=blocked||!row?.efforts.length;
   el('model-choice-save').disabled=blocked||!row;
   for(const button of el('model-effort-choices').children)button.disabled=blocked;
@@ -38,12 +41,14 @@
  function paint(value){state=value;el('model-choice').replaceChildren();for(const row of value.models){const o=document.createElement('option');o.value=row.id;o.textContent=row.name;el('model-choice').append(o);}
   el('model-choice').value=value.model;efforts(value.effort);
   const saved=value.models.find(m=>m.id===value.model);
+  ultrafast=saved?.ultrafast===true&&value.ultrafast===true;
   el('model-applied').textContent=value.model?(saved?.name||value.model)+' · '+(value.effort?(titles[value.effort]||value.effort):'由模型决定'):'尚未选择';
   el('model-count').textContent=value.models.length+' 个可用模型';
   status(value.available?'':'原模型已不可用，请重新选择。');
  }
  async function run(save=false,refresh=false){const row=chosen();if(!allowed||busy||(save&&!row))return;if(save)clearTimeout(saveTimer);const current=epoch;busy=true;controls();status(save?'正在保存…':'正在读取模型列表…');
-  try{const result=await call(save?'configure':'catalog',save?{account_id:state.account_id,expected:state.revision,model:row.id,effort:row.efforts.length?el('model-effort').value:null}:{refresh});
+  try{const speed=save&&('ultrafast' in state||state.models.some(m=>'ultrafast' in m))?{ultrafast:row.ultrafast===true&&ultrafast}:{};
+   const result=await call(save?'configure':'catalog',save?{account_id:state.account_id,expected:state.revision,model:row.id,effort:row.efforts.length?el('model-effort').value:null,...speed}:{refresh});
    if(allowed&&epoch===current){paint(result);if(save){status('已保存');clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>{if(epoch===current)status('');},2500);}el('model-catalog-refresh').textContent='刷新模型目录';}
   }catch(error){if(epoch===current){if(save&&state)paint(state);status((save?'保存失败。':'')+error.message);el('model-catalog-refresh').hidden=false;el('model-catalog-refresh').textContent='重试';
    if(save&&['edit_conflict','account_changed','timeout'].includes(error.code)){
@@ -55,10 +60,11 @@
  function enter(){const visible=allowed&&document.body.dataset.navPage==='model';if(visible&&!entered){entered=true;void run();}else if(!visible)entered=false;}
  function scheduleSave(){clearTimeout(saveTimer);clearTimeout(noticeTimer);const view=epoch;status('待保存…');saveTimer=setTimeout(()=>{if(view===epoch&&allowed)void run(true);},350);}
  el('model-effort').onchange=scheduleSave;
- el('model-choice').onchange=()=>{efforts();controls();scheduleSave();};el('model-catalog-refresh').onclick=()=>run(false,true);el('model-choice-save').onclick=()=>run(true);
+ el('model-ultrafast').onclick=()=>{if(!allowed||busy||chosen()?.ultrafast!==true)return;ultrafast=!ultrafast;controls();scheduleSave();};
+ el('model-choice').onchange=()=>{if(chosen()?.ultrafast!==true)ultrafast=false;efforts();controls();scheduleSave();};el('model-catalog-refresh').onclick=()=>run(false,true);el('model-choice-save').onclick=()=>run(true);
  window.addEventListener('qiban-nav-change',enter);
  function clearSelection(){
-  state=null;el('model-choice').replaceChildren();el('model-effort').replaceChildren();el('model-effort-choices').replaceChildren();
+  state=null;ultrafast=false;el('model-choice').replaceChildren();el('model-effort').replaceChildren();el('model-effort-choices').replaceChildren();
   el('model-applied').textContent=el('model-count').textContent='等待读取';
  }
  window.addEventListener('qiban-management-state',({detail})=>{allowed=detail.ready&&!detail.locked;if(!allowed){clearTimeout(saveTimer);clearTimeout(noticeTimer);epoch++;clearSelection();busy=false;status('解锁后选择模型。');}controls();enter();});

@@ -32,7 +32,7 @@ test('monitor follows actual activity and switches to a quiet idle frame on disc
  }
  await p.state('replying');await p.ready(false);assert.deepEqual(p.node('monitor-window').activity,{state:'idle',quiet:true});
 });
-test('monitor and room use eight scheduled pixel backgrounds and six static portraits',()=>{
+test('monitor and room use eight scheduled pixel backgrounds and seven static poses',()=>{
  const html=fs.readFileSync(path.join(__dirname,'Assets/index.html'),'utf8'),host=fs.readFileSync(path.join(__dirname,'Program.cs'),'utf8');
  assert.match(html,/<qiban-room id="monitor-window"/);assert.match(html,/<qiban-room id="room-window"/);
  assert.match(host,/"\.webp"=>"image\/webp"/);
@@ -45,12 +45,12 @@ test('monitor and room use eight scheduled pixel backgrounds and six static port
  const starts=Array.from(catalog.periods,p=>p.start);
  assert.equal(starts.length,8);assert.equal(starts[0],0);
  assert.ok(starts.every((n,i)=>Number.isInteger(n)&&n<1440&&(!i||starts[i-1]<n)));
- assert.deepEqual(Object.keys(catalog.characters.hoodie).sort(),['learning','reading','replying','sleeping','watching','window']);
+ assert.deepEqual(Object.keys(catalog.characters.hoodie).sort(),['learning','reading','replying','sleeping','tail','watching','window']);
  for(const pose of Object.values(catalog.characters.hoodie)){
   assert.deepEqual(Object.keys(pose).sort(),['lighting','still']);files.push(pose.still);
   assert.deepEqual(Object.keys(pose.lighting).sort(),Array.from(catalog.periods,p=>p.id).sort());
  }
- assert.equal(new Set(files).size,14);
+ assert.equal(new Set(files).size,15);
  assert.match(host,/name\.StartsWith\("room-stills\/"/);
  const project=fs.readFileSync(path.join(__dirname,'Qiban.DesktopProbe.csproj'),'utf8');
  assert.ok(project.includes('Assets/room-stills/*.webp'));assert.ok(!project.includes('Assets/room-art/*.webp'));

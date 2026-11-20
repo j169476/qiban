@@ -151,7 +151,11 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 [Files]
 ; Whitelist: the assembled application directory only, unchanged and recursive. build_installer.py
 ; refuses a directory that carries project sources or personal data, so nothing else can be picked up.
+#ifdef PayloadEntries
+#include PayloadEntries
+#else
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
 ; The installer's own metadata: the complete published-file identity of this build. It is installed
 ; so the next run can prove "same build" from one record instead of re-hashing the target's files.
 Source: "{#PayloadIdentity}"; DestDir: "{app}"; DestName: "{#PayloadIdentityName}"; Flags: ignoreversion
@@ -200,6 +204,32 @@ var
   // Set only when this run really prepared (or continued) a paired upgrade transaction; the
   // forward clean-up after the file copy is meaningless for every other shape.
   UpgradeFinalizeNeeded: Boolean;
+
+procedure LaunchCheckChanged(Sender: TObject);
+begin
+  WizardForm.RunList.Checked[0] := TNewCheckBox(Sender).Checked;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+var
+  LaunchCheck: TNewCheckBox;
+begin
+  if (CurPageID <> wpFinished) or not WizardForm.RunList.Visible or
+     (WizardForm.RunList.Items.Count <> 1) then Exit;
+
+  // Let Windows lay out the glyph and its caption together at the current DPI.
+  // The original [Run] entry still controls whether and how the application starts.
+  LaunchCheck := TNewCheckBox.Create(WizardForm);
+  LaunchCheck.Parent := WizardForm.FinishedPage;
+  LaunchCheck.SetBounds(WizardForm.FinishedLabel.Left, WizardForm.RunList.Top,
+    WizardForm.FinishedLabel.Width, ScaleY(24));
+  LaunchCheck.Anchors := [akLeft, akTop, akRight];
+  LaunchCheck.Caption := WizardForm.RunList.ItemCaption[0];
+  LaunchCheck.Checked := WizardForm.RunList.Checked[0];
+  LaunchCheck.TabOrder := WizardForm.RunList.TabOrder;
+  LaunchCheck.OnClick := @LaunchCheckChanged;
+  WizardForm.RunList.Visible := False;
+end;
 
 function RunningRefusal: String;
 begin

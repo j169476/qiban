@@ -21,11 +21,8 @@ def registry(store):
         result["assets/persona/" + ref["filename"]] = ref["sha256"]
     for kind, directory in (("publication_images", "publication"), ("task_assets", "tasks")):
         if kind in store.profile.schemas:
-            with store.db() as db, db.stream("SELECT id,version,body FROM content_records WHERE kind=?",
-                                            (kind,)) as rows:
-                for identifier,version,body in rows:
-                    doc = store._decode(kind,identifier,version,body)["data"]
-                    result["assets/" + directory + "/" + doc["filename"]] = doc["sha256"]
+            for doc in store.iter_record_data(kind):
+                result["assets/" + directory + "/" + doc["filename"]] = doc["sha256"]
     return result
 
 

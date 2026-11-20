@@ -68,21 +68,15 @@ def setup_case(store, name):
     return turn(90, query, actor)
 
 
-def pairs():
-    for index, name in enumerate(CASES):
-        for arm in (("current", "hybrid") if index % 2 == 0 else ("hybrid", "current")):
-            yield name, arm
-
-
 @pytest.mark.parametrize("failure", ["missing", "during_ranking"])
-async def test_pilot_encoder_failure_restores_existing_expansion(pg_store, monkeypatch, tmp_path, failure):
+async def test_encoder_failure_keeps_local_recall(pg_store, monkeypatch, tmp_path, failure):
     from companion_core.hybrid_history import HybridHistory
 
     monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", str(tmp_path / "missing-model"))
     seed(pg_store)
     model, adapter = Model(), Adapter()
     core = Companion(pg_store, model, Host(), [adapter])
-    assert core.history_ranker is None
+    assert core.history_ranker.encoder is None
 
     class Broken:
         def encode(self, texts):
@@ -94,7 +88,7 @@ async def test_pilot_encoder_failure_restores_existing_expansion(pg_store, monke
     try:
         result = await core.handle(event(200, "之前那个碰面的暗号"))
         assert result["action"]["status"] == "succeeded" and len(adapter.sent) == 1
-        assert len(model.expansions) == 1 and core.history_ranker is None
+        assert not model.expansions and core.history_ranker.encoder is None
         assert "钴蓝纸鹤" in str(model.decisions[-1]["conversation"]["recalled"])
     finally:
         core.stop()
@@ -205,6 +199,7 @@ async def test_structured_recall_keeps_expansion_with_history_pilot(pg_store):
     core = Companion(pg_store, model, Host(), [adapter])
 
     def rank(rows, query, queries, *, passages, current_sender):
+        assert "北岸灯塔" not in queries  # The cloud expansion belongs only to structured memory.
         return scores(rows, query, queries, passages=passages)
 
     core.history_ranker = rank
@@ -217,17 +212,38 @@ async def test_structured_recall_keeps_expansion_with_history_pilot(pg_store):
 
 
 @pytest.mark.skipif(os.getenv("QIBAN_LIVE_HISTORY_PILOT") != "1", reason="paid, explicit opt-in")
-@pytest.mark.parametrize(("name", "arm"), pairs())
-async def test_paired_reply(pg_store, monkeypatch, name, arm):
+@pytest.mark.parametrize("name", CASES)
+async def test_local_history_reply(pg_store, monkeypatch, name):
+    await run_trial(pg_store, monkeypatch, name, MODEL)
+
+
+def model_trials():
+    models = tuple(filter(None, os.getenv("QIBAN_HISTORY_BENCHMARK_MODELS", "").split(",")))
+    if not models:
+        return
+    if len(set(models)) != len(models) or any(not re.fullmatch(r"gpt-[\w.-]+", model) for model in models):
+        raise ValueError("Expected unique, comma-separated model IDs")
+    # Rotate the first model between rounds to spread changes in upstream latency.
+    for index, name in enumerate(key for key in CASES if key != "joke_control"):
+        shift = index % len(models)
+        for model in models[shift:] + models[:shift]:
+            yield name, model
+
+
+@pytest.mark.skipif(os.getenv("QIBAN_LIVE_HISTORY_PILOT") != "1", reason="paid, explicit opt-in")
+@pytest.mark.parametrize(("name", "model"), model_trials())
+async def test_model_reply_latency(pg_store, monkeypatch, name, model):
+    await run_trial(pg_store, monkeypatch, name, model)
+
+
+async def run_trial(pg_store, monkeypatch, name, model):
     assert not os.getenv("QIBAN_DESKTOP_TEST_ROOT")
     output = Path(os.environ["QIBAN_HISTORY_PILOT_OUTPUT"])
-    if arm == "current":
-        monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", "off")
     current = setup_case(pg_store, name)
     adapter = Adapter()
-    core = Companion(pg_store, CodexModel(model=MODEL, reasoning_effort="low"), Host(), [adapter])
-    assert (core.history_ranker is not None) == (arm == "hybrid")
-    row = {"case": name, "arm": arm, "question": current.text, "asker": current.actor.user_id,
+    core = Companion(pg_store, CodexModel(model=model, reasoning_effort="low"), Host(), [adapter])
+    assert core.history_ranker.encoder is not None
+    row = {"case": name, "arm": "hybrid", "requested_model": model, "question": current.text, "asker": current.actor.user_id,
            "calls": [], "models": [], "rerouted": False}
     actors = {ActorRef("alpha", actor).key: actor for actor in (A, B)}
     call, update = RpcProcess.call, TurnEvidence.update
@@ -276,7 +292,7 @@ async def test_paired_reply(pg_store, monkeypatch, name, arm):
         core.stop()
         with output.open("a", encoding="utf-8") as file:
             file.write(json.dumps(row, ensure_ascii=False) + "\n")
-    expected = ["reply.generate"] if arm == "hybrid" else ["recall.expand", "reply.generate"]
+    expected = ["reply.generate"]
     assert row["calls"] == [[purpose, "low"] for purpose in expected]
-    assert row["models"] == [MODEL] * len(expected) and not row["rerouted"]
+    assert row["models"] == [model] * len(expected) and not row["rerouted"]
     assert row.get("first_ms") and row["action"] == "succeeded" and len(row["reply"]) == 1

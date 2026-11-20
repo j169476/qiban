@@ -117,11 +117,14 @@ def test_connector_dependencies_accept_the_shipped_core(connector):
     assert core["project"]["version"] in core_requirements[0].specifier
 
 
-def test_unreviewed_csv_outside_local_acceptance_evidence_is_still_rejected(tmp_path):
+def test_only_public_documents_are_exported(tmp_path):
     root = synthetic_source(tmp_path)
-    (root / 'docs/unreviewed.csv').write_text('private synthetic content', encoding='utf-8')
-    with pytest.raises(release.ReleaseError, match='Unreviewed source file'):
-        release.audit(root)
+    for name in ('unreviewed.csv', '交接计划.md', 'benchmarks/trials.json'):
+        file = root / 'docs' / name
+        file.parent.mkdir(exist_ok=True)
+        file.write_text('private synthetic content', encoding='utf-8')
+    payload, _ = release.audit(root, ('private synthetic content',))
+    assert {p for p in payload if p.startswith('docs/')} == {p for p in release.ROOT_FILES if p.startswith('docs/')}
 
 
 def test_public_attribution_does_not_allow_other_private_content(tmp_path):

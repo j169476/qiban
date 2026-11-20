@@ -268,12 +268,12 @@ async def test_qq_queued_and_excluded_messages_are_retired_and_only_new_ones_rep
     env = qq_env
     scope = ReplyScope("qq", "10001", "private", "10002")
     # Accepted while authorized and still queued when the exclusion is written.
-    env.module.accept({**incoming(1), "time": STAMP - 90})
+    env.module.accept({**incoming(1), "msgTime": str(STAMP - 90)})
     assert len(env.store.state(env.module.queue_key)) == 1
 
     exclusion(env.store, scope, excluded=True, at=STAMP - 75)
     # A message that arrives while excluded is recorded as seen but never ingested.
-    env.module.accept({**incoming(2), "time": STAMP - 60})
+    env.module.accept({**incoming(2), "msgTime": str(STAMP - 60)})
     assert await env.module.runtime_poll() == []
     exclusion(env.store, scope, excluded=False, at=STAMP - 60)
     # Neither the queued pre-exclusion message nor the excluded-period message replies.
@@ -281,7 +281,7 @@ async def test_qq_queued_and_excluded_messages_are_retired_and_only_new_ones_rep
     assert env.provider.sent == []
 
     # Only a message timestamped after the lift is admitted and answered.
-    env.module.accept({**incoming(3), "time": STAMP - 30})
+    env.module.accept({**incoming(3), "msgTime": str(STAMP - 30)})
     pending = await env.module.runtime_poll()
     assert len(pending) == 1
     assert (await env.core.handle(pending[0]))["action"]["status"] == "succeeded"
@@ -294,7 +294,7 @@ async def test_qq_exclusion_at_the_last_barrier_prevents_the_native_submit(qq_en
 
     env = qq_env
     scope = ReplyScope("qq", "10001", "private", "10002")
-    env.module.accept({**incoming(1), "time": STAMP})
+    env.module.accept({**incoming(1), "msgTime": str(STAMP)})
     event = (await env.module.runtime_poll())[0]
     identity = env.provider.identity
 
@@ -352,7 +352,7 @@ async def test_qq_uncertain_receipt_is_never_resent_after_an_exclusion_and_lift(
     env = qq_env
     scope = ReplyScope("qq", "10001", "private", "10002")
     env.provider.unknown = True
-    env.module.accept({**incoming(1), "time": STAMP})
+    env.module.accept({**incoming(1), "msgTime": str(STAMP)})
     event = (await env.module.runtime_poll())[0]
     assert (await env.core.handle(event))["action"]["status"] == "uncertain"
     assert len(env.provider.sent) == 1
@@ -628,7 +628,7 @@ async def _owned_native(pg_store, tmp_path, *, follow):
 
     from companion_core.runtime import Companion
     from companion_qq.native_provider import NativeProvider
-    from tests_postgres.test_qq_module import OPTIONS
+    from tests_postgres.test_qq_module import options
     from tests_postgres.test_wechat_role import Host, Model
 
     workers = []
@@ -640,7 +640,7 @@ async def _owned_native(pg_store, tmp_path, *, follow):
         workers.append(worker)
         return worker
 
-    module = QQModule(pg_store, tmp_path, options=OPTIONS,
+    module = QQModule(pg_store, tmp_path, options=options(tmp_path),
                       factory=lambda: NativeProvider(pg_store, native, worker_factory=factory,
                                                      follow_settings=follow))
     module.probe()

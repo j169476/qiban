@@ -4,5 +4,6 @@
   "watching": "forenoon",
   "sleeping": "night",
   "reading": "night",
-  "window": "forenoon"
+  "window": "forenoon",
+  "tail": "forenoon"
 }

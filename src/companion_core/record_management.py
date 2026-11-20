@@ -58,9 +58,13 @@ class RecordManagement:
             fixed = (kind == "memories" and baseline.enabled(self.store)
                      and identifier in baseline.identifiers(self.store.read("persona")["data"]))
             manual_document = kind in ('knowledge', 'diaries')
-            if manual_document and self.store.exists(kind, identifier):
+            if kind in ('memories', 'knowledge', 'diaries') and self.store.exists(kind, identifier):
+                from .record_import_advanced import fingerprint
+
                 original = self.store.read(kind, identifier)
-                if original['data'].get('locked') and value.get('locked') is not True:
+                if original["version"] == expected and fingerprint(original["data"]) == fingerprint(value):
+                    return original
+                if manual_document and original['data'].get('locked') and value.get('locked') is not True:
                     raise AssistantError('record_lock_preserved', '管理员更正不解除条目锁定，请保留禁止自动修改的设置。')
             result = self.store.write(kind, value, expected, "admin:" + request.actor, identifier,
                                       allow_locked=fixed or manual_document)

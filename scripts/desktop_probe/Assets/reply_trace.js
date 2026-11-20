@@ -105,7 +105,7 @@
   const hidden=typeof row.hidden_sources==='number'&&Number.isFinite(row.hidden_sources)?row.hidden_sources:0;
   if(hidden>0)paragraph(box,'另有 '+hidden+' 个来源按当前读权限不可读，已隐藏。','note');
   if(row.sources_limited)paragraph(box,'本次使用的来源超过 100 个，记录只保留了前 100 个（已截断）。','note');
-  paragraph(box,'来源只显示资源标识和版本，本页不提供打开原文的入口。','note');
+  paragraph(box,'这里列出本次回复参考的资料及版本。','note');
  }
  function renderDetail(){
   const box=el('detail');box.replaceChildren();
@@ -133,7 +133,7 @@
   head.textContent=rows?('最近 '+rows.length+' 条记录'):'最近记录';box.append(head);
   if(!rows){paragraph(box,'还没有读取最近记录。','note');return;}
   if(!rows.length){
-   paragraph(box,'本机还没有回复处理记录。程序处理一次回复后才会写入记录；更早的记录超过保留期后会被自动清理。','note');
+   paragraph(box,'本机还没有回复处理记录。处理完回复后可在这里查看，到期记录会自动清理。','note');
    return;
   }
   for(const row of rows){
@@ -146,7 +146,7 @@
    button.onclick=()=>void loadDetail(row.id);
    box.append(button);
   }
-  paragraph(box,'列表只包含最近的若干条，没有翻页；需要更多请把“最近数量”调大。','note');
+  paragraph(box,'调大「最近数量」可查看更多记录。','note');
  }
  function render(){
   el('load').disabled=!allowed||busy;

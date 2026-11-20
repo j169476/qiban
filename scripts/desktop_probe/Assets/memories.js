@@ -3,7 +3,7 @@
  const el=id=>document.getElementById(id),pending=new Map();
  let allowed=false,busy=false,epoch=0,items=[],selected=null,dirty=false,preview=null,after='',next=null,back=[];
  let advanced=null,advancedDiff='';
- let timeline=null,factChosen=null,factChecks=new Map(),factControls=[],factAt=null;
+ let timeline=null,factChosen=null,factChecks=new Map(),factControls=[],factAt=null,historicalFact=null;
  let retention=null;
  let kind='memories';
  const kindNames={memories:'记忆',knowledge:'知识',diaries:'日记'};
@@ -40,6 +40,8 @@
   el('memory-next').disabled ||= !next;
   for(const id of ['memory-content','memory-tags'])el(id).disabled=!allowed||busy||!selected||fact||advancedOpen;
   el('memory-save').disabled=!allowed||busy||!selected||!dirty||fact||advancedOpen;
+  el('memory-versions').hidden=fact;
+  el('memory-versions').disabled=!allowed||busy||!selected||dirty||fact||advancedOpen;
   el('memory-discard').disabled=!allowed||busy||!dirty||advancedOpen;
   el('memory-explain').disabled=!allowed||busy||!selected||dirty||advancedOpen;
   el('memory-delete-preview').disabled=!allowed||busy||!selected||dirty||factDraft()||!!selected?.retirement||advancedOpen;
@@ -70,7 +72,7 @@
   el('memory-advanced-cancel').disabled=!allowed||busy||!advanced;
  }
  function clearFacts(){
-  timeline=null;factChosen=null;factChecks.clear();factControls=[];factAt=null;
+  timeline=null;factChosen=null;historicalFact=null;factChecks.clear();factControls=[];factAt=null;
   el('fact-items').replaceChildren();el('fact-summary').textContent='';el('fact-choice').textContent='';
   el('fact-reason').value='';el('fact-value').value='';el('fact-at').value='';el('fact-notice').textContent='';
  }
@@ -93,6 +95,12 @@
     showChoice();controls();
    };
    label.append(check,' 将此记录列为被替代项');card.append(text,choose,label);panel.append(card);
+   if(['historical','disputed','active'].includes(row.status)&&row.id!==factChosen?.id){
+    const restore=document.createElement('button');restore.className='secondary';restore.textContent='使用这个旧值';
+    const eligible=()=>!!factChosen&&factChosen.attribute===row.attribute&&factChosen.value!==row.value;
+    restore.onclick=()=>{if(restore.disabled||!eligible())return;historicalFact=row.id;el('fact-value').value=row.value;controls();el('fact-reason').focus();};
+    card.append(restore);factControls.push({node:restore,eligible});
+   }
    factControls.push({node:choose,eligible:()=>current()&&!factDraft()},{node:check,eligible:()=>current()&&!!factChosen&&row.attribute===factChosen.attribute&&row.id!==factChosen.id});
   }
   showChoice();
@@ -113,7 +121,7 @@
  el('fact-next').onclick=()=>{if(timeline?.next&&!dirty)return run(()=>loadFacts(timeline.next,factAt));};
  el('fact-at').oninput=()=>{timeline=null;factChosen=null;factChecks.clear();factControls=[];el('fact-items').replaceChildren();el('fact-choice').textContent='';el('fact-summary').textContent='';el('fact-reason').value='';controls();};
  el('fact-reason').oninput=controls;
- el('fact-value').oninput=controls;
+ el('fact-value').oninput=()=>{historicalFact=null;controls();};
  el('fact-clear').onclick=()=>{if(!busy){factChosen=null;factChecks.clear();el('fact-reason').value='';el('fact-value').value='';if(timeline)showFacts();el('fact-notice').textContent='已取消选择，事实未改变。';controls();}};
  el('fact-confirm').onclick=()=>{
   if(!allowed||busy||dirty||!factChosen||factAt||!factChecks.size||factChecks.size>20||!el('fact-reason').value.trim()||el('fact-value').value.trim())return;
@@ -127,7 +135,9 @@
   if(el('fact-correct').disabled)return;
   const args={identifier:factChosen.id,expected:timeline.revision,reason:el('fact-reason').value.trim(),supersedes:[...factChecks.keys()],value:el('fact-value').value.trim()};
   return run(async()=>{
-   await call('facts.correct',args);
+   if(historicalFact){
+    const {value,...restore}=args;await call('facts.restore_version',{...restore,version:historicalFact});
+   }else await call('facts.correct',args);
    return ()=>{clearFacts();el('fact-notice').textContent='管理员更正已保存，旧值、原话和来源已保留。请重新读取时间线。';};
   },message=>{el('fact-notice').textContent=message;});
  };
@@ -221,6 +231,7 @@
   if(data?.source_quotes?.length)related.push('来源原话：\n'+data.source_quotes.map(q=>typeof q==='string'?q:q.quote||'').join('\n'));
   el('memory-related').textContent=related.join('\n');
   dirty=false;clearPreview();controls();
+  if(data?.fact)window.QibanAutoRead?.changed?.('fact-refresh');
  }
  function renderList(){
   const list=el('memory-items');list.replaceChildren();
@@ -270,6 +281,11 @@
   });
  };
  el('memory-discard').onclick=()=>{if(!busy&&!advanced){showDetail();notice('已放弃未保存的修改。');}};
+ el('memory-versions').onclick=()=>{
+  if(el('memory-versions').disabled||selected?.data.fact)return;
+  window.QibanSources.recordHistory({kind,identifier:selected.data.id,expected:selected.version,title:kindNames[kind],
+   update:value=>{selected=value;items=items.map(item=>item.data.id===value.data.id?value:item);showDetail();renderList();notice('已恢复。');}});
+ };
  el('memory-save').onclick=()=>{
   if(!selected||!dirty||advanced||selected.data.fact)return;
   const tags=el('memory-tags').value.split(/[,，\n]/).map(v=>v.trim()).filter(Boolean),content=el('memory-content').value;
@@ -358,11 +374,13 @@
    };
   },message=>{clearAdvanced();controls();advancedNotice(message);});
  };
+ let sourceSession=null;
  window.addEventListener('qiban-management-state',({detail})=>{
-  const value=detail.ready&&!detail.locked,changed=value!==allowed;allowed=value;el('memory-panel').hidden=el('management-panel').hidden;
+  const value=detail.ready&&!detail.locked,session=detail.roomSession??null,rotated=value&&allowed&&session!==sourceSession;
+  const changed=value!==allowed||rotated;allowed=value;sourceSession=value?session:null;el('memory-panel').hidden=el('management-panel').hidden;
   if(!changed)return;
-  if(!allowed){epoch++;busy=false;items=[];selected=null;after='';next=null;back=[];retention=null;el('fact-retention-days').value='';el('fact-retention-notice').textContent='';showDetail();renderList();notice('');advancedNotice('');}
-  else void run(()=>load('',[]));
+  if(!allowed||rotated){epoch++;busy=false;items=[];selected=null;after='';next=null;back=[];retention=null;el('fact-retention-days').value='';el('fact-retention-notice').textContent='';showDetail();renderList();notice('');advancedNotice('');}
+  if(allowed)void run(()=>load('',[]));
  });
  window.chrome.webview.addEventListener('message',({data})=>{
   if(data.type==='management'){

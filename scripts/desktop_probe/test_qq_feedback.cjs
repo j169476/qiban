@@ -6,6 +6,19 @@ const page=options=>require('./contacts_test_harness.cjs')('qq.js',options);
 const idle={state:'idle',busy:false,accounts:[],selected:null,revision:0};
 const qr={...idle,state:'qr_ready',busy:true,png_base64:'synthetic',message:'请扫码'};
 
+test('a late start acknowledgement or first status never strands the QR in the worker',async()=>{
+ for(const delayed of ['start','status']){
+  const p=page();p.update(true);await p.reply(p.requests[0],idle);
+  const action=p.node('qq-login').onclick(),start=p.requests.at(-1);
+  if(delayed==='status')await p.reply(start,{started:true});
+  await p.advance(12000);await action;
+  p.tick();await p.settle();assert.equal(p.requests.at(-1).operation,'qq.status');
+  await p.reply(p.requests.at(-1),qr);
+  assert.equal(p.node('qq-qr-area').hidden,false);assert.equal(p.node('qq-notice').textContent,'');
+  assert.equal(p.requests.filter(r=>r.operation==='qq.login').length,1);
+ }
+});
+
 test('password mode submits explicitly and clears the field, switching and locking also clear it',async()=>{
  const p=page();p.update(true);await p.reply(p.requests[0],idle);
  p.node('qq-login-method').value='password';p.node('qq-login-method').onchange();

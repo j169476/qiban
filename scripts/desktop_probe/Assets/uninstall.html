@@ -41,8 +41,12 @@
 </details>
 <h3>第二步 · 继续卸载</h3>
 <p class="note" id="uninstall-skip-note"></p>
-<label class="uninstall-clear-option"><input id="uninstall-clear-profile" type="checkbox">同时清空当前用户的 Qiban 个人资料</label><p id="uninstall-clear-note" class="note"></p>
-<div class="actions"><button id="uninstall-skip" class="secondary">跳过备份</button><button id="uninstall-continue" disabled>继续卸载…</button></div>
+<label class="uninstall-clear-option">
+<input id="uninstall-clear-profile" type="checkbox" aria-describedby="uninstall-clear-note" disabled>
+<span>同时清空当前用户的 Qiban 个人资料</span>
+</label>
+<p id="uninstall-clear-note" class="note"></p>
+<div class="actions uninstall-actions"><button id="uninstall-skip" disabled>跳过备份</button><button id="uninstall-continue" disabled>继续卸载…</button></div>
 <p id="uninstall-result" role="status" aria-live="polite"></p>
 </section>
 </div>

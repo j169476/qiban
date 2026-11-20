@@ -1,6 +1,20 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const page=require('./contacts_test_harness.cjs');
 const value={account_id:'a',revision:'1',model:'first',effort:'low',available:true,models:[{id:'first',name:'First',efforts:['low','high'],default_effort:'low'},{id:'second',name:'Second',efforts:['medium','ultra'],default_effort:'medium'}]};
+test('Ultrafast follows the selected model capability and rolls back failed changes',async()=>{
+ const p=page('model-choice.js');p.body.dataset.navPage='model';p.update(true);
+ const catalog={...value,ultrafast:true,models:value.models.map((m,i)=>({...m,ultrafast:i===0}))};
+ await p.reply(p.requests.at(-1),catalog);
+ const toggle=p.node('model-ultrafast');
+ assert.equal(toggle.hidden,false);assert.equal(toggle['aria-pressed'],'true');
+ toggle.onclick();await p.advance(350);assert.equal(p.requests.at(-1).arguments.ultrafast,false);
+ await p.fail(p.requests.at(-1));assert.equal(toggle['aria-pressed'],'true');
+ p.node('model-choice').value='second';p.node('model-choice').onchange();
+ assert.equal(toggle.hidden,true);await p.advance(350);assert.equal(p.requests.at(-1).arguments.ultrafast,false);
+ await p.reply(p.requests.at(-1),{...catalog,model:'second',ultrafast:false,effort:'medium'});
+ p.node('model-choice').value='first';p.node('model-choice').onchange();assert.equal(toggle['aria-pressed'],'false');
+ p.update(false);assert.equal(toggle.hidden,true);
+});
 test('provider-managed reasoning has no selectable levels and saves null once',async()=>{
  const p=page('model-choice.js');p.body.dataset.navPage='model';p.update(true);
  const models=[...value.models,{id:'auto',name:'Auto',efforts:[],default_effort:null}];

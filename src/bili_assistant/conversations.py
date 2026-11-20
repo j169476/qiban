@@ -118,13 +118,13 @@ def recover_platform_turns(engine):
 
 
 
-def context_for_events(store, account, events, *, queries=()):
+def context_for_events(store, account, events):
     ids = list(dict.fromkeys(thread_id(account, *event_thread(e)) for e in events))
     remaining = store.read("companion")["data"].get("conversation_context_chars", 12000)
     result = []
     for index, tid in enumerate(ids):
         query = " ".join(event.get("text", "") for event in events if thread_id(account, *event_thread(event)) == tid)
-        entry = context(store, account, tid, remaining // (len(ids) - index), query=query, queries=queries)
+        entry = context(store, account, tid, remaining // (len(ids) - index), query=query)
         remaining -= entry["context_chars"]
         result.append(entry)
     return result

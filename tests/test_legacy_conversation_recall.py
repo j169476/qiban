@@ -16,12 +16,12 @@ def seed(role, uid="789", phrase="北岸灯塔的暗号是钴蓝纸鹤。"):
     return {**item, "id": f"dm-{uid}-current", "text": "以前的碰面细节"}
 
 
-def test_legacy_decision_packet_reuses_expansion_and_pins_recalled_versions(role):
-    item = seed(role)
+def test_bili_decision_packet_scopes_expansion_to_memory_and_pins_chat_sources(role):
+    item = {**seed(role), "text": "北岸灯塔的暗号"}
     baseline, _ = packet(role, {"events": [item]})
-    assert not baseline["conversation_threads"][0]["recalled"]
-    result, versions = packet(role, {"events": [item]}, queries=["北岸灯塔"])
+    result, versions = packet(role, {"events": [item]}, queries=["无关的扩词"])
     recalled = result["conversation_threads"][0]["recalled"]
+    assert recalled == baseline["conversation_threads"][0]["recalled"]
     target = next(row for row in recalled if "钴蓝纸鹤" in row["data"]["content"])
     assert ("conversation_turns", target["data"]["id"], target["version"]) in versions
     verify_versions(role.store, versions)

@@ -86,20 +86,16 @@ class RelationService:
             self.repository.set_policy(policy, None, request.actor, db=db)
         return {"id": identifier, "version": version, "status": "claimed"}
 
-    def adjudicate(self, request, identifier, status, expected, reason=""):
-        """Change only the status of one existing claim, keeping its history.
-
-        ``reason`` is optional and stays inside the history entry; the claim body
-        (statement, subject, object, declarer, evidence) is never rewritten, the
-        sources are never re-pinned and every other permission keeps its stored
-        value. A same-status request is refused rather than given a new version.
-
-        The history entry is appended in this same transaction, so the old web
-        entry point keeps the same record as the desktop page.
-        """
+    def adjudicate(self, request, identifier, status, expected, reason="", *, text=None):
+        """Keep the original declaration and evidence when recording an explicit text revision."""
         self.authority.require(request, administrator=True)
-        if status not in TARGETS:
+        if status not in (STATUSES if text is not None else TARGETS):
             raise AssistantError("relation_status", "关系状态无效")
+        if text is not None:
+            if (not isinstance(text, dict) or set(text) != {"relation", "reason"}
+                    or not isinstance(text["relation"], str) or not 1 <= len(text["relation"].strip()) <= 80
+                    or not isinstance(text["reason"], str) or len(text["reason"]) > 1000):
+                raise AssistantError("relation_text", "关系正文格式无效")
         if not isinstance(reason, str) or len(reason) > relation_history.REASON_MAX:
             raise AssistantError("relation_reason", f"更正说明最多 {relation_history.REASON_MAX} 字。")
         with self.store.lock, self.store.db() as db:
@@ -109,13 +105,26 @@ class RelationService:
                 raise AssistantError("relation_scope", "关系声明不存在")
             if row["version"] != expected:
                 raise AssistantError("edit_conflict", "关系声明已变化")
-            if row["status"] == status:
+            snapshot = self._snapshot(row)
+            updated_body = row["body"]
+            changed_text = False
+            if text is not None:
+                body = snapshot["body"]
+                if not isinstance(body, dict) or not isinstance(body.get("relation"), str) or not isinstance(body.get("reason"), str):
+                    raise AssistantError("relation_text", "关系正文无法读取")
+                old_text = {key: body[key] for key in ("relation", "reason")}
+                changed_text = old_text != text
+                if changed_text:
+                    original = body.get("original_declaration", old_text)
+                    updated_body = self.store.ledger_encode("relationship_claims.body",
+                        {**body, **text, "original_declaration": original, "admin_edited": text != original})
+            if row["status"] == status and not changed_text:
                 raise AssistantError("relation_status", "关系状态没有变化，未增加新版本")
             policy = self.repository.policy("relation/" + identifier)
             require_consistent(row["status"], policy)
             version = secrets.token_hex(16)
-            result = db.execute("UPDATE relationship_claims SET status=?,version=? WHERE id=? AND version=?",
-                                (status, version, identifier, expected))
+            result = db.execute("UPDATE relationship_claims SET status=?,version=?,body=? WHERE id=? AND version=?",
+                                (status, version, updated_body, identifier, expected))
             if result.rowcount != 1:
                 raise AssistantError("edit_conflict", "关系声明已变化")
             updated = replace(policy, version=version, valid=status != "revoked")
@@ -124,10 +133,10 @@ class RelationService:
                 self.store, db=db, claim=identifier,
                 before={"status": row["status"], "version": row["version"],
                         "policy_version": policy.version, "valid": bool(policy.valid)},
-                after={"status": status, "version": version,
+                after={"status": status, "version": version, **({"text": text} if changed_text else {}),
                        "policy_version": updated.version, "valid": bool(updated.valid)},
                 actor=request.actor, at=self.repository.clock(), reason=reason,
-                snapshot=self._snapshot(row), sources=policy.source_versions)
+                snapshot=snapshot, sources=policy.source_versions)
         return {"id": identifier, "version": version, "status": status, "history": history,
                 "restored": history["restored"]}
 
@@ -175,6 +184,7 @@ class RelationService:
                 if any("actor/" + node not in readable for node in endpoints):
                     continue
                 body = self.store.ledger_decode("relationship_claims.body", row["body"])
+                body.pop("original_declaration", None)
                 length = len(body["relation"]) + len(body["reason"]) + 250
                 if (len(claims) >= max_edges or len(visited | endpoints) > max_nodes
                         or chars + length > max_chars or time.monotonic() - started > 1):

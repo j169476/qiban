@@ -4,7 +4,7 @@
 
 #management-panel[hidden]{display:none}#management-panel label{display:block;margin:12px 0}#management-panel input,#management-panel textarea{display:block;box-sizing:border-box;width:100%;margin-top:6px}#management-panel button{margin:6px 8px 6px 0}#management-panel h3{font-size:16px;margin-top:20px}#management-notice{min-height:1.5em}
 #recovery-feedback{min-height:1.5em;color:var(--ink);font-weight:600}#management-feedback{box-sizing:border-box;width:min(520px,calc(100vw - 40px));border:1px solid #ded0ed;border-radius:20px;padding:28px;background:#fff;color:#302638;box-shadow:0 16px 60px #30263830}#management-feedback::backdrop{background:#21152d66}#management-feedback h2{margin:0 0 14px;font-size:22px}#management-feedback p{line-height:1.7;margin-bottom:22px}#management-feedback button{min-width:110px}
-#runtime-platforms>div{border-top:1px solid #e5dced;padding:12px 0}#runtime-platforms label{display:block;margin:10px 0}#runtime-platforms input[type=checkbox]{width:auto;margin-right:8px}#runtime-platforms button,#notification-items button{margin:6px 10px 6px 0}
+#runtime-platforms>div{border-top:1px solid #e5dced;padding:12px 0}#runtime-platforms label{display:block;margin:10px 0}#runtime-platforms input[type=checkbox]{width:auto;margin:0}#runtime-platforms button,#notification-items button{margin:6px 10px 6px 0}
 #runtime-platforms label { display:flex; align-items:center; gap:10px; }
 #model-notice{min-height:1.5em;font-weight:600}#model-feedback{box-sizing:border-box;width:min(520px,calc(100vw - 40px));border:1px solid #ded0ed;border-radius:20px;padding:28px;background:#fff;color:#302638;box-shadow:0 16px 60px #30263830}#model-feedback::backdrop{background:#21152d66}#model-feedback h2{margin:0 0 14px;font-size:22px}#model-feedback p{line-height:1.7;margin-bottom:22px}#model-feedback button{min-width:110px}
 
@@ -13,25 +13,25 @@
 
 #sticker-panel label{display:block;margin:12px 0 6px}#sticker-panel input{display:block;box-sizing:border-box;width:100%;max-width:640px}#sticker-items .sticker-card{border-top:1px solid #e5dced;margin-top:20px;padding-top:20px}#sticker-items .actions{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}#sticker-items .sticker-feedback{min-height:1.5em;font-weight:600;margin:12px 0}#sticker-notice{min-height:1.5em;font-weight:600}
 
-#file-panel label{display:block;margin:12px 0 6px}#file-panel input:not([type=checkbox]){display:block;box-sizing:border-box;width:100%;max-width:640px}#file-items .sticker-card{border-top:1px solid #e5dced;margin-top:20px;padding-top:20px}#file-items .actions{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}#file-items .file-feedback,#file-notice{min-height:1.5em;font-weight:600}#file-panel fieldset{margin-top:16px;border:1px solid #e5dced;border-radius:12px}#file-panel fieldset label{display:flex;align-items:center;gap:10px}#file-panel input[type=checkbox]{width:auto;flex:none}
+#file-panel label{margin:12px 0 6px}#file-panel input:not([type=checkbox],[type=radio]){display:block;box-sizing:border-box;width:100%;max-width:640px}#file-items .sticker-card{border-top:1px solid #e5dced;margin-top:20px;padding-top:20px}#file-items .actions{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}#file-items .file-feedback,#file-notice{min-height:1.5em;font-weight:600}#file-panel fieldset{margin-top:16px;border:1px solid #e5dced;border-radius:12px}#file-panel fieldset label{display:flex;align-items:center;gap:10px}#file-panel input[type=checkbox]{width:auto;flex:none}
 /* UI-178 · 文件库一张卡片仍只有一个“保存更改”：未保存状态与按钮同一行、同一个 role=status 元素显示，
    内容再多也只换行。新增规则全部限定在文件库，勾选框始终与它的文字同一行。 */
 #file-items .actions{align-items:center}#file-items .file-feedback{flex:1 1 auto;min-width:0;margin:0;overflow-wrap:anywhere}#file-panel .file-enabled{display:flex;align-items:center;gap:10px}#file-panel .file-enabled input[type=checkbox]{margin:0}
 
 #memory-panel label{display:block;margin:12px 0 6px}#memory-panel textarea,#memory-panel input{box-sizing:border-box;width:100%}#memory-panel .actions{display:flex;gap:10px;flex-wrap:wrap}#memory-items{display:grid;gap:8px;margin:16px 0}#memory-items button{text-align:left;overflow-wrap:anywhere;white-space:pre-wrap}#memory-items button[aria-pressed=true]{outline:2px solid #725398}#memory-source{white-space:pre-wrap;overflow-wrap:anywhere}#memory-notice,#memory-draft{min-height:1.5em;font-weight:600}
-#baseline-panel label{display:block;margin:12px 0}#baseline-panel input[type=checkbox]{width:auto;margin-right:8px}#baseline-panel textarea{box-sizing:border-box;width:100%}#baseline-records article{border-top:1px solid #e5dced;margin:18px 0;padding:14px 0}.baseline-content{white-space:pre-wrap;overflow-wrap:anywhere}#baseline-notice,#foundation-draft{min-height:1.5em;font-weight:600}
+#baseline-panel label{margin:12px 0}#baseline-panel input[type=checkbox]{width:auto;margin:0}#baseline-panel textarea{box-sizing:border-box;width:100%}#baseline-records article{border-top:1px solid #e5dced;margin:18px 0;padding:14px 0}.baseline-content{white-space:pre-wrap;overflow-wrap:anywhere}#baseline-notice,#foundation-draft{min-height:1.5em;font-weight:600}
 
 #memory-explanation{margin:14px 0;padding:12px;border:1px solid #e5dced;border-radius:12px}#memory-explanation p{white-space:pre-wrap;overflow-wrap:anywhere}
-#fact-area{border-block:1px solid #e5dced;padding:12px 0;margin:16px 0}#fact-items>div{border-top:1px solid #e5dced;padding:12px 0}#fact-items p,#fact-choice{white-space:pre-wrap;overflow-wrap:anywhere}#fact-items input[type=checkbox]{width:auto;margin-right:8px}#fact-notice{font-weight:600;min-height:1.5em}
-#relationship-panel label{display:block;margin:10px 0}#relationship-panel textarea,#relationship-panel select,#relationship-panel input:not([type=checkbox]){display:block;box-sizing:border-box;width:100%}#relationship-panel fieldset{margin:16px 0}#relation-notice{min-height:1.4em}
+#fact-area{border-block:1px solid #e5dced;padding:12px 0;margin:16px 0}#fact-items>div{border-top:1px solid #e5dced;padding:12px 0}#fact-items p,#fact-choice{white-space:pre-wrap;overflow-wrap:anywhere}#fact-items input[type=checkbox]{width:auto;margin:0}#fact-notice{font-weight:600;min-height:1.5em}
+#relationship-panel label{margin:10px 0}#relationship-panel textarea,#relationship-panel select,#relationship-panel input:not([type=checkbox],[type=radio]){display:block;box-sizing:border-box;width:100%}#relationship-panel fieldset{margin:16px 0}#relation-notice{min-height:1.4em}
 
 #room-dialog{width:min(42rem,94vw);max-height:92vh;border:1px solid #d8cde1;border-radius:16px;padding:0;color:inherit;background:#fff}
 #room-dialog::backdrop{background:rgba(31,25,41,.48)}
 .room-content{padding:1.2rem;display:grid;gap:.75rem}.room-content header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem}.room-content h2{margin:0}
 #room-history{overflow:auto;max-height:45vh;min-height:6rem;border-block:1px solid #e5ddea;padding:.5rem 0}#room-history article{margin:.5rem 0}#room-history p{white-space:pre-wrap;overflow-wrap:anywhere;margin:.15rem 0 .6rem}#room-text{width:100%;box-sizing:border-box}
 #room-history img{display:block;max-width:100%;height:auto;margin:.4rem 0}#room-draft-images div{display:flex;align-items:center;gap:.6rem;margin:.25rem 0;overflow-wrap:anywhere}
-#bili-policy{margin-top:1rem}#bili-policy table{width:100%;text-align:left}#bili-policy input[type=number]{width:5.5em;box-sizing:border-box}#bili-policy th,#bili-policy td{padding:.25rem}
-#growth-panel p{white-space:pre-wrap;overflow-wrap:anywhere}#growth-panel label{display:block;margin:12px 0}#growth-panel input[type=checkbox]{width:auto;margin-right:8px}#growth-panel .actions{display:flex;gap:10px;flex-wrap:wrap}#growth-notice{min-height:1.5em;font-weight:600}#growth-archive-list{display:grid;gap:8px;margin-block:12px}#growth-archive-list button{overflow-wrap:anywhere;text-align:left}
+#bili-policy{margin-top:1rem}#bili-policy table{width:100%;text-align:left}#bili-policy td label{margin:0;cursor:pointer}#bili-policy input[type=number]{width:5.5em;box-sizing:border-box}#bili-policy th,#bili-policy td{padding:.25rem}
+#growth-panel p{white-space:pre-wrap;overflow-wrap:anywhere}#growth-panel label{margin:12px 0}#growth-panel input[type=checkbox]{width:auto;margin:0}#growth-panel .actions{display:flex;gap:10px;flex-wrap:wrap}#growth-notice{min-height:1.5em;font-weight:600}#growth-archive-list{display:grid;gap:8px;margin-block:12px}#growth-archive-list button{overflow-wrap:anywhere;text-align:left}
 #memory-related{white-space:pre-wrap;overflow-wrap:anywhere}#memory-kind{max-width:100%;margin-bottom:14px}
 
 #reply-quota-panel .reply-quota-account{border-top:1px solid #e5dced;margin-top:18px;padding-top:16px}#reply-quota-panel h3{margin:0 0 8px;font-size:16px}#reply-quota-panel h4{margin:0 0 6px;font-size:14px}#reply-quota-panel .reply-quota-fields{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0}#reply-quota-panel label{display:flex;flex-direction:column;gap:4px;font-size:13px}#reply-quota-panel input[type=number]{width:7em;box-sizing:border-box}#reply-quota-panel .reply-quota-scopes{margin-top:12px;padding-left:10px;border-left:3px solid #e5dced}#reply-quota-panel .reply-quota-scope{border-top:1px dashed #e5dced;padding-top:10px;margin-top:12px}#reply-quota-panel .reply-quota-feedback{min-height:1.4em;font-weight:600}#reply-quota-panel .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}#reply-quota-status{min-height:1.4em}
@@ -194,7 +194,7 @@ body[data-service=ready] .probe-service-state::before{background:#4b9a56}
 .probe-rail .card p{margin:6px 0;max-width:none;font-size:13px}
 .probe-rail .card ul{margin:6px 0;padding-left:18px}
 .probe-rail label{display:block;margin:10px 0 5px;font-size:13px}
-.probe-rail input:not([type=checkbox]),.probe-rail select{box-sizing:border-box;width:100%}
+.probe-rail input:not([type=checkbox],[type=radio]),.probe-rail select{box-sizing:border-box;width:100%}
 .probe-rail button{min-height:35px;padding:6px 11px;font-size:13px}
 #notification-items>div{padding:7px 0;border-top:1px solid var(--probe-line)}
 #notification-items>div p{display:flex;align-items:baseline;gap:8px}
@@ -242,6 +242,29 @@ body[data-room-open] .probe-center>:not(#room-dialog),body[data-room-open] .prob
 .room-side #room-jobs button{display:block;margin-top:8px}
 .probe-center input,.probe-center select,.probe-center textarea,.probe-rail input,.probe-rail select{max-width:100%}
 .probe-center fieldset,.probe-rail fieldset{min-width:0}
+/* Choice controls take one slot; their label text can wrap independently. */
+.probe label:has(>input:is([type=checkbox],[type=radio])):not(.inbox-row) {
+ display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:flex-start;gap:.5rem;
+ max-width:100%;min-width:0;overflow-wrap:anywhere;cursor:pointer;
+}
+.probe input:is([type=checkbox],[type=radio]) {
+ box-sizing:border-box;display:inline-block;flex:none;width:1rem;height:1rem;min-height:0;
+ padding:0;margin:0;accent-color:var(--probe-accent);
+}
+.probe label:has(>input:is([type=checkbox],[type=radio]):disabled) {cursor:default}
+.probe label:has(>input:is([type=checkbox],[type=radio]))>span {min-width:0}
+.uninstall-clear-option {
+ display:flex;align-items:center;justify-content:flex-start;gap:8px;
+ width:fit-content;max-width:100%;min-height:36px;color:var(--probe-ink);cursor:pointer;
+}
+.uninstall-clear-option input[type=checkbox] {
+ width:18px;height:18px;flex:none;margin:0;padding:0;accent-color:var(--probe-accent);
+}
+.uninstall-clear-option:has(input:disabled){color:var(--muted);cursor:not-allowed}
+.uninstall-actions button {background:var(--probe-accent);color:white}
+.uninstall-actions button:disabled {
+ background:#eee9f2;border-color:#d5ccdb;color:#665d6d;opacity:1;cursor:not-allowed;filter:none;
+}
 .probe #bili-policy{overflow-x:auto;max-width:100%}
 @media(max-width:1050px){
  body[data-nav-page]{--probe-nav:166px;--probe-gap:12px}

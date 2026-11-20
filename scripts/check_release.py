@@ -31,14 +31,7 @@ def inspect(project, installed=None):
                           "skills/qiban-qq/SKILL.md", "skills/qiban-qq/agents/openai.yaml",
                           "skills/qiban-local/SKILL.md", "skills/qiban-local/agents/openai.yaml",
                          "skills/qiban/SKILL.md", "skills/qiban/agents/openai.yaml",
-                         "skills/qiban-admin/SKILL.md", "skills/qiban-admin/agents/openai.yaml",
-                         "skills/qiban-bilibili/references/content-workflows.md",
-                          "skills/qiban-bilibili/references/persona-and-memory.md",
-                          "skills/qiban-admin/references/browser-login.md",
-                           "skills/qiban-admin/references/background-tools.md",
-                            "skills/qiban-admin/references/storage-recovery.md",
-                             "skills/qiban-admin/references/core-identity.md",
-                             "skills/qiban-admin/references/runtime-metrics.md"):
+                         "skills/qiban-admin/SKILL.md", "skills/qiban-admin/agents/openai.yaml"):
             source, target = plugin / relative, installed / relative
             if not target.is_file() or hashlib.sha256(source.read_bytes()).digest() != hashlib.sha256(
                 target.read_bytes()

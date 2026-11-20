@@ -63,7 +63,8 @@ class FileLibrary:
         digest = hashlib.sha256(content).hexdigest()
         with self.store.lock, self.store.db() as db:
             db.execute("BEGIN IMMEDIATE")
-            old = db.execute("SELECT * FROM file_library WHERE sha256=?", (digest,)).fetchone()
+            old = db.execute("SELECT * FROM file_library WHERE sha256=? ORDER BY created_at,id LIMIT 1",
+                             (digest,)).fetchone()
             if old:
                 return {"item": self._summary(old), "duplicate": True}
             from .media_originals import MediaOriginals
@@ -112,6 +113,11 @@ class FileLibrary:
                 for value in values["scopes"]:
                     check(ReplyAuthorizations(self.store).version(ReplyScope(**value), db=db) is not None,
                           "reply_not_authorized", "所选会话已停止授权，请重新选择。")
+            previous = self._summary(row)
+            if (values["name"], values["tags"]) != (previous["name"], previous["tags"]):
+                from .library_versions import LibraryVersions
+
+                LibraryVersions(self.store, "files").archive(db, row)
             revision = secrets.token_hex(16)
             db.execute("UPDATE file_library SET metadata=?,enabled=?,revision=? WHERE id=?", (
                 self.store.ledger_encode("file-library:" + identifier, values), enabled, revision, identifier))

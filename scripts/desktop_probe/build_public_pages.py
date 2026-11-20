@@ -4,6 +4,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCUMENTS = {
@@ -14,7 +15,7 @@ DOCUMENTS = {
 INLINE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)|\*\*(.+?)\*\*|`([^`]+)`")
 
 
-def article(source, page_title=None):
+def article(source, page_title=None, *, repository_links=None):
     """Render the documents' headings, paragraphs, lists and pipe tables as escaped HTML."""
     references = {}
 
@@ -25,9 +26,18 @@ def article(source, page_title=None):
             result.append(html.escape(line[cursor:match.start()]))
             label, target, strong, code = match.groups()
             if label is not None:
-                result.append(html.escape(label))
-                if target.startswith(("https://", "http://")):
+                if repository_links is not None:
+                    url = urlsplit(target)
+                    if url.scheme != "https" or not url.hostname or url.username or url.password or url.query or url.fragment:
+                        raise ValueError(f"Expected an HTTPS project link: {target}")
+                    repository_links.add(target)
+                    result.append('<a href="' + html.escape(target, quote=True) +
+                                  '" target="_blank" rel="noopener noreferrer">' + html.escape(label) + '</a>')
+                elif target.startswith(("https://", "http://")):
+                    result.append(html.escape(label))
                     references[target] = label
+                else:
+                    result.append(html.escape(label))
             elif strong is not None:
                 result.append("<strong>" + html.escape(strong) + "</strong>")
             else:
@@ -85,17 +95,27 @@ def article(source, page_title=None):
     return "\n".join(blocks)
 
 
-def build(destination):
+def build(destination, allowed_links=None):
     pages = {key: article((ROOT / path).read_text(encoding="utf-8-sig"),
                           "声明" if key == "declaration" else None) for key, path in DOCUMENTS.items()}
-    for title, name in (("MIT 许可原文", "LICENSE"), ("第三方来源与许可证", "THIRD_PARTY_NOTICES.md")):
-        source = (ROOT / name).read_text(encoding="utf-8-sig")
-        pages["declaration"] += ("<details><summary>" + title + "</summary><pre>" +
-                                 html.escape(source) + "</pre></details>")
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8-sig")
+    pages["declaration"] += ("<details><summary>MIT 许可原文</summary><pre>" +
+                             html.escape(license_text) + "</pre></details>")
+    notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8-sig")
+    index = re.search(r"^## 桌面许可索引\s*\n(.*?)(?=^## |\Z)", notices, re.M | re.S)
+    if index is None:
+        raise ValueError("缺少桌面许可索引")
+    urls = set()
+    content = article(index[1], repository_links=urls)
+    if not urls:
+        raise ValueError("桌面许可索引没有上游链接")
+    pages["declaration"] += '<details class="reader-upstreams"><summary>第三方项目与许可</summary>' + content + '</details>'
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text("window.qibanPublicPages = " + json.dumps(pages, ensure_ascii=False) + ";\n",
                            encoding="utf-8")
+    if allowed_links:
+        allowed_links.write_text("\n".join(sorted(urls)) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
-    build(Path(sys.argv[1]))
+    build(Path(sys.argv[1]), Path(sys.argv[2]) if len(sys.argv) > 2 else None)

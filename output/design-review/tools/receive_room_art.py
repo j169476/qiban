@@ -1,4 +1,4 @@
-"""Publish the eight room backgrounds and six portraits used by the desktop."""
+"""Publish the room backgrounds and static character poses used by the desktop."""
 import argparse
 import json
 import shutil
@@ -10,7 +10,7 @@ from PIL import Image, ImageStat
 ROOT = Path(__file__).resolve().parents[3]
 INBOX = ROOT / "output/design-art/room-static-v1"
 DESKTOP = ROOT / "scripts/desktop_probe/Assets"
-POSES = ("replying", "learning", "watching", "sleeping", "reading", "window")
+POSES = ("replying", "learning", "watching", "sleeping", "reading", "window", "tail")
 # Local wall-clock minutes. The desktop and the preview read the same generated catalog.
 PERIODS = (
     ("midnight", "深夜", 0), ("predawn", "黎明", 300), ("morning", "清晨", 420),

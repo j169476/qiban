@@ -2,10 +2,10 @@
 
 A claim is ``subject``/``object``/``relation``/``declarer``/``evidence``: it is
 neither an ``identity_links`` "same person" link nor a platform friendship state.
-This page therefore only changes the status of a claim that already exists:
+The status and editable text of an existing claim can be revised:
 
-* no claim is proposed, and the statement, subject, object, declarer and original
-  evidence are never rewritten;
+* an explicit administrator text revision keeps the original declaration, its
+  subject, object, declarer and evidence;
 * the status set stays the core's ``claimed``/``confirmed``/``disputed``/
   ``revoked``; a revoked claim can still be confirmed or disputed again exactly as
   the core already allowed, and the preview names that as restoring the claim,
@@ -65,11 +65,6 @@ EXCERPT_PAGE_MAX = 12000
 PREVIEW_SECONDS = 600
 MAX_PREVIEWS = 64
 IDENTIFIER = re.compile(r"[A-Za-z0-9_-]{1,80}")
-MEANING = (
-    "这里只更正已有关系声明的状态。它不是“同一人”的账号关联，也不是好友或群关系；"
-    "不会新增关系，不改正文、主体、声明人和原证据，也不改同一人的账号关联、回复授权或其他资料权限。"
-    "状态变化只更新这条声明自身的权限版本与由状态决定的“有效”标记。"
-)
 
 TEXT_FIELDS = ("content", "text", "summary")
 
@@ -206,6 +201,9 @@ class RelationClaims:
                 "evidence_count": len(evidence) if isinstance(evidence, list) else 0}
         if error:
             view["body_error"] = error
+        if body and "original_declaration" in body:
+            view["original_declaration"] = body["original_declaration"]
+            view["admin_edited"] = body.get("admin_edited", False)
         return view
 
     # --- paged reads ---------------------------------------------------------
@@ -234,7 +232,7 @@ class RelationClaims:
                 "after": after, "limit": limit, "page_max": PAGE_MAX, "status": status,
                 "totals": {value: totals.get(value, 0) for value in STATUSES},
                 "statuses": [{"value": value, "label": STATUS_LABELS[value]} for value in STATUSES],
-                "status_meaning": STATUS_MEANING, "meaning": MEANING}
+                "status_meaning": STATUS_MEANING, "meaning": ""}
 
     def detail(self, request, identifier):
         self._require(request)
@@ -264,7 +262,7 @@ class RelationClaims:
                 "targets": [{"value": value, "label": STATUS_LABELS[value]} for value in TARGETS],
                 "status_meaning": STATUS_MEANING, "evidence_limit": EVIDENCE_MAX,
                 "excerpt_limit": EXCERPT_MAX, "excerpt_page_limit": EXCERPT_PAGE_MAX,
-                "history_limit": HISTORY_MAX, "meaning": MEANING}
+                "history_limit": HISTORY_MAX, "meaning": ""}
 
     def history(self, request, identifier, after, limit):
         self._require(request)
@@ -293,23 +291,25 @@ class RelationClaims:
                     "detail": entry.get("detail")}
         before, after = entry.get("before") or {}, entry.get("after") or {}
         actor = entry.get("actor")
+        snapshot = self._snapshot_view(entry.get("claim_snapshot"))
+        previous_text = {"relation": snapshot.get("relation"), "reason": snapshot.get("declared_reason")} if snapshot else None
         return {"cursor": entry.get("cursor"), "sequence": entry.get("sequence"),
                 "at": entry.get("at"), "unreadable": False,
                 "actor": actor,
                 "actor_label": labels.get(actor) or ("未登记管理员（" + str(actor or "")[:8] + "…）"),
                 "reason": entry.get("reason") or "",
                 "restored": bool(entry.get("restored")),
-                "before": {"status": before.get("status"),
+                "before": {"status": before.get("status"), "text": previous_text,
                            "status_label": STATUS_LABELS.get(before.get("status"), before.get("status")),
                            "version": before.get("version"),
                            "policy_version": before.get("policy_version"),
                            "valid": before.get("valid")},
-                "after": {"status": after.get("status"),
+                "after": {"status": after.get("status"), "text": after.get("text", previous_text),
                           "status_label": STATUS_LABELS.get(after.get("status"), after.get("status")),
                           "version": after.get("version"),
                           "policy_version": after.get("policy_version"),
                           "valid": after.get("valid")},
-                "claim_snapshot": self._snapshot_view(entry.get("claim_snapshot")),
+                "claim_snapshot": snapshot,
                 "sources": [[source, version] for source, version in (entry.get("sources") or [])]}
 
     def _snapshot_view(self, snapshot):
@@ -551,10 +551,34 @@ class RelationClaims:
 
     # --- preview -------------------------------------------------------------
 
-    def preview(self, request, identifier, status, reason):
+    def text_preview(self, request, identifier, expected, relation, declared_reason, reason):
+        self._require(request)
+        if (not isinstance(relation, str) or not 1 <= len(relation.strip()) <= 80
+                or not isinstance(declared_reason, str) or len(declared_reason) > 1000):
+            _fail("relation_text", "关系正文和说明格式无效")
+        with self.store.db() as db:
+            row = self._claim_row(db, self._identifier(identifier))
+            if row is None or row["version"] != expected:
+                _fail("edit_conflict", "关系声明已修改，请重新读取")
+            return self.preview(request, identifier, row["status"], reason, expected=expected,
+                                text={"relation": relation.strip(), "reason": declared_reason.strip()})
+
+    def restore_preview(self, request, identifier, sequence, side, expected, reason):
+        self._require(request)
+        if type(sequence) is not int or not 1 <= sequence < 10 ** 12 or side not in ("before", "after"):
+            _fail("relation_history", "关系版本无效")
+        page = self.history(request, identifier, str(sequence - 1), 1)
+        entry = next(iter(page["items"]), {})
+        target = entry.get(side, {})
+        text = target.get("text")
+        if entry.get("sequence") != sequence or not text or not isinstance(text.get("relation"), str):
+            _fail("relation_history", "找不到这个关系版本")
+        return self.preview(request, identifier, target["status"], reason, expected=expected, text=text)
+
+    def preview(self, request, identifier, status, reason, *, expected=None, text=None):
         self._require(request)
         identifier = self._identifier(identifier)
-        if not isinstance(status, str) or status not in TARGETS:
+        if not isinstance(status, str) or status not in (STATUSES if text is not None else TARGETS):
             _fail("relation_status", "关系状态只能选择已确认、有争议或已撤销。")
         if not isinstance(reason, str) or len(reason) > relation_history.REASON_MAX:
             _fail("relation_reason", f"更正说明最多 {relation_history.REASON_MAX} 字。")
@@ -564,15 +588,20 @@ class RelationClaims:
             row = self._claim_row(db, identifier)
             if row is None:
                 _fail("relation_claim", "找不到这条关系声明，请重新读取。")
+            if text is not None and row["version"] != expected:
+                _fail("edit_conflict", "关系声明已修改，请重新读取")
             labels = self._labels(db, {row["subject"], row["object"], row["declarer"]})
             policy = self.repository.policy(resource)
             anomaly = inconsistency(row["status"], policy)
             if anomaly is not None:
                 _fail("relation_inconsistent", ANOMALY_DETAIL[anomaly]
                       + "本页不会默默把它改回有效；请先由维护机制核对这条声明与它的来源。")
-            if row["status"] == status:
-                _fail("relation_status", "新状态与当前状态相同，本页不会为同状态增加版本。")
             claim = self._claim_view(row, labels)
+            if text is not None and claim.get("body_error"):
+                _fail("relation_text", "关系正文无法读取")
+            text_changed = text is not None and text != {"relation": claim["relation"], "reason": claim["declared_reason"]}
+            if row["status"] == status and not text_changed:
+                _fail("relation_status", "新状态与当前状态相同，本页不会为同状态增加版本。")
             # The claim's own validity is checked as the *after* state, because that
             # is what this preview promises; every source is checked as it is now.
             check = self._source_check(resource, root=replace(policy, valid=status != "revoked"))
@@ -587,7 +616,7 @@ class RelationClaims:
                      "claim": _digest(_claim_state(row)),
                      "policy_version": policy.version, "policy": _digest(_policy_state(policy)),
                      "sources": source_report.digest(check), "impact": affected["fingerprint"],
-                     "payload": {"status": status, "reason": reason}}
+                     "payload": {"status": status, "reason": reason, "text": text}}
         token = self._remember(state)
         restored = row["status"] == "revoked"
         before = {"status": row["status"], "status_label": STATUS_LABELS[row["status"]],
@@ -608,6 +637,10 @@ class RelationClaims:
             notice = ("确认后只改变这条声明的状态（" + STATUS_LABELS[row["status"]] + " → "
                       + STATUS_LABELS[status] + "）：不新增关系，不改正文、主体、声明人和原证据，"
                       "也不改同一人的账号关联、回复授权或其他资料权限。")
+        if text is not None:
+            before["text"] = {"relation": claim["relation"], "reason": claim["declared_reason"]}
+            after["text"] = text
+            notice = "确认后保存该版本。"
         return {"token": token, "action": "adjudicate", "identifier": identifier,
                 "resource": resource, "claim": claim,
                 "before": before, "after": after, "restored": restored,
@@ -659,8 +692,9 @@ class RelationClaims:
                 affected = impact(self.store, resource)
                 if affected["fingerprint"] != pending["impact"]:
                     _fail("edit_conflict", "这条声明的依赖影响在预览后已变化，请重新预览。")
+                changes = {"text": pending["payload"]["text"]} if pending["payload"]["text"] is not None else {}
                 written = self.relations.adjudicate(request, identifier, status,
-                                                    pending["claim_version"], pending["payload"]["reason"])
+                                                    pending["claim_version"], pending["payload"]["reason"], **changes)
                 self.repository.audit(request.actor, "desktop_relation_adjudicate", resource,
                                       pending["claim_version"], written["version"], db=db)
                 after_policy = self.repository.policy(resource)
@@ -679,7 +713,7 @@ class RelationClaims:
         return {"action": "adjudicate", "identifier": identifier, "resource": resource,
                 "status": status, "status_label": STATUS_LABELS[status],
                 "version": written["version"], "changed": True,
-                "state_changed": True,
+                "state_changed": pending["claim_status"] != status,
                 "before": {"status": pending["claim_status"],
                            "status_label": STATUS_LABELS[pending["claim_status"]],
                            "version": pending["claim_version"],
@@ -693,7 +727,7 @@ class RelationClaims:
                 "reason": pending["payload"]["reason"],
                 "source": after_report, "readable": readable, "usable": readable["allowed"],
                 "impact": self._impact_view(affected),
-                "notice": ("状态更改成功：" + STATUS_LABELS[pending["claim_status"]] + " → "
+                "notice": "关系版本已保存。" if changes else ("状态更改成功：" + STATUS_LABELS[pending["claim_status"]] + " → "
                            + STATUS_LABELS[status] + "，并已写入一条不可变的裁决记录。"
                            + (" 已恢复这条声明；已失效或已更换的来源没有因此重新可读，"
                               "来源版本未被重新固定，旧依赖版本也没有自动恢复。" if written["restored"] else

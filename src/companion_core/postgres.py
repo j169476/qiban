@@ -115,6 +115,11 @@ class PostgresStore(Store):
         backfill_facts(self)
         if self.profile.migrator:
             self.profile.migrator(self)
+        from .context_workspace import import_previous_settings
+
+        with self.lock, self.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            import_previous_settings(self, db)
         return {"migrated": True, "backend": self.backend}
 
     def _key(self, kind, item_id=None):
@@ -260,6 +265,11 @@ class PostgresStore(Store):
 
     def records(self, kind):
         return self.records_selected(kind)
+
+    def iter_record_data(self, kind):
+        with self.db() as db, db.stream("SELECT id,version,body FROM content_records WHERE kind=?", (kind,)) as rows:
+            for identifier, version, body in rows:
+                yield self._decode(kind, identifier, version, body)["data"]
 
     def records_selected(self, kind, ids=None):
         if kind not in self.profile.collections:

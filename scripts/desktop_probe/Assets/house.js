@@ -46,10 +46,17 @@
    const now=activities(data);if(now.join()!==activities(previous).join())record(now.join('、')||'当前活动已结束',when);
   }
   previous=data;stale=false;
+  showPreset(data.active_preset);
   el('house-platform-count').textContent=String(data.platforms.length);
   status();
  }
+ function showPreset(preset){
+  el('house-active-preset').textContent=preset?.name||'';
+  el('house-preset-line').hidden=!preset?.name;
+ }
+ window.addEventListener('qiban-context-applied',event=>showPreset(event.detail));
  function clear(){
+  showPreset(null);
   previous=null;stale=false;paused=false;el('house-platform-count').textContent='';
   el('house-events').replaceChildren();el('house-events-empty').hidden=false;status();
  }

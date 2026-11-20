@@ -10,7 +10,7 @@
   return new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作未完成，请重新读取。'));},native?300000:15000);
    pending.set(id,{resolve,reject,timer});
-   window.chrome.webview.postMessage(native?{action:'file-import',request_id:id,...args}:
+   window.chrome.webview.postMessage(native?{action:operation||'file-import',request_id:id,...args}:
     {action:'management',operation:'files.'+operation,arguments:args,request_id:id});
   });
  }
@@ -39,6 +39,7 @@
  function showState(identifier){
   const row=rows.get(identifier);if(!row)return;
   row.notice.textContent=notices.get(identifier)||(row.dirty()?UNSAVED:'');
+  row.replace.disabled=row.versions.disabled=!allowed||busy||row.dirty();
  }
  // One page-level line and one line per card. The page-level line remembers which card its message
  // belongs to, so the edit that unmakes a card's result removes that result from the page line as
@@ -71,12 +72,12 @@
     const text=document.createElement('span');text.textContent=`QQ ${scope.account_identity} · ${scope.kind==='group'?'群':'好友'} ${scope.target_id}${active?'':'（会话授权已停用）'}`;
     wrap.append(input,text);scopeBox.append(wrap);choices.push({input,scope});
    }
-   if(!available.size){const hint=document.createElement('p');hint.textContent='请先在QQ回复会话中选择并保存好友或群聊，再重新读取文件列表。';scopeBox.append(hint);}
+   if(!available.size){const hint=document.createElement('p');hint.textContent='先在 QQ 回复名单里保存好友或群聊，再刷新文件列表。';scopeBox.append(hint);}
    const selected=()=>choices.filter(c=>c.input.checked).map(c=>c.scope);
    const enabledLabel=document.createElement('label');enabledLabel.className='file-enabled';
    const enabled=document.createElement('input');enabled.type='checkbox';enabled.id='file-edit-enabled-'+item.id;enabled.checked=draft.enabled;
    const enabledText=document.createElement('span');enabledText.textContent='启用此文件（保存后生效）';enabledLabel.append(enabled,enabledText);
-   const hint=document.createElement('p');hint.textContent='名称、标签、会话范围和启用状态统一保存；修改后点击“保存更改”生效。';
+   const hint=document.createElement('p');hint.textContent='点「保存更改」一起保存这份文件的设置。';
    // What the library currently has for this card. It moves to what a save sent (even when the list
    // refresh after that save fails) and to whatever a later refresh reports, so “未保存” keeps
    // describing this card's own edits rather than a stale success or a stale failure.
@@ -87,7 +88,8 @@
    // The card's own last result is dropped here, including its copy on the page line, so a past
    // “已保存” never stands next to a card that is unsaved again. Nothing else is cleared.
    const remember=()=>{
-    drafts.set(item.id,{name:name.value,tags:label.value,scopes:selected(),enabled:enabled.checked});
+    if(dirty())drafts.set(item.id,{name:name.value,tags:label.value,scopes:selected(),enabled:enabled.checked,revision:drafts.get(item.id)?.revision??item.revision});
+    else drafts.delete(item.id);
     notices.delete(item.id);
     if(noticeOwner===item.id){noticeOwner=null;el('file-notice').textContent='';}
     showState(item.id);
@@ -98,9 +100,15 @@
    const actions=document.createElement('div');actions.className='actions';
    const notice=document.createElement('p');notice.className='file-feedback';notice.setAttribute('role','status');notice.id='file-feedback-'+item.id;
    actions.append(save,notice);
+   const versions=document.createElement('button'),replace=document.createElement('button');
+   versions.textContent='历史版本';replace.textContent='替换原件';versions.className=replace.className='secondary';
+   const native=(operation,args)=>call(operation,args,true);
+   versions.onclick=()=>{if(!busy&&!dirty())window.QibanSources.libraryHistory({layer:'files',item,native,update:()=>perform()});};
+   replace.onclick=()=>{if(!busy&&!dirty())return perform(async()=>{await native('library-replace',{layer:'files',identifier:item.id,expected:item.revision});},item.id);};
+   actions.append(versions,replace);
    save.onclick=()=>{
     const nextEnabled=enabled.checked;
-    const args={identifier:item.id,name:name.value,tags:tags(label.value),enabled:nextEnabled,allowed_scopes:selected(),expected:item.revision};remember();
+    const args={identifier:item.id,name:name.value,tags:tags(label.value),enabled:nextEnabled,allowed_scopes:selected(),expected:drafts.get(item.id)?.revision??item.revision};remember();
     return perform(async token=>{
      await call('configure',args);
      // The answer is only this card's new saved state while the run that sent it is still the
@@ -113,7 +121,7 @@
     },item.id,'正在保存更改……');
    };
    card.append(title,nameLabel,name,tagLabel,label,scopeBox,enabledLabel,hint,actions);el('file-items').append(card);
-   rows.set(item.id,{controls:[name,label,save,enabled,...choices.map(c=>c.input)],notice,dirty});
+   rows.set(item.id,{controls:[name,label,save,enabled,...choices.map(c=>c.input)],notice,dirty,versions,replace});
   }
   controls();
  }
@@ -149,11 +157,13 @@
  });
  el('file-refresh').onclick=()=>{after='';return perform();};
  el('file-next').onclick=()=>{after=items.at(-1)?.id||'';return perform();};
+ let sourceSession=null;
  window.addEventListener('qiban-management-state',({detail})=>{
-  const next=detail.ready&&!detail.locked,changed=next!==allowed;allowed=next;
+  const next=detail.ready&&!detail.locked,session=detail.roomSession??null,rotated=next&&allowed&&session!==sourceSession;
+  const changed=next!==allowed||rotated;allowed=next;sourceSession=next?session:null;
   el('file-panel').hidden=el('management-panel').hidden;
   if(!changed)return;
-  if(!allowed){epoch++;busy=false;items=[];targets=[];settings=null;after='';rows.clear();drafts.clear();notices.clear();saved.clear();noticeOwner=null;for(const id of ['file-tags','file-count','file-total-mib'])el(id).value='';el('file-notice').textContent='';}
+  if(!allowed||rotated){epoch++;busy=false;items=[];targets=[];settings=null;after='';rows.clear();drafts.clear();notices.clear();saved.clear();noticeOwner=null;for(const id of ['file-tags','file-count','file-total-mib'])el(id).value='';el('file-notice').textContent='';}
   render();if(allowed)void perform();
  });
  window.chrome.webview.addEventListener('message',({data})=>{

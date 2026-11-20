@@ -62,7 +62,8 @@ async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, g
         from .reply_trace import point
 
         point("query_plan", route=route, reason=reason, expansion_count=len(queries))
-        return {"route": route, "reason": reason, "queries": list(queries), "references": list(references)}
+        return {"route": route, "reason": reason, "queries": list(queries),
+                "history_aliases": list(aliases), "references": list(references)}
 
     if not query.strip():
         return finish("local", "empty_query")
@@ -96,6 +97,9 @@ async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, g
                     references.append({"kind": kind, "id": item_id})
         if references:
             return finish("algorithm", "explicit_record_id", aliases, references)
+    if local_history:
+        return finish("local", "hybrid_history", aliases)
+    if config["enabled"]:
         with store.lock:
             cache = cached_plans(store, config, now)
             # Also apply smaller limits/expiration when the next access is a hit.
@@ -103,8 +107,6 @@ async def resolve(store, query, *, scope, uids=(), eligible=True, remaining=2, g
                 store.set_state(CACHE_KEY, cache)
             if key in cache:
                 return finish("cache", "scoped_query_plan", cache[key]["queries"])
-    if local_history:
-        return finish("local", "hybrid_history", aliases)
     if remaining < 2:
         return finish("local", "model_budget", aliases)
     try:

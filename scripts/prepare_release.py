@@ -45,6 +45,7 @@ ROOM_IMAGES = {
     "characters/hoodie/sleeping": "ce54a91ad95cffaf249bdaae2df528c08f80edf9f40cca7a61bdbf492c61c9f5",
     "characters/hoodie/reading": "a58739ae8ed1f9198747ed6a3d1b0d3cbee67c45a74ea6eed39b32b3cac7adca",
     "characters/hoodie/window": "a616288ce879ec1f5cb1629f56c8fbba0321d24135089f80cf25232ee7d54721",
+    "characters/hoodie/tail": "eac0293e4b7f9551b1f0026c86614c63c2ab100d0d29ed6fe19bb7acb26be10c",
 }
 for original, digest in ROOM_IMAGES.items():
     name = original.rsplit("/", 1)[-1]
@@ -65,9 +66,11 @@ ROOT_FILES = {
     "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "pyproject.toml", ".gitignore", ".gitattributes",
     "constraints-windows.txt", ".agents/plugins/marketplace.json",
     "output/design-review/tools/receive_room_art.py", "output/design-review/tools/check_pixel_room.py",
+    "docs/DEVELOPMENT.md", "docs/GETTING_STARTED.md", "docs/RELEASE_NOTES.md",
+    "docs/微信支持范围.md", "docs/桌面声明.md", "docs/模型选择参考.md",
 }
 SOURCE_DIRS = {"src", "tests", "tests_core", "tests_postgres", "tests_wechat", "scripts",
-               "plugins", "packages", "requirements", "docs", ".github", ROOM_ORIGINALS}
+               "plugins", "packages", "requirements", ".github", ROOM_ORIGINALS}
 EXTENSIONS = {".py", ".pyi", ".json", ".yaml", ".yml", ".toml", ".md", ".txt", ".sql",
               ".js", ".mjs", ".cjs", ".html", ".css", ".cmd", ".ps1", ".cpp", ".h", ".inc", ".helper", ".cs", ".csproj"}
 SKIP_DIRS = {".git", ".dev", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "build", "dist"}
@@ -82,7 +85,7 @@ SKIP_SUFFIXES = {".pyc", ".pyo", ".log", ".db", ".sqlite", ".sqlite3", ".pem", "
 # Explicitly approved public attribution and repository; other identifiers stay blocked.
 PUBLIC_TEXT = ("YiNing和ta的小龙", "https://github.com/j169476/qiban", "github.com/j169476/qiban", "j169476/qiban")
 PUBLIC_TEXT_FILES = {
-    "README.md", "docs/ABOUT.md",
+    "README.md",
     "scripts/prepare_release.py", "tests/test_release_snapshot.py",
 }
 

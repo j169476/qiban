@@ -100,8 +100,6 @@
   z-index: 60;
 }
 
-.help:hover > .help-body,
-.help:focus-within > .help-body,
 .help[open] > .help-body {
   display: block;
   content-visibility: visible;

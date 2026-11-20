@@ -1,1 +1,1 @@
-"""QQ personal-account adapter through a separately deployed OneBot provider."""
+"""QQ personal-account adapter using the bundled native runtime."""

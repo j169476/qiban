@@ -488,7 +488,7 @@ test('a maintenance-only grant is never presented as usable for replies',async()
  assert.match(p.text(detailBox(p)),/“维护”用途只供维护流程使用、不能用于回复/);
  const labels=p.tags(detailBox(p),'label').map(node=>node.textContent).join('|');
  assert.match(labels,/回复（可在私聊回复中使用）/);
- assert.match(labels,/维护（只供维护流程使用，不能用于回复）/);
+ assert.match(labels,/维护（仅用于资料维护）/);
  // Request only the maintenance purpose.
  const boxes=p.inputs(detailBox(p),'checkbox');
  boxes[0].checked=false;boxes[0].onchange();

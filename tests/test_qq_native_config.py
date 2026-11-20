@@ -17,7 +17,6 @@ def options(tmp_path):
 
 
 def test_native_config_constructs_owned_provider_without_onebot_credentials(options, tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "token", lambda *args: (_ for _ in ()).throw(AssertionError("No OneBot token")))
     consulted = []
 
     def state(key, default=None, db=None):
@@ -26,7 +25,7 @@ def test_native_config_constructs_owned_provider_without_onebot_credentials(opti
         return default
 
     module = QQModule(SimpleNamespace(state=state), tmp_path, options=options)
-    assert module.bridge is None
+    assert not hasattr(module, "bridge")
     provider = module.factory()
     assert isinstance(provider, NativeProvider)
     assert provider.config["account"] == {"uin": "10001", "uid": "u_self"}

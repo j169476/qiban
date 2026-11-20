@@ -316,6 +316,8 @@ class DesktopRuntime:
                 db.execute('UPDATE '+table+" SET status='uncertain' WHERE generation=? AND status='dispatching'",(run['generation'],))
 
     def status(self):
+        from companion_core.context_workspace import revision
+
         self.require_current()
         preferences = self.store.state(PREFERENCES)
         session = self.store.state(SESSION)
@@ -337,7 +339,7 @@ class DesktopRuntime:
             if self.scheduler is not None:
                 platforms[-1].update(self.scheduler.status(platform))
         return {'role':self.role.as_dict(),'application_session':self.application,'runtime_instance':self.instance,
-                'generated_at':datetime.now(timezone.utc).isoformat(),
+                'generated_at':datetime.now(timezone.utc).isoformat(), 'active_preset':revision(self.store)['preset'],
                 'preference_revision':preferences['revision'],'platforms':platforms,'tasks_blocked':self.tasks.blocked,
                 'intake_paused':self.intake_paused(),
                 'handoff_pending':self.handoff_pending(), 'activities':self.activity.snapshot()}

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 Qiban</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><link rel="stylesheet" href="/help.css"><link rel="stylesheet" href="/workspace.css"><link rel="stylesheet" href="/house.css"><script src="/room-assets.js" defer></script><script src="/room-player.js" defer></script><script src="/house.js" defer></script><script src="/trace-result.js" defer></script><script src="/workspace.js" defer></script><script src="/workspace-map.js" defer></script><script src="/workspace-learning.js" defer></script><script src="/workspace-context.js" defer></script><script src="/feedback.js" defer></script><script src="/auto-read.js" defer></script><script src="/help.js" defer></script><script src="/probe.js" defer></script><script src="/management.js" defer></script><script src="/room.js" defer></script><script src="/tasks.js" defer></script><script src="/model.js" defer></script><script src="/model-choice.js" defer></script><script src="/contacts.js" defer></script><script src="/audience.js" defer></script><script src="/reply_quota.js" defer></script><script src="/reply_trace.js" defer></script><script src="/bili.js" defer></script><script src="/qq.js" defer></script><script src="/media.js" defer></script><script src="/stickers.js" defer></script><script src="/files.js" defer></script><script src="/growth.js" defer></script><script src="/memories.js" defer></script><script src="/baseline.js" defer></script><script src="/relationship.js" defer></script><script src="/sharing.js" defer></script><script src="/relation-claims.js" defer></script><script src="/navigation.js" defer></script></head>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 Qiban</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><link rel="stylesheet" href="/help.css"><link rel="stylesheet" href="/workspace.css"><link rel="stylesheet" href="/house.css"><script src="/room-assets.js" defer></script><script src="/room-player.js" defer></script><script src="/house.js" defer></script><script src="/trace-result.js" defer></script><script src="/workspace.js" defer></script><script src="/workspace-map.js" defer></script><script src="/workspace-learning.js" defer></script><script src="/workspace-presets.js" defer></script><script src="/workspace-sources.js" defer></script><script src="/workspace-context.js" defer></script><script src="/feedback.js" defer></script><script src="/auto-read.js" defer></script><script src="/help.js" defer></script><script src="/probe.js" defer></script><script src="/management.js" defer></script><script src="/room.js" defer></script><script src="/tasks.js" defer></script><script src="/model.js" defer></script><script src="/model-choice.js" defer></script><script src="/contacts.js" defer></script><script src="/audience.js" defer></script><script src="/reply_quota.js" defer></script><script src="/reply_trace.js" defer></script><script src="/bili.js" defer></script><script src="/qq.js" defer></script><script src="/media.js" defer></script><script src="/stickers.js" defer></script><script src="/files.js" defer></script><script src="/growth.js" defer></script><script src="/memories.js" defer></script><script src="/baseline.js" defer></script><script src="/relationship.js" defer></script><script src="/sharing.js" defer></script><script src="/relation-claims.js" defer></script><script src="/navigation.js" defer></script></head>
 <body data-nav-page="home" data-tab-persona="profile" data-tab-platforms="qq" data-tab-records="tasks" data-tab-media="attachments" data-tab-backup="local" data-tab-model="choice"><main class="probe">
 <script src="/public-reader.js" defer></script>
 <dialog id="public-reader" aria-labelledby="reader-title">
@@ -92,7 +92,7 @@
 <details id="recovery-area"><summary>忘记应用密码</summary><p id="recovery-status" role="status"></p><p>通过 Windows 验证身份后重设密码；现有资料保留，应用密码锁继续开启。</p><label>新应用密码 <input id="recovery-password" type="password" minlength="12" maxlength="256" autocomplete="new-password"></label><label>再次输入新密码 <input id="recovery-confirm" type="password" minlength="12" maxlength="256" autocomplete="new-password"></label><button id="recover-lock">通过 Windows 验证并重设</button><p id="recovery-feedback" role="status" aria-live="polite"></p></details>
 <p id="management-notice" role="status"></p></section>
 <div id="house-dashboard" data-nav-page="home">
-<section class="house-hero" id="monitor-scene" data-state="idle"><div class="house-hero-copy"><h2 id="monitor-state" role="status">等待连接</h2><p id="monitor-detail"></p><p id="home-service" class="probe-service-state" role="status">正在连接应用后台</p></div><qiban-room id="monitor-window" quiet aria-hidden="true"></qiban-room></section>
+<section class="house-hero" id="monitor-scene" data-state="idle"><div class="house-hero-copy"><h2 id="monitor-state" role="status">等待连接</h2><p id="monitor-detail"></p><p id="home-service" class="probe-service-state" role="status">正在连接应用后台</p><p id="house-preset-line" hidden>当前生效方案　<strong id="house-active-preset"></strong></p></div><qiban-room id="monitor-window" quiet aria-hidden="true"></qiban-room></section>
 <div class="house-pair"><section class="card" id="runtime-panel" hidden><div class="house-card-head"><h2>平台动态</h2><span id="house-platform-count"></span></div><div id="runtime-platforms"></div>
 <details class="house-stop"><summary>运行管理</summary><button id="runtime-stop-all" class="secondary" disabled>停止全部运行与任务</button></details></section>
 <div class="house-stack"><section class="card house-journal"><div class="house-card-head"><h2>值班手记</h2></div><ol id="house-events"></ol><p id="house-events-empty">等待运行快照</p></section><section class="card" id="notification-panel" hidden data-nav-page="home"><h2 id="notification-title">应用通知</h2><div class="inbox-toolbar" id="inbox-tools" hidden>
@@ -112,12 +112,12 @@
 <button type="button" class="probe-tab" data-tab-group="persona" data-tab-target="relations" aria-pressed="false">人物关系</button>
 <button type="button" class="probe-tab" data-tab-group="persona" data-tab-target="sharing" aria-pressed="false">资料共享</button>
 </nav>
-<section class="card" id="profile-panel" hidden data-nav-page="persona" data-persona-pane="profile"><div id="profile-area" data-nav-page="persona"><div class="help-heading"><h2>角色基础资料</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">启用共用设定后，这些内容用于所有公开与私密回复。说话方式和兴趣各最多 100 项，每项最多 16000 字。</div></details></div>
+<section class="card" id="profile-panel" hidden data-nav-page="persona" data-persona-pane="profile"><div id="profile-area" data-nav-page="persona"><div class="help-heading"><h2>角色基础资料</h2><details class="help"><summary aria-label="角色基础资料说明">i</summary><div class="help-body">设置龙娘的说话方式和兴趣。启用共用设定后，各个会话都会用到。</div></details></div>
 <label>名字 <input id="persona-name" maxlength="16000"></label><label>简介 <textarea id="persona-description" rows="3" maxlength="16000"></textarea></label>
 <label>说话方式（每行一项）<textarea id="persona-speaking" rows="3"></textarea></label>
 <label>兴趣（每行一项）<textarea id="persona-interests" rows="3"></textarea></label>
 <p id="profile-draft" role="status"></p><div class="actions"><button id="save-persona">保存资料</button><button id="reload-persona" class="secondary">重新读取</button><button id="discard-persona" class="secondary" disabled>放弃修改</button></div><p id="profile-notice" role="status" aria-live="polite"></p></div></section>
-<section class="card" id="baseline-panel" hidden data-nav-page="persona" data-persona-pane="profile"><div class="help-heading"><h2>共用人物设定与基础记忆</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">人物卡和基础记忆用于所有公开与私密回复，只填写适合公开的内容；启用后所有会话共用，基础记忆最多 10 条。</div></details></div>
+<section class="card" id="baseline-panel" hidden data-nav-page="persona" data-persona-pane="profile"><div class="help-heading"><h2>共用人物设定与基础记忆</h2><details class="help"><summary aria-label="共用人物设定与基础记忆说明">i</summary><div class="help-body">填写适合公开的人物设定和基础记忆，供所有会话使用。</div></details></div>
 <button id="baseline-refresh" class="secondary" disabled>重新读取共用设定</button><p id="baseline-state" role="status"></p>
 <div id="baseline-records"></div>
 <div id="baseline-publish-area"><label><input id="baseline-confirm" type="checkbox" disabled>我已查看以上内容，确认可用于所有公开与私密回复</label><button id="baseline-publish" disabled>确认启用共用设定</button></div>
@@ -125,7 +125,7 @@
 <label><input id="foundation-confirm" type="checkbox" disabled>我确认这条基础记忆可用于所有公开与私密回复</label>
 <p id="foundation-draft" role="status"></p><div class="actions"><button id="foundation-add" disabled>添加基础记忆</button><button id="foundation-discard" class="secondary" disabled>放弃修改</button></div></div>
 <p id="baseline-notice" role="status" aria-live="polite"></p></section>
-<section class="card" id="memory-panel" hidden data-nav-page="persona" data-persona-pane="memory"><div class="help-heading"><h2>记忆、知识与日记</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">选择类型查看整理，修改正文或标签后统一保存，来源、共享范围与关联记录保留。知识与日记的锁定只限制角色自动修改，不影响管理员更正。</div></details></div>
+<section class="card" id="memory-panel" hidden data-nav-page="persona" data-persona-pane="memory"><div class="help-heading"><h2>记忆、知识与日记</h2><details class="help"><summary aria-label="记忆、知识与日记说明">i</summary><div class="help-body">选择一条资料，修改正文或标签后点保存。</div></details></div>
 <label for="memory-kind">资料类型</label><select id="memory-kind" disabled><option value="memories">记忆</option><option value="knowledge">知识</option><option value="diaries">日记</option></select>
 <details><summary>已停用事实的历史清理</summary>
 <p>有效事实与被替代的历史长期保留；只有管理员明确停用、超过保留期且无其他引用的记录才清理正文，防回退标记保留，既有备份不受影响。</p>
@@ -135,7 +135,7 @@
 <div class="actions"><button id="memory-refresh" class="secondary" disabled>重新读取记忆</button><button id="memory-prev" class="secondary" disabled>上一页记忆</button><button id="memory-next" class="secondary" disabled>下一页记忆</button></div>
 <p id="memory-empty"></p><div id="memory-items" aria-label="记忆列表"></div>
 <div id="memory-editor" hidden><p id="memory-draft" role="status"></p>
-<div id="fact-area" hidden><div class="help-heading"><h3>个人事实时间线</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">查看同一账号、同一会话的事实；确认只追加新记录，保留原始来源与历史，不扩大共享范围。事实不能直接编辑，更正会新增管理员记录并保留原话与旧值。操作时先选要采用的当前事实，再勾选同一属性下要替代的记录（最多 20 条，含选中项）；历史时点仅供查看。</div></details></div>
+<div id="fact-area" hidden><div class="help-heading"><h3>个人事实时间线</h3><details class="help"><summary aria-label="个人事实时间线说明">i</summary><div class="help-body">选出当前采用的说法，再勾选要替代的旧记录。原话和更正历史都可回看。</div></details></div>
 <label for="fact-at">历史时点（可选，填写带时区的时间，例如 2026-11-01T12:00:00+08:00）</label><input id="fact-at" maxlength="40" disabled>
 <div class="actions"><button id="fact-refresh" class="secondary" disabled>读取事实时间线</button><button id="fact-next" class="secondary" disabled>下一页事实</button></div>
 <p id="fact-summary"></p><div id="fact-items"></div>
@@ -145,9 +145,9 @@
 <p id="fact-notice" role="status" aria-live="polite"></p></div>
 <label for="memory-content">记忆正文</label><textarea id="memory-content" maxlength="16000" rows="6" disabled></textarea>
 <label for="memory-tags">标签（逗号分隔）</label><input id="memory-tags" disabled>
-<div class="actions"><button id="memory-save" disabled>保存记忆</button><button id="memory-discard" class="secondary" disabled>放弃修改</button><button id="memory-delete-preview" class="secondary" disabled>查看删除影响</button></div>
+<div class="actions"><button id="memory-save" disabled>保存记忆</button><button id="memory-versions" class="secondary" disabled>历史版本</button><button id="memory-discard" class="secondary" disabled>放弃修改</button><button id="memory-delete-preview" class="secondary" disabled>查看删除影响</button></div>
 <p id="memory-delete-effect"></p><div class="actions"><button id="memory-delete-confirm" disabled hidden>确认删除当前记忆</button><button id="memory-delete-cancel" class="secondary" hidden>取消删除</button></div>
-<div id="memory-advanced"><div class="help-heading"><h3>高级资料导入与导出</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">导出为明文 YAML（正文、真实引用清单、版本），导入只作用于当前选中的记忆、知识或日记。导入先预览、确认后写入；类型、标识、结构版本、锁定与共享权限不能通过文件修改。单个文件最大 24 KB。新增引用请先导出目标资料，照抄其 resource 与 record_version。</div></details></div>
+<div id="memory-advanced"><div class="help-heading"><h3>高级资料导入与导出</h3><details class="help"><summary aria-label="高级资料导入与导出说明">i</summary><div class="help-body">导出文件含明文正文和来源。导入时先预览改动，再确认保存。</div></details></div>
 <div class="actions"><button id="memory-advanced-export" class="secondary" disabled>导出高级 YAML</button><button id="memory-advanced-import" class="secondary" disabled>选择 YAML 文件并预览导入</button></div>
 <p id="memory-advanced-notice" role="status" aria-live="polite"></p>
 <div id="memory-advanced-panel" hidden>
@@ -159,14 +159,14 @@
 <div class="actions"><button id="memory-advanced-confirm" disabled>确认导入</button><button id="memory-advanced-cancel" class="secondary" disabled>取消导入</button></div>
 </div></div></div>
 <p id="memory-notice" role="status" aria-live="polite"></p></section>
-<section class="card" id="relationship-panel" hidden data-nav-page="persona" data-persona-pane="relations"><div class="help-heading"><h2>基础关系</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">为同一个人设置称呼与相处方式；主要账号确定人物，其他账号从已有关联中选择。只对勾选的账号生效，不合并好感、历史或资料权限。</div></details></div>
+<section class="card" id="relationship-panel" hidden data-nav-page="persona" data-persona-pane="relations"><div class="help-heading"><h2>基础关系</h2><details class="help"><summary aria-label="基础关系说明">i</summary><div class="help-body">选出同一个人的账号，为他们设置共用的称呼和相处方式。</div></details></div>
 <button id="relation-read" class="secondary">读取基础关系</button><p id="relation-status" role="status"></p>
 <fieldset id="relation-links" hidden><legend>跨平台账号关联</legend>
 <label>第一个账号 <select id="relation-left"></select></label><label>另一个平台的账号 <select id="relation-right"></select></label>
 <button class="secondary" id="relation-review">核对关联账号</button>
 <div id="relation-link-preview" hidden><p id="relation-groups"></p><button id="relation-confirm">确认是同一人</button><button class="secondary" id="relation-cancel">取消</button></div>
 <p id="relation-link-notice" role="status"></p>
-<div class="help-heading"><h3>已有关联</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">只撤销选中的这一条，记录与历史保留；其他已确认的关联仍可能让这些账号视作同一人，共用设定需重新核对。这里不会批量拆分其他关联。</div></details></div>
+<div class="help-heading"><h3>已有关联</h3><details class="help"><summary aria-label="已有关联说明">i</summary><div class="help-body">选择一条账号关联，可查看详情或撤销它。</div></details></div>
 <div class="actions"><button class="secondary" id="relation-link-list">查看已有关联</button><button class="secondary" id="relation-link-more" hidden>更多关联</button></div>
 <p id="relation-link-list-status" role="status"></p>
 <div id="relation-link-items" aria-label="已有关联"></div>
@@ -178,10 +178,10 @@
 <fieldset><legend>这份设定适用的账号</legend><div id="relation-members"></div></fieldset>
 <label>人物名称 <input id="relation-name" maxlength="100"></label><label>称呼（每行一项，最多10项）<textarea id="relation-addresses" rows="2"></textarea></label>
 <label>关系 <input id="relation-level" maxlength="100"></label><label>相处方式 <textarea id="relation-description" maxlength="2000" rows="3"></textarea></label>
-<details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">这些字段属于共用人物设定，只填适合公开的内容；关联账号清单不会交给模型。</div></details>
+<details class="help"><summary aria-label="共用关系设定说明">i</summary><div class="help-body">称呼和相处方式会用于共用人物设定，请填写适合公开的内容。</div></details>
 <button id="relation-save" disabled>保存基础关系</button><button id="relation-discard" class="secondary" disabled>放弃更改</button>
 <button id="relation-clear" class="secondary" hidden>解除这份基础关系</button><div id="relation-clear-preview" hidden><p>仅移除这份手工设定。人物账号关联、历史和好感保留。</p><button id="relation-clear-confirm">确认解除</button><button id="relation-clear-cancel" class="secondary">取消</button></div></div><p id="relation-notice" role="status" aria-live="polite"></p></section>
-<section class="card" id="relation-claims-panel" hidden data-nav-page="persona" data-persona-pane="relations"><div class="help-heading"><h2>人际关系声明</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">只更正“已有”且带真实来源的关系声明状态（仅声明、已确认、有争议、已撤销），不新增关系，也不改正文、主体与证据。每次更正先预览、再确认，并写入不可变记录；已撤销可恢复为已确认或有争议。原证据仅在引用版本一致时显示摘录（每项 2000 字、本页合计 12000 字，超出标注截断）。</div></details></div>
+<section class="card" id="relation-claims-panel" hidden data-nav-page="persona" data-persona-pane="relations"><div class="help-heading"><h2>人际关系声明</h2><details class="help"><summary aria-label="人际关系声明说明">i</summary><div class="help-body">选择一条关系声明，核对正文、状态和证据后再更正。</div></details></div>
 <label for="relation-claims-filter">状态筛选</label>
 <select id="relation-claims-filter"><option value="all">全部</option><option value="claimed">仅声明</option><option value="confirmed">已确认</option><option value="disputed">有争议</option><option value="revoked">已撤销</option></select>
 <button id="relation-claims-load" class="secondary">读取关系声明</button>
@@ -190,7 +190,7 @@
 <button id="relation-claims-next" class="secondary" disabled>下一页声明</button>
 <div id="relation-claims-preview-area" hidden><div id="relation-claims-preview"></div></div>
 </section>
-<section class="card" id="sharing-panel" hidden data-nav-page="persona" data-persona-pane="sharing"><div class="help-heading"><h2>资料共享设置</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">只调整一条资料可以被谁使用，以及是否允许某个已登记账号在私聊中使用。只有“回复”用途能用于私聊回复，“维护”用途只供维护流程使用。这不是回复授权：不授权会话、不启动平台、不改回复额度。正文、归属、来源、版本与有效期保持原样；来源停用、过期或版本改变时共享不会生效。扩大或收回都先预览再确认，撤销按整条授权生效。</div></details></div>
+<section class="card" id="sharing-panel" hidden data-nav-page="persona" data-persona-pane="sharing"><div class="help-heading"><h2>资料共享设置</h2><details class="help"><summary aria-label="资料共享设置说明">i</summary><div class="help-body">选择谁可以使用这条资料，并指定用途。变更前可预览影响。</div></details></div>
 <button id="sharing-load" class="secondary">读取可管理的资料</button>
 <p id="sharing-status" role="status" aria-live="polite"></p>
 <div id="sharing-items" aria-label="可管理的资料"></div>
@@ -220,7 +220,7 @@
 <label for="qq-group-targets">群号</label><textarea id="qq-group-targets" rows="2"></textarea>
 </details><div class="actions"><button id="qq-targets-verify" class="secondary">核验回复会话</button><button id="qq-targets-save" disabled>保存并允许回复</button></div>
 <p id="qq-targets-summary" role="status"></p><p id="qq-targets-preview" role="status"></p>
-<p class="note">保存会替换当前名单；两个列表都清空后保存即可清空名单。</p>
+<p class="note">保存后使用这份名单。要清空名单，请清空好友和群聊两栏后保存。</p>
 <p id="qq-targets-notice" role="status" aria-live="polite"></p></section>
 <section class="card" id="audience-panel" hidden data-nav-page="platforms" data-platform-pane="wechat"><h2>微信账号</h2>
 <p id="audience-versions" class="note" hidden></p>
@@ -251,7 +251,7 @@
 <table><thead><tr><th>互动</th><th>启用</th><th>日限额</th><th>已用</th><th>剩余</th></tr></thead><tbody id="bili-rules"></tbody></table>
 <div class="actions"><button id="bili-policy-save" disabled>保存互动设置</button><button id="bili-policy-default" class="secondary" disabled>填入默认值</button><button id="bili-policy-read" class="secondary">重新读取</button></div>
 <p id="bili-policy-note" role="status"></p></details></section>
-<section class="card" id="growth-panel" hidden data-nav-page="platforms" data-platform-pane="bilibili"><div class="help-heading"><h2>公开成长检查与恢复</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">先停止 B 站，再检查公开活动中积累的兴趣与状态；恢复不改动私聊记忆与基础人设。</div></details></div>
+<section class="card" id="growth-panel" hidden data-nav-page="platforms" data-platform-pane="bilibili"><div class="help-heading"><h2>公开成长检查与恢复</h2><details class="help"><summary aria-label="公开成长说明">i</summary><div class="help-body">先停止 B 站运行，再查看或恢复公开活动中积累的兴趣和状态。</div></details></div>
 <button id="growth-preview" class="secondary" disabled>检查并预览恢复</button>
 <div id="growth-proposal" hidden><p>恢复采用下面的默认内容，原状态加密归档保留，失效来源不会重新生效。</p><div id="growth-data"></div>
 <label><input id="growth-confirm" type="checkbox" disabled>我已核对，确认用上述默认内容重建公开成长</label>
@@ -264,16 +264,16 @@
 <button type="button" class="probe-tab" data-tab-group="model" data-tab-target="choice" aria-pressed="true">模型目录</button>
 <button type="button" class="probe-tab" data-tab-group="model" data-tab-target="accounts" aria-pressed="false">账号管理</button>
 <button type="button" class="probe-tab" data-tab-group="model" data-tab-target="quota" aria-pressed="false">回复额度</button></nav>
-<div data-nav-page="model" data-model-pane="choice" class="house-model-layout"><section class="card" data-nav-page="model" data-model-pane="choice" id="model-choice-panel"><h2>选择模型</h2><label>模型<select id="model-choice" aria-label="模型"></select></label><label id="model-effort-fallback">思考强度<select id="model-effort" aria-label="推理档位"></select></label><div id="model-effort-choices" role="group" aria-label="思考强度"></div><div class="actions"><button id="model-choice-save" hidden>使用所选模型</button><button id="model-catalog-refresh" class="secondary">刷新模型目录</button><p id="model-choice-status" class="inline-status" role="status"></p></div></section>
+<div data-nav-page="model" data-model-pane="choice" class="house-model-layout"><section class="card" data-nav-page="model" data-model-pane="choice" id="model-choice-panel"><h2>选择模型</h2><div class="model-choice-row"><label for="model-choice">模型</label><select id="model-choice" aria-label="模型"></select><button type="button" id="model-ultrafast" class="secondary" aria-pressed="false" hidden>Ultrafast</button></div><label id="model-effort-fallback">思考强度<select id="model-effort" aria-label="推理档位"></select></label><div id="model-effort-choices" role="group" aria-label="思考强度"></div><div class="actions"><button id="model-choice-save" hidden>使用所选模型</button><button id="model-catalog-refresh" class="secondary">刷新模型目录</button><p id="model-choice-status" class="inline-status" role="status"></p></div></section>
 <div class="house-stack"><section class="card house-journal"><h2>当前生效</h2><p id="model-applied">等待读取</p></section><section class="card"><h2>模型目录</h2><p id="model-count">等待读取</p></section></div></div>
-<section class="card" id="model-panel" hidden data-nav-page="model" data-model-pane="accounts"><div class="help-heading"><h2>模型账号</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">切换账号会立即停止进行中的任务，待旧任务退出后由新账号接手未完成步骤；已确认发送的消息不重复发送，结果不明的发送等待核对。其他账号的登录保留，额度不足时不会自动换号。</div></details></div>
+<section class="card" id="model-panel" hidden data-nav-page="model" data-model-pane="accounts"><div class="help-heading"><h2>模型账号</h2><details class="help"><summary aria-label="模型账号说明">i</summary><div class="help-body">切换后，未完成的任务由新账号接续。</div></details></div>
 <div id="model-accounts" hidden><label for="model-selection">已保存的 ChatGPT 账号</label><select id="model-selection"></select>
 <div class="actions"><button id="model-select" class="secondary">使用所选账号</button><button id="model-add" class="secondary">添加 ChatGPT 账号</button></div></div>
 <p id="model-account"></p>
 
 <div class="actions"><button id="model-login">登录 ChatGPT</button><button id="model-refresh" class="secondary">检查登录状态</button><button id="model-open" class="secondary" disabled hidden>重新打开登录页面</button><button id="model-cancel" class="secondary" disabled hidden>取消登录</button><button id="model-logout" class="quiet" disabled>退出本应用账号</button></div>
 <p id="model-status" class="inline-status" role="status"></p><p id="model-notice" role="status" aria-live="polite"></p></section>
-<section class="card" id="reply-quota-panel" hidden data-nav-page="model" data-model-pane="quota"><div class="help-heading"><h2>回复额度</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">私聊按自然日统计回复条数，群聊每次被 @ 或引用唤起算一次参与；保存设置不调用模型，也不是计费额度。修改额度不会授权会话、不改变回复授权或启动平台。单独设置只影响所选会话，可恢复为账号默认。“停用此会话”只影响这一个会话，解除后只回新消息，期间消息不补回。<p id="reply-quota-rule" class="note"></p></div></details></div>
+<section class="card" id="reply-quota-panel" hidden data-nav-page="model" data-model-pane="quota"><div class="help-heading"><h2>回复额度</h2><details class="help"><summary aria-label="回复额度说明">i</summary><div class="help-body">可以给账号设置默认额度，也可以单独调整某个会话。<p id="reply-quota-rule" class="note"></p></div></details></div>
 <button id="reply-quota-refresh" class="secondary">读取账号额度</button>
 <p id="reply-quota-status" role="status"></p>
 
@@ -282,7 +282,7 @@
 <button type="button" class="probe-tab" data-tab-group="records" data-tab-target="tasks" aria-pressed="true">手动任务</button>
 <button type="button" class="probe-tab" data-tab-group="records" data-tab-target="trace" aria-pressed="false">回复处理记录</button>
 </nav>
-<section class="card" id="tasks-panel" data-nav-page="records" data-records-pane="tasks"><div class="help-heading"><h2>手动任务</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">只执行本次提交的任务，不改自动运行设置；取消、停止全部或退出应用会终止任务，换模型账号后由新账号接续未完成步骤。查资料与学习使用当前账号的网页检索能力，实际可用性取决于模型与账号权限；图片生成尚未提供。</div></details></div>
+<section class="card" id="tasks-panel" data-nav-page="records" data-records-pane="tasks"><div class="help-heading"><h2>手动任务</h2><details class="help"><summary aria-label="手动任务说明">i</summary><div class="help-body">选择任务、填写内容后提交，在下方查看进度和结果。</div></details></div>
 <label for="tasks-kind">任务类型</label><select id="tasks-kind" disabled><option value="video">阅读 B 站视频</option><option value="web">网页查资料</option><option value="learn">分轮学习并自检</option></select><p id="tasks-availability" role="status">等待后台就绪……</p>
 <div id="tasks-web-fields" hidden><label for="tasks-prompt">查资料的问题／学习目标</label><textarea id="tasks-prompt" maxlength="2000" rows="3" disabled></textarea>
 <div id="tasks-learn-fields" hidden><label for="tasks-criteria">检查标准（每行一项，最多 6 项）</label><textarea id="tasks-criteria" maxlength="3005" rows="3" disabled></textarea><label for="tasks-rounds">最多学习轮数</label><input id="tasks-rounds" type="number" min="1" max="6" value="1" disabled><p>模型会根据资料学习并自检，不代表独立实测或用户已经掌握。</p></div></div>
@@ -296,7 +296,7 @@
 <div class="actions"><button id="tasks-submit" disabled>提交视频任务</button><button id="tasks-refresh" class="secondary" disabled>重新读取任务</button></div>
 <p id="tasks-notice" role="status" aria-live="polite"></p><div id="tasks-items"></div>
 </section>
-<section class="card" id="reply-trace-panel" hidden data-nav-page="records" data-records-pane="trace"><div class="help-heading"><h2>回复处理记录</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">记录包含平台、时间、用时、结果、处理阶段和来源版本，不含提示词、聊天原文、回复正文或模型推理；超过保留期自动清理。</div></details></div>
+<section class="card" id="reply-trace-panel" hidden data-nav-page="records" data-records-pane="trace"><div class="help-heading"><h2>回复处理记录</h2><details class="help"><summary aria-label="回复处理记录说明">i</summary><div class="help-body">查看每次回复的结果、用时和处理步骤。</div></details></div>
 <label for="reply-trace-limit">最近数量（1 至 100 条）</label>
 <input id="reply-trace-limit" type="number" min="1" max="100" step="1" value="30">
 <button id="reply-trace-load" class="secondary">读取最近记录</button>
@@ -307,16 +307,16 @@
 <button type="button" class="probe-tab" data-tab-group="media" data-tab-target="library" aria-pressed="false">文件库</button>
 <button type="button" class="probe-tab" data-tab-group="media" data-tab-target="stickers" aria-pressed="false">表情包库</button>
 </nav>
-<section class="card" id="media-panel" hidden data-nav-page="media" data-media-pane="attachments"><div class="help-heading"><h2>聊天附件与保留期限</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">附件从消息处理完成后开始计时，待处理任务与正在使用的附件不会自动清理；手动保存、收藏及表情库素材长期保留。修改期限对现有已处理附件同样生效。</div></details></div>
+<section class="card" id="media-panel" hidden data-nav-page="media" data-media-pane="attachments"><div class="help-heading"><h2>聊天附件与保留期限</h2><details class="help"><summary aria-label="聊天附件与保留期限说明">i</summary><div class="help-body">附件处理完后开始计时。收藏和手动保存的原件会长期保留。</div></details></div>
 <label for="media-days">已处理附件原件保留天数</label><input id="media-days" type="number" min="1" max="3650" step="1">
 <p class="note">缩短期限后，已到期且未长期保留的原件会自动清理；聊天文字、记忆及处理记录保留。</p>
 <div class="actions"><button id="media-save" disabled>保存保留期限</button><button id="media-refresh" class="secondary">重新读取附件</button></div>
 <p id="media-notice" role="status"></p>
-<div class="help-heading"><h3>附件原件空间</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">空间不足时先清理最旧的已处理普通原件，可能早于保留期限；收藏、手动保存、表情库、未处理和正在使用的原件不会因此删除。腾不出空间时暂停新附件处理，文字回复继续。容量按原件内容大小计算，不含应用、模型、备份与数据库额外占用。</div></details></div>
+<div class="help-heading"><h3>附件原件空间</h3><details class="help"><summary aria-label="附件原件空间说明">i</summary><div class="help-body">空间不足时，先清理最早处理完的普通附件。收藏和手动保存的原件会保留。</div></details></div>
 <label for="media-capacity">总容量（MiB，默认 2048，即 2 GiB）</label><input id="media-capacity" type="number" min="1" max="1048576" step="1">
 <p id="media-capacity-usage" class="note"></p>
 <div class="actions"><button id="media-capacity-save" disabled>保存附件总容量</button></div><p id="media-capacity-notice" role="status"></p>
-<div class="help-heading"><h3>每次回复的附件处理上限</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">先取有效 @ 或引用唤起消息中的附件，再取最近的附件；超限部分保留引用并注明未读取原因，不会拆成更多模型调用，修改从下一次回复开始生效。QQ 文件、图片与语音均在本机解析：动图最多取首、中、尾三帧并占用图片额度，语音自动转写可能有误，超出预算或时长只提供片段并注明缺失。</div></details></div>
+<div class="help-heading"><h3>每次回复的附件处理上限</h3><details class="help"><summary aria-label="每次回复的附件处理上限说明">i</summary><div class="help-body">设置一次回复能读取的图片、语音和文件数量。优先读取唤起本次回复的消息附件。</div></details></div>
 <label for="media-images">图片数量（0 至 12 张，0 为不处理）</label><input id="media-images" type="number" min="0" max="12" step="1">
 <label for="media-audio">语音数量（0 至 12 段）</label><input id="media-audio" type="number" min="0" max="12" step="1">
 <label for="media-files">文件数量（0 至 12 个）</label><input id="media-files" type="number" min="0" max="12" step="1">
@@ -325,15 +325,15 @@
 <label for="media-audio_seconds">本轮语音总时长（1 至 600 秒）</label><input id="media-audio_seconds" type="number" min="1" max="600" step="1">
 <div class="actions"><button id="media-budget-save" disabled>保存附件处理上限</button></div>
 <p id="media-budget-notice" role="status"></p>
-<div class="help-heading"><h3>QQ 语音回复</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">默认最长 30 秒；合成失败或超限且尚未提交发送时改用本次回复的原文字，任务取消、账号或授权改变时停止，发送结果不明时不自动补发。</div></details></div>
+<div class="help-heading"><h3>QQ 语音回复</h3><details class="help"><summary aria-label="QQ 语音回复说明">i</summary><div class="help-body">默认最长 30 秒，失败则发送文字。</div></details></div>
 <label><input id="media-voice-enabled" type="checkbox" disabled>允许角色按语境选择语音回复</label>
 <label for="media-voice-seconds">单条语音回复最长秒数（1～600）</label>
 <input id="media-voice-seconds" type="number" min="1" max="600" step="1" disabled>
 <div class="actions"><button id="media-voice-save" disabled>保存语音回复设置</button></div>
 <p id="media-voice-notice" role="status"></p>
 <div id="media-items"></div><button id="media-next" class="secondary" disabled>下一页附件</button></section>
-<section class="card" id="file-panel" hidden data-nav-page="media" data-media-pane="library"><div class="help-heading"><h2>文件库</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">导入后选择允许使用的 QQ 好友或群聊，勾选启用并保存；角色可在这些会话中按需选发，其他会话不会自动共享。原件加密保存在本机、长期保留并计入附件容量，每份最多 10 MiB，导入不会立即发送。</div></details></div>
-<div class="help-heading"><h3>每次回复的文件上限</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">默认最多 3 份、合计 20 MiB；此上限用于发送，与接收附件的阅读预算分别设置。</div></details></div><label for="file-count">最多文件数（1至12份）</label><input id="file-count" type="number" min="1" max="12" step="1" disabled><label for="file-total-mib">文件总大小（1至120 MiB）</label><input id="file-total-mib" type="number" min="1" max="120" step="1" disabled><button id="file-settings-save" disabled>保存发送上限</button>
+<section class="card" id="file-panel" hidden data-nav-page="media" data-media-pane="library"><div class="help-heading"><h2>文件库</h2><details class="help"><summary aria-label="文件库说明">i</summary><div class="help-body">导入文件后，选择允许使用的 QQ 好友或群聊，启用并保存。</div></details></div>
+<div class="help-heading"><h3>每次回复的文件上限</h3><details class="help"><summary aria-label="每次回复的文件上限说明">i</summary><div class="help-body">设置每次回复最多能发送多少份文件，以及文件总大小。</div></details></div><label for="file-count">最多文件数（1至12份）</label><input id="file-count" type="number" min="1" max="12" step="1" disabled><label for="file-total-mib">文件总大小（1至120 MiB）</label><input id="file-total-mib" type="number" min="1" max="120" step="1" disabled><button id="file-settings-save" disabled>保存发送上限</button>
 <label for="file-tags">标签与用途（逗号分隔）</label><input id="file-tags" disabled>
 <div class="actions"><button id="file-import" disabled>选择文件并导入</button><button id="file-refresh" class="secondary" disabled>重新读取文件</button></div>
 <p id="file-notice" role="status"></p><div id="file-items"></div><button id="file-next" class="secondary" disabled>下一页文件</button></section>
@@ -357,22 +357,22 @@
 <label>选择本机备份 <select id="backup-selection"></select></label>
 <button id="backup-preview" class="secondary">查看恢复预览</button>
 </div>
-<div data-backup-pane="portable"><div class="help-heading"><h3>换电脑恢复 · 便携备份</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">导出会把当前全部资料写成一对同名文件：<b>.ccbackup</b> 备份与 <b>.cckey</b> 独立恢复密钥，两个文件必须一起保管，缺一不可。独立恢复口令 16 至 256 个字符，由你自行设置并记住，应用不保存该口令。</div></details></div>
+<div data-backup-pane="portable"><div class="help-heading"><h3>换电脑恢复 · 便携备份</h3><details class="help"><summary aria-label="便携备份说明">i</summary><div class="help-body">请成对保管 <b>.ccbackup</b> 备份文件和 <b>.cckey</b> 密钥文件，并牢记自己设置的恢复口令。</div></details></div>
 <p>导入先用这一对文件查看来源预览，再通过 Windows 验证，然后<strong>完整替换</strong>当前资料：两份资料不合并。恢复前会先在本机保全当前资料并显示保全备份名，保全文件不会被自动删除；Windows 管理员绑定与应用密码锁保留，本机平台登录留在本机，恢复后全部平台保持停止。全新安装使用同一入口。</p>
 <div class="actions"><button id="portable-export">导出便携备份</button><button id="portable-import" class="secondary">导入便携备份并预览</button></div>
 <label>独立恢复口令 <input id="portable-password" type="password" minlength="16" maxlength="256" autocomplete="new-password"></label>
 <label>再次输入独立恢复口令（仅导出需要） <input id="portable-confirm" type="password" minlength="16" maxlength="256" autocomplete="new-password"></label>
 <p id="portable-status" role="status">先填写独立恢复口令：导出需要两次输入，导入预览只需要一次。</p>
-<p class="note">恢复结果无法确认时，应用会停止后台并提示重启核对，不会自动重复恢复。</p>
+<p class="note">恢复结果需要核对时，栖伴会停止后台并提示你重启检查。</p>
 </div>
-<div data-backup-pane="preserved"><div class="help-heading"><h3>本机保全资料</h3><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">每次完整替换前，应用都先把当时的资料另存为一份本机保全资料，保存在本机资料目录的 <b>history/portable-preservation</b>，不会被自动删除。这里可以读回其中任意一份：先查看预览，再用上面同一个 Windows 确认完成替换。本机保全资料不需要独立恢复口令，也不会读取口令输入框。</div></details></div>
+<div data-backup-pane="preserved"><div class="help-heading"><h3>本机保全资料</h3><details class="help"><summary aria-label="本机保全资料说明">i</summary><div class="help-body">每次完整替换前，栖伴会留存当时的资料。可在这里预览并恢复。</div></details></div>
 <div class="actions"><button id="preserved-list" class="secondary">读取本机保全资料</button><button id="preserved-more" class="secondary" disabled>继续读取</button></div>
 <label>选择保全资料 <select id="preserved-selection"></select></label>
 <div class="actions"><button id="preserved-preview" class="secondary" disabled>查看保全资料预览</button></div>
-<p class="note">列表只显示文件名、时间与大小；选中项在预览时完整校验，恢复会生成新的资料代次并保留原副本。</p>
+<p class="note">选择一份资料并预览，栖伴会校验文件。恢复后仍可查看原副本。</p>
 </div>
 </section>
-<section class="card" id="lock-panel" hidden data-nav-page="settings"><div id="management-lock" data-nav-page="settings"><div class="help-heading"><h2>应用密码锁（可选）</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">默认凭当前 Windows 登录身份管理。锁定栖伴后，需要解锁才能进入管理页或会客室；会客室已接收的消息会继续使用模型额度生成回复，解锁后可查看。</div></details></div>
+<section class="card" id="lock-panel" hidden data-nav-page="settings"><div id="management-lock" data-nav-page="settings"><div class="help-heading"><h2>应用密码锁（可选）</h2><details class="help"><summary aria-label="应用密码锁说明">i</summary><div class="help-body">设置密码后，可锁定管理页和会客室。已收到的消息会继续处理。</div></details></div>
 <label id="lock-password-label">设置或验证应用密码 <input id="lock-password" type="password" minlength="12" maxlength="256" autocomplete="new-password" placeholder="至少 12 个字符"></label>
 <div class="actions"><button id="enable-lock">启用密码锁</button><button id="lock-now" class="secondary">立即锁定</button><button id="disable-lock" class="secondary">验证密码并关闭锁</button></div>
 </div></section>
@@ -390,7 +390,7 @@
 <div id="relation-claims-detail"></div>
 <div id="relation-claims-history"></div>
 </section>
-<section class="card" data-nav-page="persona" data-persona-pane="sharing"><div class="help-heading"><h2>共享详情与说明</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">共享只决定资料可以给谁使用，不是回复授权。</div></details></div><div id="sharing-detail"></div></section>
+<section class="card" data-nav-page="persona" data-persona-pane="sharing"><div class="help-heading"><h2>共享详情与说明</h2><details class="help"><summary aria-label="共享详情说明">i</summary><div class="help-body">查看这条资料的共享对象和用途。</div></details></div><div id="sharing-detail"></div></section>
 <section class="card" id="audience-scope-panel" hidden data-nav-page="platforms" data-platform-pane="qq wechat"><h2>当前回复范围</h2>
 <button id="audience-load" class="secondary">查看当前账号的范围</button><p id="audience-status" role="status"></p>
 <div id="audience-actions" hidden><div class="actions"><button id="audience-private" class="secondary">允许所有好友</button> <button id="audience-group" class="secondary">允许所有群</button></div></div>
@@ -401,16 +401,16 @@
 
 <section class="card" data-nav-page="records" data-records-pane="tasks"><h2 id="tasks-result-title">任务结果</h2><pre id="tasks-result" class="probe-rail-pre"></pre><button id="tasks-more" class="secondary" disabled>读取后续内容</button></section>
 <section class="card" data-nav-page="records" data-records-pane="trace"><h2>记录详情</h2><div id="reply-trace-detail"></div></section>
-<section class="card" id="sticker-detail-panel" hidden data-nav-page="media" data-media-pane="stickers"><div class="help-heading"><h2>选中表情预览与编辑</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">角色会在已授权的会话中按语境选择已启用的表情，每次最多一张。</div></details></div>
+<section class="card" id="sticker-detail-panel" hidden data-nav-page="media" data-media-pane="stickers"><div class="help-heading"><h2>选中表情预览与编辑</h2><details class="help"><summary aria-label="表情使用说明">i</summary><div class="help-body">龙娘可在获准的会话中选用已启用的表情，每次最多一张。</div></details></div>
 <p id="sticker-detail-title" role="status">请选择一张表情。</p>
 <img id="sticker-detail-preview" class="probe-sticker-preview" alt="" hidden>
 <label for="sticker-detail-name">名称</label><input id="sticker-detail-name" maxlength="100" disabled>
 <label for="sticker-detail-tags">标签与适用语境（逗号分隔）</label><input id="sticker-detail-tags" disabled>
 <label class="probe-check"><input id="sticker-detail-enabled" type="checkbox" disabled>启用这张表情（保存后生效）</label>
-<div class="actions"><button id="sticker-detail-save" disabled>保存更改</button>
+<div class="actions"><button id="sticker-detail-save" disabled>保存更改</button><button id="sticker-versions" class="secondary" disabled>历史版本</button><button id="sticker-replace" class="secondary" disabled>替换原件</button>
 <p id="sticker-detail-feedback" class="probe-rail-feedback" role="status"></p></div>
 </section>
-<section class="card" data-nav-page="media" data-media-pane="attachments library"><div class="help-heading"><h2>素材说明</h2><details class="help"><summary aria-label="功能说明">i</summary><div class="help-body">附件原件按保留期限与总容量清理；文件库与表情库的内容长期保留并计入同一份附件容量。</div></details></div></section>
+<section class="card" data-nav-page="media" data-media-pane="attachments library"><div class="help-heading"><h2>素材说明</h2><details class="help"><summary aria-label="素材保留期限说明">i</summary><div class="help-body">普通附件按期限和容量清理。文件库和表情库中的素材长期保留。</div></details></div></section>
 <section class="card" id="backup-rail-local" hidden data-nav-page="settings" data-backup-pane="local"><h2>本机备份预览与确认</h2>
 <p id="backup-effect" role="status"></p><div class="actions"><button id="backup-restore" disabled>确认覆盖并验证 Windows 身份</button></div><p id="backup-notice" role="status" aria-live="polite"></p>
 </section>
@@ -424,7 +424,7 @@
 <h2 id="component-title">应用后台</h2><ul id="components"></ul>
 <div class="actions"><button id="pick" class="secondary" hidden>检查文件选择对话框</button></div>
 <p id="file" role="status" hidden>只显示所选文件名，不会读取或上传内容。</p>
-<p class="note">启动与停止后台在右上角“应用设置”里；这里只是低频诊断区。</p></details></section>
+<p class="note">在右上角「应用设置」中可启动或停止后台。</p></details></section>
 </div>
 
 </div>

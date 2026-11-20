@@ -54,6 +54,19 @@ def get(store, event_id):
     return {"event": store.ledger_decode("core_events.body", row[0]), "version": row[1]}
 
 
+def versions(store, identifiers):
+    ids = set(identifiers)
+    if not ids:
+        return {}
+    marks = ",".join("?" for _ in ids)
+    with store.db() as db:
+        result = dict(db.execute(f"SELECT id,version FROM core_events WHERE deleted=0 AND id IN ({marks})",
+                                 tuple(ids)).fetchall())
+    if len(result) != len(ids):
+        raise AssistantError("unknown_evidence", "身份依据的事件不存在或已删除")
+    return result
+
+
 def forget(store, event_id):
     with store.lock, store.db() as db:
         db.execute("UPDATE core_events SET deleted=1 WHERE id=?", (event_id,))

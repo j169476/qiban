@@ -26,7 +26,7 @@ class Companion(RelationshipUpdates):
     def __init__(self, store, model, host, adapters=(), clock=None, *, run_key="core-run"):
         from .hybrid_history import HybridHistory
 
-        self.history_ranker = HybridHistory.configured() if getattr(store, "backend", None) == "postgres" else None
+        self.history_ranker = HybridHistory.configured()
         self.run_key = run_key
         self.store, self.host = store, host
         self.decisions = DecisionService(model)
@@ -324,7 +324,7 @@ class Companion(RelationshipUpdates):
             values.update(adapter.conversation_scope(event))
         return values
 
-    def _record_reply(self, event, proposal, result, occurred_at, disclosure=None):
+    def _record_reply(self, event, proposal, result, occurred_at, disclosure=None, preset_id=None):
         if result.get("status") != "succeeded":
             return
         adapter = self.platforms.get(event.platform, event.account)
@@ -337,11 +337,18 @@ class Companion(RelationshipUpdates):
         scope = self.conversation_scope(event)
         from .governance import record_provenance
 
+        def index_turn(item_id):
+            if disclosure:
+                record_provenance(self.store, "conversation_turns", item_id, disclosure)
+            if preset_id and getattr(self.store, "backend", None) == "postgres":
+                with self.store.db() as db:
+                    db.execute("INSERT INTO preset_reply_turns (id,preset_id,sent_at) VALUES (?,?,?)",
+                               (item_id, preset_id, occurred_at))
+
         conversations.append(self.store, scope["account"], scope["channel"], scope["key"],
                              "action:" + result["id"], content, "assistant", event.account, "sent", utcnow(),
                              occurred_at, reply_to=scope["message_id"],
-                             on_write=(lambda item_id: record_provenance(
-                                 self.store, "conversation_turns", item_id, disclosure)) if disclosure else None)
+                             on_write=index_turn)
 
     async def handle(self, event):
         lock = self._conversation_locks.setdefault(event.thread, asyncio.Lock())
@@ -373,12 +380,12 @@ class Companion(RelationshipUpdates):
 
     @timed("memory.recall")
     async def governed_memory(self, governed, event, relationship_id, run, configurations, event_version,
-                              *, query=None, source_events=(), hybrid_history=False):
+                              *, query=None, source_events=()):
         """Reuse scoped Codex query plans before ranking the authorized corpus."""
         from .recall_routing import resolve
 
         sources = source_events or [event]
-        pins = {source.id: events.get(self.store, source.id)["version"] for source in sources}
+        pins = events.versions(self.store, (source.id for source in sources))
         lease = governed.access.lease(governed.request, ["event/" + source.id for source in sources])
         query = event.text if query is None else query
 
@@ -390,10 +397,11 @@ class Companion(RelationshipUpdates):
             for source in sources:
                 if hasattr(adapter, "validate_context_event"):
                     adapter.validate_context_event(source)
-                if events.get(self.store, source.id)["version"] != pins[source.id]:
-                    raise AssistantError("context_changed", "查询扩写期间批次来源已变化")
+            current = events.versions(self.store, {*pins, event.id})
+            if any(current[key] != pinned for key, pinned in pins.items()):
+                raise AssistantError("context_changed", "查询扩写期间批次来源已变化")
             governed.access.revalidate(lease)
-            if (events.get(self.store, event.id)["version"] != event_version
+            if (current[event.id] != event_version
                     or any(self.store.version(kind) != value["version"] for kind, value in configurations.items())):
                 raise AssistantError("context_changed", "查询扩写期间来源或配置已变化")
 
@@ -423,14 +431,14 @@ class Companion(RelationshipUpdates):
 
                 history_count = len(conversations.records(ReadView(self.store, readable), scope["account"], tid))
             eligible = history_count > settings.get("conversation_context_turns", 24)
-            history_only = eligible and hybrid_history
+            history_only = eligible
         plan = await resolve(self.store, query,
             scope="governed:" + governed.request.actor + ":" + event.thread + ":" + event.visibility,
             uids=[relationship_id], eligible=eligible, local_history=history_only,
             remaining=self.remaining_model_calls(), generate=generate, guard=guard, clock=self.clock)
         references = [ref for ref in plan["references"] if ref["kind"] + "/" + ref["id"] in readable]
         memory = governed.memory(query, uids=[relationship_id], queries=plan["queries"], references=references)
-        return memory, plan["queries"], plan["reason"] == "hybrid_history"
+        return memory, plan["history_aliases"]
 
     def governed_context(self, event):
         from .governance import GovernedContext
@@ -517,9 +525,9 @@ class Companion(RelationshipUpdates):
 
                 selected, _selection = group_tail(snapshots([events.get(self.store, source.id) for source in batch_events]))
                 query = "\n".join(unit["text"] for unit in selected)
-            memory, recall_queries, skipped_expansion = await self.governed_memory(
+            memory, recall_queries = await self.governed_memory(
                 governed, event, relationship_id, run, configurations, receipt["version"],
-                query=query, source_events=batch_events, hybrid_history=history_ranker is not None)
+                query=query, source_events=batch_events)
         else:
             memory, recall_queries = self.memory_context(event, dependencies=memory_sources), ()
         identity = ({"identity": {"actor": asdict(event.actor)}, "person_profile": {}, "dependency": None}
@@ -528,26 +536,16 @@ class Companion(RelationshipUpdates):
         tid = conversations.thread_id(scope["account"], scope["channel"], scope["key"])
         indexed_conversation = governed is not None and getattr(self.store, "backend", None) == "postgres"
         conversation_signature = governed.conversation_signature(scope["account"], tid) if indexed_conversation else None
-        if governed and history_ranker is not None:
-            from .hybrid_history import EncoderUnavailable, logger
+        sender = (scope["sender_uid"] if event.visibility == "group" and
+                  all(source.actor == event.actor for source in batch_events) else None)
 
-            try:
-                sender = (scope["sender_uid"] if event.visibility == "group" and
-                          all(source.actor == event.actor for source in batch_events) else None)
-                conversation = await asyncio.to_thread(
-                    governed.conversation, scope["account"], tid, query=event.text,
-                    queries=recall_queries, ranker=history_ranker, current_sender=sender)
-            except EncoderUnavailable as exc:
-                logger.warning("Local history encoding failed (%s), using standard recall", exc)
-                self.history_ranker = None
-                if skipped_expansion:
-                    memory, recall_queries, _ = await self.governed_memory(
-                        governed, event, relationship_id, run, configurations, receipt["version"],
-                        query=query, source_events=batch_events)
-                conversation = governed.conversation(scope["account"], tid, query=event.text, queries=recall_queries)
-        else:
-            conversation = (governed.conversation(scope["account"], tid, query=event.text, queries=recall_queries) if governed
-                            else conversations.context(self.store, scope["account"], tid, query=event.text, queries=recall_queries))
+        def read_conversation():
+            options = dict(query=event.text, queries=recall_queries, ranker=history_ranker, current_sender=sender)
+            if governed:
+                return governed.conversation(scope["account"], tid, **options)
+            return conversations.context(self.store, scope["account"], tid, **options)
+
+        conversation = await asyncio.to_thread(read_conversation) if indexed_conversation else read_conversation()
         if indexed_conversation and governed.conversation_signature(scope["account"], tid) != conversation_signature:
             raise AssistantError("context_changed", "读取期间对话成员已经变化")
         from .reply_trace import point
@@ -636,11 +634,9 @@ class Companion(RelationshipUpdates):
             current = read_reply_configurations(self.store)
             if any(current[k]["version"] != value["version"] for k, value in configurations.items()):
                 raise AssistantError("context_changed", "决策期间配置已经变化")
-            current_relationship_version = (self.store.read("relationships", relationship_id)["version"]
-                                            if self.store.exists("relationships", relationship_id) else None)
-            if current_relationship_version != relationship_version:
+            if self.store.version("relationships", relationship_id) != relationship_version:
                 raise AssistantError("context_changed", "决策期间关系档案已经变化")
-            if events.get(self.store, event.id)["version"] != receipt["version"]:
+            if events.versions(self.store, (event.id,))[event.id] != receipt["version"]:
                 raise AssistantError("context_changed", "决策期间原始事件已经变化")
             from .governance import verify_record_versions
 
@@ -653,8 +649,7 @@ class Companion(RelationshipUpdates):
                 if any(current_sources.get(source) != version for source, version in memory_sources.items()):
                     raise AssistantError("context_changed", "决策期间记忆来源已经变化或移出当前会话")
             current_conversation = (governed.conversation_signature(scope["account"], tid) if indexed_conversation else
-                                    governed.conversation(scope["account"], tid, query=event.text, queries=recall_queries) if governed else
-                                    conversations.context(self.store, scope["account"], tid, query=event.text, queries=recall_queries))
+                                    read_conversation())
             if current_conversation != (conversation_signature if indexed_conversation else conversation):
                 raise AssistantError("context_changed", "决策期间对话或摘要已经变化")
             if not governed:
@@ -770,7 +765,7 @@ class Companion(RelationshipUpdates):
                 identity_dependency = self.identities.decision_context(event.actor)["dependency"]
         point("memory_commit", memories=len(result["memories"]), facts=len(result.get("fact_updates", [])))
         timing_phase("delivery.dispatch")
-        action = await self.dispatch(event, result["action"], context_guard=check_context,
+        action = await self.dispatch(event, result["action"], context_guard=check_context, preset_id=workspace["preset"]["id"],
                                       retry_unsent=True, disclosure=governed.proof() if governed else None) if result["action"] else None
         timing_phase("delivery.finalize")
         with self.store.lock:
@@ -786,7 +781,7 @@ class Companion(RelationshipUpdates):
                         adapter.finish_batch(event, action)
         return {"decision": result, "action": action}
 
-    async def dispatch(self, event, proposal, *, context_guard=None, retry_unsent=False, disclosure=None):
+    async def dispatch(self, event, proposal, *, context_guard=None, retry_unsent=False, disclosure=None, preset_id=None):
         run = self.guard()
         from .reply_test import require_event
 
@@ -825,6 +820,8 @@ class Companion(RelationshipUpdates):
                 action_id = uuid.uuid4().hex
                 created = self.clock().isoformat()
                 body = {"event": event.as_dict(), "arguments": proposal["arguments"]}
+                if preset_id:
+                    body["preset_id"] = preset_id
                 if disclosure:
                     body["disclosure"] = disclosure
                 db.execute("INSERT INTO core_actions VALUES (?,?,?,?,?,?,?,?,?,?)", (
@@ -842,7 +839,7 @@ class Companion(RelationshipUpdates):
             body = self.store.ledger_decode("core_actions.body", previous["body"])
             self._record_reply(Event.from_dict(body["event"]),
                                {"capability": previous["capability"], "arguments": body["arguments"]},
-                               result, previous["created"], body.get("disclosure"))
+                               result, previous["created"], body.get("disclosure"), body.get("preset_id"))
             return result
         policy_version = self.store.read("policy")["version"]
 
@@ -879,5 +876,5 @@ class Companion(RelationshipUpdates):
                 # solely because the last guard observed a pause/config change.
                 self.store.set_state(quota_key, max(0, self.store.state(quota_key, 0, db) - 1), db)
         result = {"id": action_id, **asdict(outcome)}
-        self._record_reply(event, proposal, result, created, disclosure)
+        self._record_reply(event, proposal, result, created, disclosure, preset_id)
         return result

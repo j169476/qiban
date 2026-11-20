@@ -46,8 +46,8 @@ async function run(){
   await untilPhase('black');assert.equal(await room.evaluate(w=>getComputedStyle(w.shade).opacity),'1');
   await wait('learning','forenoon');
   const log=await page.evaluate(()=>window.roomChanges);
-  const stamp=phase=>log.find(e=>e.phase===phase).time;
-  const ms=stamp('still')-stamp('fade-out');
+  const start=log.find(e=>e.phase==='fade-out').time;
+  const ms=log.find(e=>e.phase==='still'&&e.pose==='learning'&&e.time>=start).time-start;
   assert.ok(ms>=2250&&ms<=2850,'ordinary switch measured '+ms+' ms');
   assert.ok(log.filter(e=>e.pose==='learning')[0].opacity>=.985,'new still must first appear under black');
   assert.equal(await room.evaluate(w=>w.shade.getAnimations().length),0);
@@ -80,7 +80,7 @@ async function run(){
    assert.equal(await room.evaluate(w=>w.shade.getAnimations().length),0);
    if(folder)await room.screenshot({path:path.join(folder,'time-'+period.id+'.png')});
   }
-  for(const pose of ['sleeping','reading','window','replying','learning','watching']){
+  for(const pose of ['sleeping','reading','window','tail','replying','learning','watching']){
    await action(pose);await wait(pose,'night');
    assert.ok(await room.evaluate(w=>w.actor.firstChild.src.endsWith('-still.webp')&&getComputedStyle(w.actor.firstChild).imageRendering==='pixelated'));
   }
@@ -89,12 +89,14 @@ async function run(){
   assert.ok(await room.evaluate(w=>w.idleDeadline-Date.now()>=180000&&w.idleDeadline-Date.now()<=300000));
   await page.clock.setFixedTime(new Date(due+1));await room.evaluate(w=>w.update());await wait('sleeping','forenoon');
   assert.ok(await original.evaluate(img=>img.isConnected));assert.ok(await room.evaluate((w,old)=>w.idleDeadline>old,due));
-  await room.evaluate(w=>{Math.random=()=>.55;w.toggleAttribute('quiet',true);});
+  await room.evaluate(w=>{Math.random=()=>.99;w.toggleAttribute('quiet',true);});
   const remaining=await room.evaluate(w=>w.idleRemaining);
   await page.clock.setFixedTime(new Date(due+90000));await room.evaluate(w=>w.toggleAttribute('quiet',false));
   assert.equal(await room.evaluate(w=>w.idleDeadline-Date.now()),remaining);
   const due2=await room.evaluate(w=>w.idleDeadline);
-  await page.clock.setFixedTime(new Date(due2+1));await room.evaluate(w=>w.update());await wait('reading','forenoon');
+  await page.clock.setFixedTime(new Date(due2+1));await room.evaluate(w=>w.update());await wait('tail','forenoon');
+  assert.equal(await room.locator('button, [tabindex]').count(),0);
+  await room.click();await page.keyboard.press('Enter');await wait('tail','forenoon');
 
   // Check every boundary and the minute scheduler that crosses midnight while the page stays open.
   for(let i=0;i<periodList.length;i++){
@@ -113,10 +115,10 @@ async function run(){
   await page.setViewportSize({width:360,height:720});
   assert.ok(await room.evaluate(w=>w.stage.clientWidth>=320&&Math.abs(w.stage.clientWidth/w.stage.clientHeight-16/9)<.03));
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  assert.equal(new Set(requests.filter(u=>u.includes('/room-stills/'))).size,14);
+  assert.equal(new Set(requests.filter(u=>u.includes('/room-stills/'))).size,15);
   assert.ok(requests.every(u=>!u.includes('/room-art/')&&!/-(enter|exit|loop)\.webp$/.test(u)));
   assert.deepEqual(errors,[]);
-  console.log('静态房间通过验收：8 个时段及午夜切换，6 张人物定帧，黑屏转场 '+Math.round(ms)+' ms，连续选择、待机、减少动态效果与窄屏。');
+  console.log('静态房间通过验收：8 个时段及午夜切换，7 张角色静图，黑屏转场 '+Math.round(ms)+' ms，连续选择、待机、减少动态效果与窄屏。');
  }finally{await browser.close();}
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

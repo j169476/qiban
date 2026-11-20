@@ -359,9 +359,18 @@ class DesktopManagement:
                       'media.voice':set(),'media.voice.configure':{'enabled','seconds','expected'},
                       'media.capacity':set(),'media.capacity.configure':{'mib','expected'},
                       'media.list':{'after','limit'},'media.preserve':{'identifier','reasons','expected'}}
-            from . import desktop_learning, desktop_workspace
+            from . import (
+                desktop_learning,
+                desktop_library_versions,
+                desktop_record_versions,
+                desktop_workspace,
+            )
             fields.update(desktop_workspace.FIELDS)
             fields.update(desktop_learning.FIELDS)
+            fields.update(desktop_record_versions.FIELDS)
+            fields.update(desktop_library_versions.FIELDS)
+            if op == 'model.configure' and 'ultrafast' in args:
+                fields[op] = fields[op] | {'ultrafast'}
             if not isinstance(op,str) or op not in fields or set(args)!=fields[op]:
                 raise AssistantError('management_operation','未知管理操作或参数')
             if op.startswith('config.') and (not isinstance(args['kind'],str) or
@@ -396,7 +405,9 @@ class DesktopManagement:
                 result = self.disable_lock(args['password'])
             else:
                 request = self.request()
-                if op in {'config.patch','records.correct','records.advanced_commit','records.delete','growth.rebuild','facts.retention_save','facts.confirm','facts.correct','foundation.add','baseline.publish','relationship.save','relationship.clear','relationship.link_confirm','relationship.link_revoke','audience.save','media.configure','media.preserve','media.budget.configure','media.capacity.configure','media.voice.configure','stickers.import_file','stickers.configure','files.import_file','files.configure','files.settings.configure','reply_quota.account_save','reply_quota.scope_save','reply_quota.scope_reset','reply_exclusion.exclude','reply_exclusion.restore','sharing.commit','relations.commit'}:
+                if op in {'context.source_save','context.preset_save','context.preset_apply',
+                          'records.restore_version','facts.restore_version','library.replace','library.restore',
+                          'config.patch','records.correct','records.advanced_commit','records.delete','growth.rebuild','facts.retention_save','facts.confirm','facts.correct','foundation.add','baseline.publish','relationship.save','relationship.clear','relationship.link_confirm','relationship.link_revoke','audience.save','media.configure','media.preserve','media.budget.configure','media.capacity.configure','media.voice.configure','stickers.import_file','stickers.configure','files.import_file','files.configure','files.settings.configure','reply_quota.account_save','reply_quota.scope_save','reply_quota.scope_reset','reply_exclusion.exclude','reply_exclusion.restore','sharing.commit','relations.commit'}:
                     if self.store.state('desktop-last-restore',{}).get('status')=='assets_pending':
                         raise AssistantError('restore_pending','资料恢复尚未完成，请重新启动应用后台以继续补齐图片')
                     fingerprint = hashlib.sha256(json.dumps({'operation':op,'arguments':args},sort_keys=True,ensure_ascii=False).encode()).hexdigest()
@@ -426,6 +437,8 @@ class DesktopManagement:
     def _record_arguments(self, op, args):
         """Validate transport types before entering the shared record operations."""
         for name in ('kind','after','text','expected_version','token','content'):
+            if op == 'records.versions' and name == 'after' and args.get('after') is None:
+                continue
             if name in args and not isinstance(args[name],str):
                 raise AssistantError('management_request','资料请求格式无效')
         if 'identifier' in args and args['identifier'] is not None and not isinstance(args['identifier'],str):
@@ -440,6 +453,11 @@ class DesktopManagement:
             raise AssistantError('management_request','请提供基础记忆标识和人物卡版本')
 
     def _operation(self, request, op, args):
+        from . import desktop_library_versions, desktop_record_versions
+        if op in desktop_record_versions.FIELDS:
+            return desktop_record_versions.operate(self, request, op, args)
+        if op in desktop_library_versions.FIELDS:
+            return desktop_library_versions.operate(self, request, op, args)
         if op.startswith(("workspace.", "context.", "learning.")):
             from .desktop_workspace import operate
             return operate(self, request, op, args)

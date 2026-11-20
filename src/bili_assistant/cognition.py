@@ -180,7 +180,7 @@ def packet(engine, material, references=(), *, queries=()):
     if config["persona"]["data"].get("relationship_baseline", {}).get("owner_uid"):
         uids.add(config["persona"]["data"]["relationship_baseline"]["owner_uid"])
     memory = store.context(query, references, uids, queries=queries)
-    threads = context_for_events(store, config["manifest"]["data"]["account_uid"], events, queries=queries)
+    threads = context_for_events(store, config["manifest"]["data"]["account_uid"], events)
     versions = [(kind, None, doc["version"]) for kind, doc in config.items()]
     versions.append(("growth", None, growth["version"]))
     for event in events:

@@ -85,8 +85,8 @@ def _capture(root, profile):
         def read(self, kind):
             return next(item for item in records if item["kind"] == kind and item["id"] is None)
 
-        def records(self, kind):
-            return [item for item in records if item["kind"] == kind], []
+        def iter_record_data(self, kind):
+            return (item["data"] for item in records if item["kind"] == kind)
 
     return {"records": records, "tables": tables, "fingerprint": signature, "assets": capture_assets(Source())}
 

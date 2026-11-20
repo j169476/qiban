@@ -24,15 +24,15 @@ def check(qq_wheel, core_wheel):
                 archive.extractall(root / "installed")
         sys.path.insert(0, str(root / "installed"))
         sys.meta_path.insert(0, BlockIntegrations())
-        import companion_qq.lifecycle
+        import companion_qq.native_process
         from companion_core import __version__
         from companion_core.process_scope import ProcessScope
         from companion_qq.module import QQModule
 
-        assert Path(companion_qq.lifecycle.__file__).is_relative_to(root / "installed")
-        assert companion_qq.lifecycle.ProcessScope is ProcessScope
+        assert Path(companion_qq.native_process.__file__).is_relative_to(root / "installed")
+        assert companion_qq.native_process.ProcessScope is ProcessScope
         module = QQModule(SimpleNamespace(), root)
-        assert module.options is None and module.bridge is None
+        assert module.options is None and module.provider is None
         return {"ok": True, "version": __version__, "integration_imports_blocked": True,
                 "qq_and_core_wheels_only": True, "process_ownership_available": True, "role_started": False}
 

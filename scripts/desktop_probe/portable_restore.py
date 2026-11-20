@@ -426,6 +426,9 @@ def _verified(store, source_key, source):
     verify_originals(store)
     verify_stickers(store)
     verify_files(store)
+    from companion_core.library_versions import verify_versions
+
+    verify_versions(store)
     # Every registered asset must exist in the new root and authenticate before any switch.
     asset_transfer.capture(store)
     with store.db() as db:

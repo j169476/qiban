@@ -164,7 +164,7 @@ test('account defaults and conversations are told apart and both save with one b
  assert.match(p.texts(block()).join('|'),/QQ平台当前未运行；额度可以离线保存，下次运行按已保存的额度执行。/);
  assert.equal(p.inputs(block()).length,4);
  assert.deepEqual(p.inputs(block()).map(node=>node.value),['200','5','20','10']);
- assert.match(p.node('reply-quota-rule').textContent,/保存设置不会调用模型；这不是计费额度。/);
+ assert.match(p.node('reply-quota-rule').textContent,/每天零点重新计数/);
 
  for(const value of ['','1.5',' 3','+3','1e3','-1','200.0']){
   p.inputs(block())[0].value=value;
@@ -441,6 +441,6 @@ test('an empty account list explains that only verified registrations can be edi
  assert.match(text,/本机还没有可编辑额度的账号/);
  assert.match(text,/已保存并曾核验/);
  // The rules for both limits stay readable even with nothing to edit.
- assert.match(p.node('reply-quota-rule').textContent,/自然日统计/);
- assert.match(p.node('reply-quota-rule').textContent,/这不是计费额度/);
+ assert.match(p.node('reply-quota-rule').textContent,/每天零点重新计数/);
+ assert.match(p.node('reply-quota-rule').textContent,/群聊每次被 @ 或引用时开始新一轮/);
 });

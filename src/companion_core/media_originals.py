@@ -27,6 +27,13 @@ def check(condition, code='media_invalid', message='附件资料无效或已改�
         raise AssistantError(code, message)
 
 
+def library_bytes(db):
+    current = sum(int(db.execute("SELECT COALESCE(SUM(size),0) FROM " + table).fetchone()[0])
+                  for table in ("sticker_library", "file_library", "library_version_bodies"))
+    versions = db.execute("SELECT COALESCE(SUM(octet_length(metadata)),0) FROM library_versions").fetchone()[0]
+    return current + int(versions)
+
+
 class MediaOriginals:
     def __init__(self, store, *, clock=None):
         self.store, self.clock = store, clock or time.time
@@ -57,9 +64,8 @@ class MediaOriginals:
                     EXISTS(SELECT 1 FROM media_original_holds h WHERE h.asset=m.id)
                     THEN size ELSE 0 END),0) AS protected
                 FROM media_originals m WHERE status='available' ''').fetchone()
-            stickers = int(db.execute('SELECT COALESCE(SUM(size),0) FROM sticker_library').fetchone()[0])
-            stickers += int(db.execute('SELECT COALESCE(SUM(size),0) FROM file_library').fetchone()[0])
-            row = {**dict(row), 'used': row['used'] + stickers, 'protected': row['protected'] + stickers}
+            library = library_bytes(db)
+            row = {**dict(row), 'used': row['used'] + library, 'protected': row['protected'] + library}
             settings = self.capacity_settings()
             return {**settings, 'used_bytes': int(row['used']), 'protected_bytes': int(row['protected']),
                     'reclaimable_bytes': int(row['used'] - row['protected']),
@@ -76,8 +82,7 @@ class MediaOriginals:
 
     def _make_room(self, db, incoming, guard, *, limit=None):
         used = db.execute("SELECT COALESCE(SUM(size),0) FROM media_originals WHERE status='available'").fetchone()[0]
-        used += int(db.execute('SELECT COALESCE(SUM(size),0) FROM sticker_library').fetchone()[0])
-        used += int(db.execute('SELECT COALESCE(SUM(size),0) FROM file_library').fetchone()[0])
+        used += library_bytes(db)
         needed = used + incoming - self.capacity_settings()['mib'] * MIB
         removed = 0
         while needed > 0 and (limit is None or removed < limit):

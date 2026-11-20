@@ -56,7 +56,7 @@ def test_upstream_defaults_refresh_and_account_isolation():
     assert value['model'] == 'upstream-a' and value['effort'] == 'medium'
     assert len(value['models']) == 2
     saved = catalog.configure(store, account_id='a', expected='', model='upstream-b', effort='high')
-    assert catalog.resolve(store,access) == ('upstream-b','high')
+    assert catalog.resolve(store,access) == ('upstream-b','high',None)
     assert calls == ['a']
     catalog.status(store, refresh=True)
     assert calls == ['a', 'a']
@@ -91,10 +91,30 @@ def test_explicit_automatic_effort_survives_save_and_is_omitted_from_requests():
     automatic = {**upstream("automatic"), "supported_reasoning_levels": [], "default_reasoning_level": None}
     catalog.fetch = lambda _: parse_catalog({"models": [automatic, upstream("adjustable")]})
     saved = catalog.configure(store, account_id="a", expected="", model="automatic", effort=None)
-    assert saved["available"] and catalog.resolve(store, access) == ("automatic", None)
+    assert saved["available"] and catalog.resolve(store, access) == ("automatic", None, None)
     assert "reasoning" not in request_body("example", {}, {"type": "string"}, "automatic", None)
     with pytest.raises(AssistantError, match="档位"):
         catalog.configure(store, account_id="a", expected=saved["revision"], model="automatic", effort="high")
+
+
+def test_speed_is_account_and_model_scoped_and_requires_an_explicit_upstream_tier():
+    from companion_codex.plan_web import request_body
+    catalog, _, store, _, access = fixture()
+    rows = [dict(upstream("ordinary"), service_tiers=[{"id": "priority"}]),
+            dict(upstream("accelerated"), service_tiers=[{"id": "ultrafast"}])]
+    catalog.fetch = lambda _: parse_catalog({"models": rows})
+    status = catalog.status(store)
+    assert {r["id"]: r["ultrafast"] for r in status["models"]} == {"ordinary": False, "accelerated": True}
+    with pytest.raises(AssistantError, match="速度"):
+        catalog.configure(store, account_id="a", expected="", model="ordinary", effort="low", ultrafast=True)
+    saved = catalog.configure(store, account_id="a", expected="", model="accelerated", effort="low", ultrafast=True)
+    assert catalog.resolve(store, access) == ("accelerated", "low", "ultrafast")
+    assert request_body("test", {}, {}, *catalog.resolve(store, access))["service_tier"] == "ultrafast"
+    rows[1]["service_tiers"] = []
+    assert not catalog.status(store, refresh=True)["available"]
+    disabled = catalog.configure(store, account_id="a", expected=saved["revision"], model="accelerated", effort="low")
+    assert disabled["available"] and not disabled["ultrafast"]
+    assert "service_tier" not in request_body("test", {}, {}, *catalog.resolve(store, access))
 
 
 def test_activity_nested_tasks_and_failure_clear_correctly():

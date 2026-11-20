@@ -17,7 +17,6 @@ from companion_core.reply_policy import Participation
 from companion_core.schema import obj
 
 from . import config
-from .normalization import normalize
 
 
 def digest(value):
@@ -46,18 +45,13 @@ class QQModule:
             except Exception:
                 self.options = None  # Bad optional QQ configuration cannot stop other modules.
         self.account = self.options["account"] if self.options else "unconfigured"
-        native = self.options is not None and self.options.get("transport") == "native"
-        if factory is not None:
-            self.factory = factory
-        elif native:
+        if factory is None:
             from .native_provider import NativeProvider
 
-            self.factory = lambda: NativeProvider(self.store, config.native_parameters(self.options), follow_settings=True)
-        else:
-            from .transport import OneBot
-
-            self.factory = lambda: OneBot(self.options, config.token(project, self.account))
-        self.core = self.provider = self.socket = self.reader = None
+            def factory():
+                return NativeProvider(self.store, config.native_parameters(self.options), follow_settings=True)
+        self.factory = factory
+        self.core = self.provider = None
         self.native_generation = None
         self.intake_enabled = asyncio.Event()
         self.intake_enabled.set()
@@ -73,9 +67,6 @@ class QQModule:
 
         self.native_inbox = NativeInbox(self)
         self.send_lock = asyncio.Lock()
-        from .lifecycle import ManagedBridge
-
-        self.bridge = ManagedBridge(store, self.options) if self.options and not native else None
 
     def bind_runtime(self, core):
         require(core.store is self.store, "qq_store_mismatch")
@@ -155,7 +146,7 @@ class QQModule:
 
     def validate_start(self):
         require(self.options is not None, "qq_configuration")
-        require(self.provider is None and self.reader is None, "qq_stopping")
+        require(self.provider is None, "qq_stopping")
         from companion_core.reply_audience import Audience, read
         dynamic = self.options.get("transport") == "native" and any(
             read(self.store,Audience("qq",self.account,kind))["enabled"] for kind in ("private","group"))
@@ -173,12 +164,6 @@ class QQModule:
 
     def sent_key(self, kind, target, identifier):
         return stable_key("qq-sent", self.account, kind, target, identifier)
-
-    def accept(self, raw):
-        """Called only by the authenticated transport, never a model tool."""
-        event = normalize(raw, self.options, sent_reference=lambda kind, target, identifier:
-                          self.store.state(self.sent_key(kind, target, identifier)) is not None)
-        self._accept_event(event)
 
     def accept_native(self, raw, *, identity, history_status=None):
         """Owned native receiver entry; identity/status are trusted protocol fields."""
@@ -228,50 +213,18 @@ class QQModule:
             require(len(queue) < 512, "qq_inbox_backpressure")
             self.store.set_state(self.queue_key, queue + [event.id], db)
 
-    async def _read(self, socket):
-        try:
-            async for raw in socket:
-                runtime = getattr(getattr(self.core, 'host', None), 'runtime', None)
-                while runtime and hasattr(runtime, 'intake_paused') and await asyncio.to_thread(runtime.intake_paused):
-                    await asyncio.sleep(1)
-                await self.intake_enabled.wait()
-                self.accept(json.loads(raw))
-        except asyncio.CancelledError:
-            raise
-        except AssistantError as exc:
-            self.code = exc.code
-        except Exception:
-            self.code = "qq_provider_unavailable"
-        finally:
-            self.ready = False
-            self.failures += 1
-            self.retry_at = time.monotonic() + min(60, 2 ** min(self.failures, 6))
-
     async def _connect(self):
         if self.ready or time.monotonic() < self.retry_at:
             return
-        if self.reader is not None:
-            await asyncio.gather(self.reader, return_exceptions=True)
-            self.reader = None
-        if self.socket is not None:
-            await self.socket.close()
-            self.socket = None
         try:
-            identity = (await self.bridge.ensure(self.provider, self.core.guard) if self.options.get("launch") else
-                        await asyncio.to_thread(self.provider.probe))
+            identity = await asyncio.to_thread(self.provider.probe)
             require(identity["account"] == self.account, "qq_account_mismatch")
             self.store.set_state(self.enrollment_key, {"intent": enrollment_intent(self.options), "identity": identity,
                                                        "at": datetime.now(timezone.utc).isoformat()})
-            native = hasattr(self.provider, "poll_native")
-            self.socket = None if native else await self.provider.connect()
             # Recheck both sides of the connection before accepting any event.
             await asyncio.to_thread(self.provider.identity)
             await asyncio.to_thread(self.core.guard)
             self.ready, self.code, self.failures = True, "", 0
-            if self.bridge:
-                self.bridge.state = "connected"
-            if not native:
-                self.reader = asyncio.create_task(self._read(self.socket))
         except AssistantError as exc:
             self.code = exc.code
             self.failures += 1
@@ -279,11 +232,7 @@ class QQModule:
             # NativeProvider closes its owned worker after a failed handshake.
             # Reusing it replaces the useful login failure with "disconnected".
             # Preserve the first error; an explicit restart creates a new provider.
-            if (hasattr(self.provider, "poll_native") or self.options.get("launch")
-                    or exc.code in {"qq_account_mismatch", "qq_target_unverified"}):
-                if self.bridge:
-                    await asyncio.to_thread(self.bridge.stop)
-                raise
+            raise
 
     async def runtime_poll(self, *, receive=True):
         from .native_process import TRANSIENT_READ_ERRORS
@@ -566,14 +515,12 @@ class QQModule:
                     receipt=self.provider.send_reply_action(action_id,self.scope(event),arguments,prepared_reply,guard=guard)
                     require(isinstance(receipt,NativeSendReceipt),'qq_send_unconfirmed')
                     identifier,reference=receipt.message_id,receipt.reference
-                elif callable(getattr(self.provider, "send_action", None)):
+                else:
                     from .native_sender import NativeSendReceipt
 
                     receipt = self.provider.send_action(action_id, self.scope(event), text)
                     require(isinstance(receipt, NativeSendReceipt), "qq_send_unconfirmed")
                     identifier, reference = receipt.message_id, receipt.reference
-                else:
-                    identifier = self.provider.send(self.scope(event), text)
                 self.store.set_state(self.sent_key(event.visibility, self.scope(event).target_id, identifier), {"action": action_id})
                 if reference is not None:
                     self.store.set_state(self.sent_key(event.visibility, self.scope(event).target_id, reference), {"action": action_id})
@@ -656,23 +603,13 @@ class QQModule:
 
     async def _close(self):
         self.ready = False
-        if self.reader:
-            self.reader.cancel()
-            await asyncio.gather(self.reader, return_exceptions=True)
-            self.reader = None
-        if self.socket:
-            await self.socket.close()
-            self.socket = None
         if self.provider:
             self.provider.close()
             self.provider = None
         self.native_generation = None
-        if self.bridge:
-            await asyncio.to_thread(self.bridge.stop)
 
     def runtime_status(self):
         return {"state": "connected" if self.ready else (
-                    self.bridge.state if self.bridge and self.options.get("launch") else
                     "retrying" if self.failures or self.code else "new") if self.provider else "paused",
                 "code": self.code, "pending": len(self.store.state(self.queue_key, [])) + self.native_inbox.count(),
                 "uncertain": self.tainted, "automatic_start": False}

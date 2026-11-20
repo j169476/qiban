@@ -360,7 +360,7 @@ def verify_configuration(config, native):
 @timed("model.total")
 async def generate(instructions, context, output_schema, images=(), *, native=None,
                    store, policy, guard, phase, observation, reasoning_effort=None, model=None,
-                   plan_access_token=None, executable=None):
+                   plan_access_token=None, executable=None, service_tier=None):
     from companion_core.structured_output import restore_optional, strict_schema
 
     from .isolated_artifacts import export_image
@@ -431,6 +431,7 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
                 "outputSchema": strict_schema(output_schema),
                 **({"effort": reasoning_effort} if reasoning_effort is not None else {}),
                 **({"model": model} if model is not None else {}),
+                **({"serviceTier": service_tier} if service_tier is not None else {}),
             }, evidence.update)
             evidence.turn_id = value["turn"]["id"]
             while not evidence.completed:

@@ -3,7 +3,7 @@
  'use strict';
  const bridge=window.chrome?.webview;
  const factories={},pending=new Map();
- let enabled=false,page='',root=null,controller=null,capabilities=null,session=null;
+ let enabled=false,page='',root=null,controller=null,capabilities=null,session=null,drafts=new Map();
  const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const option=(value,label,selected=false)=>'<option value="'+escape(value)+'"'+(selected?' selected':'')+'>'+escape(label)+'</option>';
  const button=(id,label,disabled=false)=>'<button type="button" data-ws="'+id+'" class="secondary"'+(disabled?' disabled':'')+'>'+escape(label)+'</button>';
@@ -30,8 +30,9 @@
  function setAccess(detail){
   const next=!!detail?.ready&&!detail.locked;
   const identity=next?detail.roomSession??null:null;
-  if(next===enabled&&(!identity||identity===session))return;
-  enabled=next;session=identity;capabilities=null;
+  if(next===enabled&&identity===session)return;
+  enabled=next;session=identity;capabilities=null;drafts=new Map();
+  window.dispatchEvent(new CustomEvent('qiban-workspace-access-change'));
   if(root)open(page,root);
  }
  bridge?.addEventListener('message',({data})=>{
@@ -60,23 +61,22 @@
   const showError=e=>{if(!signal.aborted&&e.name!=='AbortError')notice(e.message);};
   try{
    notice('正在读取可用功能…');
-   let caps=capabilities;
-   if(!caps){
-    try{caps=await call('workspace.capabilities',{},signal);}
-    catch(error){
-     if(['management_request','unsupported','unknown_operation'].includes(error.code))throw Error('当前后台版本尚未提供工作台。');
-     throw error;
-    }
+   let caps;
+   try{caps=await call('workspace.capabilities',{},signal);}
+   catch(error){
+    if(['management_request','unsupported','unknown_operation'].includes(error.code))throw Error('当前后台版本尚未提供工作台。');
+    throw error;
    }
    if(signal.aborted)return;
    if(!Array.isArray(caps.operations))throw Error('此版本未提供工作台能力清单。');
+   if(capabilities&&capabilities.operations.some(op=>!caps.operations.includes(op)))drafts=new Map();
    capabilities=caps;
    const has=op=>caps.operations.includes(op)||(caps.trace_detail==='reply_trace.detail'&&['reply_trace.list','reply_trace.detail'].includes(op));
    if(!has(key==='learn'?'learning.goals':'context.workspace')){notice('当前后台尚未提供此功能。');return;}
    notice('');
    const request=(op,args={})=>has(op)?call(op,args,signal):Promise.reject(new Error('当前后台未提供此操作。'));
    const reset=()=>{if(!signal.aborted){capabilities=null;return open(key,target);}};
-   await factories[key]({body,signal,caps,has,request,notice,showError,reset});
+   await factories[key]({body,signal,caps,has,request,notice,showError,reset,drafts});
   }catch(e){
    if(signal.aborted)return;
    showError(e);body.innerHTML=button('retry','重新读取');body.onclick=()=>open(key,target);
@@ -87,7 +87,8 @@
   if(panel&&factories[document.body.dataset.navPage]){if(root!==panel)open(document.body.dataset.navPage,panel);}
   else if(root?.id?.startsWith('workspace-')){clear();root=null;page='';}
  }
- window.QibanWorkspace={register:(name,f)=>{factories[name]=f;},open,close(){clear();root=null;page='';},setAccess,escape,option,button,label};
+ window.QibanWorkspace={register:(name,f)=>{factories[name]=f;},open,close(){clear();root=null;page='';},setAccess,escape,option,button,label,
+  call};
  window.addEventListener('qiban-management-state',({detail})=>setAccess(detail));
  window.addEventListener('qiban-nav-change',nativeNav);
  window.addEventListener('qiban-room-view',nativeNav);

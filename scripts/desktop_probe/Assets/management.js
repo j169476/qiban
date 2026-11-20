@@ -306,7 +306,7 @@
  element('portable-import').onclick=()=>portableWork(async epoch=>{
   const password=portablePassword(false);
   portablePreview=null;portableKind='portable';element('portable-source').textContent='';render();
-  portableSay('请在 Windows 选择框中先选便携备份文件（.ccbackup），再选同名的独立恢复密钥文件（.cckey）。取消不会改动资料。');
+  portableSay('先选择便携备份（.ccbackup），再选择同名密钥（.cckey）以查看预览。');
   const preview=await call('',{password},'portable-preview');
   if(epoch!==portableEpoch)return;
   portablePreview=preview;portableKind='portable';element('portable-source').textContent=describePortable(preview);
@@ -557,7 +557,7 @@
     toggle.dataset.control='preference';toggle.disabled=runtimePending.has(item.platform)||(!item.available&&!item.autorun);
     toggle.onchange=()=>runtimeAction('runtime.preference',{platform:item.platform,enabled:toggle.checked,expected:state.preference_revision});
     label.append(toggle,document.createTextNode('下次打开时自动运行'));
-    label.title='保存偏好，勾选后下次打开栖伴时检查是否可运行。';
+    label.title='下次打开栖伴时，条件就绪便会启动这个平台。';
     const start=document.createElement('button'),stop=document.createElement('button');start.textContent='启动';stop.textContent='停止本次运行';stop.className='secondary';
     start.disabled=state.tasks_blocked||item.stopping||!!item.scheduler_error||!item.available||!item.model_ready||item.status==='active';stop.disabled=item.stopping||(item.status!=='active'&&(!item.autorun||item.held));
     start.dataset.control='start';stop.dataset.control='stop';

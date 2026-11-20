@@ -199,11 +199,15 @@ def test_retention_versioned_deduplicated_validated_and_locked(service):
 
 
 def test_runtime_maintenance_runs_fact_cleanup(service, monkeypatch):
+    from types import SimpleNamespace
+
     from companion_core.media_originals import MediaOriginals
+    from qiban.desktop_notifications import DesktopNotifications
     from qiban.desktop_runtime import DesktopRuntime
     calls = []
     class Runtime:
         store = service.store
+        management = SimpleNamespace(notifications=DesktopNotifications(service))
         from qiban.desktop_tasks import TaskBarrier
         tasks = TaskBarrier()
         def require_current(self):

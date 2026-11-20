@@ -161,9 +161,10 @@ class DesktopQQ:
                         authenticated_uin = result["uin"]
                         self._set(state="syncing_account", message="登录已确认，正在同步账号……", accounts=[])
                         break
-                    if state in {"failed", "expired", "cancelled", "verification_required"}:
+                    if state in {"failed", "expired", "cancelled", "verification_required", "picture_timeout"}:
                         message = ("QQ 要求额外的图形或手机设备验证，请切换扫码登录完成验证。" if state == "verification_required"
                                    else "密码登录未完成，请核对账号密码或切换扫码。" if operation == "password"
+                                   else "QQ 未返回二维码，请重试。" if state in {"failed", "picture_timeout"}
                                    else "二维码已失效，请重新点击扫码登录。")
                         self._set(state=state, message=message, accounts=[])
                         return
@@ -206,6 +207,7 @@ class DesktopQQ:
                     code == "qq_native_resources_invalid" or isinstance(exc, FileNotFoundError)
                     else "好友和群列表读取失败，请检查账号与网络后重试。" if operation == "directory"
                     else "QQ 会话核验未完成，请核对号码、账号与网络后重试。" if operation == "targets"
+                    else "连接 QQ 登录服务超时，请重试。" if code == "qq_login_timeout"
                     else "QQ 登录操作未完成，请检查网络后重试。"))
         finally:
             if credentials is not None:

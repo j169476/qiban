@@ -42,13 +42,7 @@
   return '排除状态：未排除。';
  }
  function rule(){
-  const bounds_=key=>bounds[key]?bounds[key][0]+' 至 '+bounds[key][1]:'';
-  return '私聊额度按 '+timezone+' 的自然日统计，跨过零点重新计数；群参与额度按每次被 @ 或引用唤起的阶段统计，'+
-   '阶段内回复用完、决策用完或超时即结束。账号默认：私聊每日 '+defaults.private_daily_replies+' 条，群每阶段 '+
-   defaults.group_session_replies+' 条回复、最多 '+defaults.group_session_decisions+' 次决策、最长 '+
-   defaults.group_session_minutes+' 分钟。可填范围：私聊 '+bounds_('private_daily_replies')+' 条，群回复 '+
-   bounds_('group_session_replies')+' 条、决策 '+bounds_('group_session_decisions')+' 次、时长 '+
-   bounds_('group_session_minutes')+' 分钟。保存设置不会调用模型；这不是计费额度。';
+  return '私聊按 '+timezone+' 时间每天零点重新计数。群聊每次被 @ 或引用时开始新一轮。';
  }
  function feedback(kind,id){
   const node=document.createElement('span');

@@ -12,7 +12,7 @@
     <AssemblyTitle>栖伴 Qiban</AssemblyTitle>
     <Company>栖伴</Company>
     <Version>0.9.9</Version>
-    <FileVersion>0.9.9.1</FileVersion>
+    <FileVersion>0.9.9.4</FileVersion>
     <InformationalVersion>$(FileVersion)</InformationalVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
@@ -27,16 +27,17 @@
     <EmbeddedResource Include="Assets/*" LogicalName="%(Filename)%(Extension)" />
     <EmbeddedResource Include="Assets/room-stills/*.webp" LogicalName="room-stills/%(Filename)%(Extension)" />
     <EmbeddedResource Include="$(IntermediateOutputPath)public-content.js" LogicalName="public-content.js" />
+    <EmbeddedResource Include="$(IntermediateOutputPath)public-upstreams.txt" LogicalName="public-upstreams.txt" />
   </ItemGroup>
   <Target Name="GeneratePublicPages" BeforeTargets="PrepareResources;AssignTargetPaths"
           Inputs="build_public_pages.py;../../docs/桌面声明.md;../../docs/微信支持范围.md;../../docs/模型选择参考.md;../../LICENSE;../../THIRD_PARTY_NOTICES.md"
-          Outputs="$(IntermediateOutputPath)public-content.js">
+          Outputs="$(IntermediateOutputPath)public-content.js;$(IntermediateOutputPath)public-upstreams.txt">
     <PropertyGroup>
       <PublicPagesPython Condition="'$(QIBAN_DESKTOP_PYTHON)' != ''">$(QIBAN_DESKTOP_PYTHON)</PublicPagesPython>
       <PublicPagesPython Condition="'$(PublicPagesPython)' == '' and Exists('../../.venv/Scripts/python.exe')">../../.venv/Scripts/python.exe</PublicPagesPython>
       <PublicPagesPython Condition="'$(PublicPagesPython)' == ''">python</PublicPagesPython>
     </PropertyGroup>
-    <Exec Command="&quot;$(PublicPagesPython)&quot; build_public_pages.py &quot;$(IntermediateOutputPath)public-content.js&quot;" />
+    <Exec Command="&quot;$(PublicPagesPython)&quot; build_public_pages.py &quot;$(IntermediateOutputPath)public-content.js&quot; &quot;$(IntermediateOutputPath)public-upstreams.txt&quot;" />
   </Target>
   <Target Name="PinWindowsSdkRuntime" BeforeTargets="ProcessFrameworkReferences">
     <ItemGroup>

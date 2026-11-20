@@ -14,7 +14,7 @@
   return new Promise((resolve,reject)=>{
    const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作未完成，请重新读取。'));},native?300000:15000);
    pending.set(id,{resolve,reject,timer});
-   window.chrome.webview.postMessage(native?{action:'sticker-import',request_id:id,...args}:
+   window.chrome.webview.postMessage(native?{action:operation||'sticker-import',request_id:id,...args}:
     {action:'management',operation:'stickers.'+operation,arguments:args,request_id:id});
   });
  }
@@ -46,6 +46,7 @@
   const current=item(selected);
   for(const id of ['sticker-detail-name','sticker-detail-tags','sticker-detail-enabled'])el(id).disabled=!allowed||busy||!current;
   el('sticker-detail-save').disabled=!allowed||busy||!current||!dirty();
+  el('sticker-versions').disabled=el('sticker-replace').disabled=!allowed||busy||!current||dirty();
  }
  function feedback(message,identifier){
   el('sticker-notice').textContent=message;
@@ -123,6 +124,15 @@
  };
  for(const id of ['sticker-detail-name','sticker-detail-tags'])el(id).oninput=remember;
  el('sticker-detail-enabled').onchange=remember;
+ el('sticker-versions').onclick=()=>{
+  if(el('sticker-versions').disabled)return;
+  window.QibanSources.libraryHistory({layer:'stickers',item:item(selected),native:(op,args)=>call(op,args,true),update:()=>perform()});
+ };
+ el('sticker-replace').onclick=()=>{
+  if(el('sticker-replace').disabled)return;
+  const current=item(selected);
+  return perform(async()=>{await call('library-replace',{layer:'stickers',identifier:current.id,expected:current.revision},true);},current.id);
+ };
  el('sticker-detail-save').onclick=()=>{
   const current=item(selected);
   if(!current||!allowed||busy||!dirty())return;
@@ -144,12 +154,14 @@
  });
  el('sticker-refresh').onclick=()=>{after='';return perform();};
  el('sticker-next').onclick=()=>{after=items.at(-1)?.id||'';return perform();};
+ let sourceSession=null;
  window.addEventListener('qiban-management-state',({detail})=>{
-  const next=detail.ready&&!detail.locked,changed=next!==allowed;allowed=next;
+  const next=detail.ready&&!detail.locked,session=detail.roomSession??null,rotated=next&&allowed&&session!==sourceSession;
+  const changed=next!==allowed||rotated;allowed=next;sourceSession=next?session:null;
   el('sticker-panel').hidden=el('management-panel').hidden;
   el('sticker-detail-panel').hidden=el('management-panel').hidden;
   if(!changed)return;
-  if(!allowed){
+  if(!allowed||rotated){
    epoch++;busy=false;items=[];after='';selected='';picks.clear();drafts.clear();saved.clear();notices.clear();
    for(const id of ['sticker-name','sticker-tags','sticker-detail-name','sticker-detail-tags'])el(id).value='';
    el('sticker-detail-enabled').checked=false;el('sticker-notice').textContent='';

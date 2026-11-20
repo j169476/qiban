@@ -1,9 +1,4 @@
-栖伴 · 安装完成
+开源许可
 
-本安装包把整套程序装到当前 Windows 用户的程序目录（默认 %LOCALAPPDATA%\Programs\Qiban）。
-
-个人资料默认保留。卸载准备页可选择同时清空当前用户的 Qiban 个人资料。
-
-包内另含本程序的 MIT 许可、上游组件许可与桌面外壳源码（Qiban-LICENSE.txt、
-desktop-sources.zip、desktop-build.json，以及 resources 内各组件自己的 licenses 目录）。
-本安装器由 Inno Setup 编译，其许可见 https://jrsoftware.org/files/is/license.txt
+栖伴使用 MIT 许可。安装目录中包含 Qiban-LICENSE.txt、桌面源码 desktop-sources.zip 和各组件的许可文件。
+安装器使用 Inno Setup，许可见 https://jrsoftware.org/files/is/license.txt

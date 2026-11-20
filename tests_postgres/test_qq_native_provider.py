@@ -11,7 +11,7 @@ from companion_core.runtime import Companion
 from companion_qq.module import QQModule
 from companion_qq.native_provider import NativeProvider
 from tests.test_qq_native_normalization import IDENTITY
-from tests_postgres.test_qq_module import OPTIONS, STAMP
+from tests_postgres.test_qq_module import STAMP, options
 from tests_postgres.test_qq_native_receiver import Worker
 from tests_postgres.test_qq_native_windows import bound, message
 from tests_postgres.test_wechat_role import Host, Model
@@ -57,7 +57,7 @@ async def native(pg_store, tmp_path):
         workers.append(worker)
         return worker
 
-    module = QQModule(pg_store, tmp_path, options={**OPTIONS, "private_targets": []},
+    module = QQModule(pg_store, tmp_path, options={**options(tmp_path), "private_targets": []},
                       factory=lambda: NativeProvider(pg_store, config, worker_factory=worker_factory))
     module.probe()
     assert workers[0].closed
@@ -76,7 +76,7 @@ async def native(pg_store, tmp_path):
 async def test_runtime_reads_native_batch_and_uses_formal_send_journal(native):
     env = native
     assert await env.module.runtime_poll() == []
-    assert env.module.socket is None and env.module.reader is None
+    assert not hasattr(env.module, "socket") and not hasattr(env.module, "reader")
     worker = env.workers[-1]
     worker.arrivals()
     assert await env.module.runtime_poll() == []  # Stage, do not schedule early.

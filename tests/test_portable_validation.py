@@ -174,6 +174,14 @@ def full_snapshot(key=KEY):
             {"id": "ar1", "path": "assets/persona/a.png", "digest": asset_sha,
              "body": seal(ASSET, "asset-restore", "ar1", asset_sha, key)},
         ]),
+        "library_version_bodies": block(("kind", "id", "sha256", "size", "body"), [
+            {"kind": "file-library", "id": "fl1", "sha256": document_sha, "size": len(DOCUMENT),
+             "body": seal(DOCUMENT, "file-library", "fl1", document_sha, key)},
+        ]),
+        "library_versions": block(("revision", "metadata"), [
+            {"revision": "v1", "metadata": ledger({"data": {"name": "旧版资料"}},
+                                                 "library-version:v1", key)},
+        ]),
     })
 
 
@@ -247,16 +255,19 @@ def test_full_snapshot_verifies_every_registered_payload():
         "sticker_library.body": 1,
         "file_library.metadata": 1,
         "file_library.body": 1,
+        "library_version_bodies.body": 1,
+        "library_versions.metadata": 1,
         "asset_restore_jobs.body": 1,
     }
-    assert result["payloads_total"] == 24
-    assert result["ciphertexts"] == 8
-    assert result["ledger"] == 16
+    assert result["payloads_total"] == 26
+    assert result["ciphertexts"] == 9
+    assert result["ledger"] == 17
     assert result["legacy_ledger"] == 0
-    assert result["tables"] == len(TABLES) == 35
-    assert result["encrypted_tables"] == 14
-    assert result["plain_tables"] == 21
-    assert result["rows"] == 19
+    assert "preset_reply_turns" in TABLES
+    assert result["tables"] == len(TABLES) == 38
+    assert result["encrypted_tables"] == 16
+    assert result["plain_tables"] == 22
+    assert result["rows"] == 21
     assert result["current_records"] == 2
     assert result["history_records"] == 1
     assert result["null_payloads"] == 3
@@ -285,7 +296,7 @@ def test_validation_does_not_mutate_the_snapshot():
 def test_snapshot_survives_the_json_based_unpack_shape():
     # unpack returns json.loads of the snapshot, so only plain JSON values may be assumed.
     restored = json.loads(json.dumps(full_snapshot()))
-    assert validate_snapshot(restored, KEY, Profile())["payloads_total"] == 24
+    assert validate_snapshot(restored, KEY, Profile())["payloads_total"] == 26
 
 
 def test_cleaned_media_body_and_optional_results_are_allowed():
@@ -586,7 +597,7 @@ def test_profile_extra_tables_take_part_in_the_table_set():
     with_extra = snapshot(extra_tables=("videos",))
     result = validate_snapshot(with_extra, KEY, Profile({"videos"}))
     assert result["tables"] == len(TABLES) + 1
-    assert result["plain_tables"] == 22
+    assert result["plain_tables"] == 23
     assert failure(with_extra, profile=Profile()).code == "snapshot_schema"
     assert failure(snapshot(), profile=Profile({"videos"})).code == "snapshot_schema"
 
@@ -682,7 +693,7 @@ def sql_encrypted_columns(documents=None):
 
 def test_registry_covers_every_encrypted_column_of_the_current_sql():
     bytea, enc1 = sql_encrypted_columns()
-    assert len(bytea) == 7 and len(enc1) == 12
+    assert len(bytea) == 8 and len(enc1) == 13
     assert bytea == {(field.table, field.column) for field in CIPHER_PAYLOADS}
     assert enc1 == {(field.table, field.column) for field in LEDGER_PAYLOADS}
 

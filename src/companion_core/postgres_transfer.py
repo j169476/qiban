@@ -13,6 +13,7 @@ import re
 import secrets
 import zlib
 from datetime import date, datetime
+from pathlib import Path
 
 from companion_core.runtime_keys import RUN_KEYS
 
@@ -30,7 +31,32 @@ TABLES = (
     "record_owners", "source_dependencies", "grant_resources", "source_retention", "core_event_receipts", "core_delivery_state",
     "actor_nodes", "relationship_claims", "asset_restore_jobs", "governance_provenance", "conversation_index", "input_image_blobs",
     "personal_fact_index", "qq_native_inbox", "media_originals", "media_original_holds", "sticker_library", "file_library",
+    "library_version_bodies", "library_versions", "preset_reply_turns",
 )
+VERSION_TABLES = {
+    "library_version_bodies": ["kind", "id", "sha256", "size", "body"],
+    "library_versions": ["kind", "id", "position", "revision", "sha256", "size", "metadata", "archived_at"],
+}
+ADDITIVE_TABLES = {17: VERSION_TABLES, 18: {"preset_reply_turns": ["kind", "id", "preset_id", "sent_at"]}}
+
+
+def upgrade_version_tables(snapshot):
+    """Older snapshots can supply empty tables for features added since export."""
+    versions = snapshot.get("migrations")
+    blocks = snapshot.get("tables")
+    if (not isinstance(versions, list) or not isinstance(blocks, dict) or len(versions) not in (16, 17) or
+            [v[0] for v in versions if isinstance(v, list) and len(v) == 2] != list(range(1, len(versions) + 1))):
+        return snapshot
+    missing = {t for n, fields in ADDITIVE_TABLES.items() if n > len(versions) for t in fields}
+    if missing & blocks.keys() or not (set(TABLES) - missing) <= blocks.keys():
+        return snapshot
+    for n, fields in ADDITIVE_TABLES.items():
+        if n > len(versions):
+            migration, = Path(__file__).with_name("sql").glob(f"{n:03d}_*.sql")
+            checksum = hashlib.sha256(migration.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+            versions.append([n, checksum])
+            blocks.update({table: {"columns": columns.copy(), "rows": []} for table, columns in fields.items()})
+    return snapshot
 
 
 def _identifier(value):
@@ -124,7 +150,7 @@ def unpack(blob, backup_key):
                 block["rows"].append(item[1])
             elif item[0] == "asset":
                 result["assets"].append(item[1])
-        return result
+        return upgrade_version_tables(result)
     if len(blob) > MAX_BACKUP or not blob.startswith(b"CCBACKUP1:") or blob[42:43] != b"\n":
         raise AssistantError("backup_invalid", "备份格式无效或超过上限")
     try:
@@ -137,7 +163,7 @@ def unpack(blob, backup_key):
         result = json.loads(raw)
         if result.get("format") != 1:
             raise ValueError()
-        return result
+        return upgrade_version_tables(result)
     except (ValueError, UnicodeError, zlib.error):
         raise AssistantError("backup_invalid", "备份内容无效或完整性校验失败") from None
 
@@ -191,9 +217,9 @@ def restore(store, blob, backup_key, *, expected, finalize=None):
 
 def finish_restore(store, db, assets, finalize):
     from . import asset_transfer
-    # RESTART participates in rollback, including a late archive or asset verification failure.
-    next_id = int(db.execute("SELECT COALESCE(MAX(id),0)+1 FROM content_audit").fetchone()[0])
-    db.execute(f"ALTER TABLE content_audit ALTER COLUMN id RESTART WITH {next_id}")
+    from .context_workspace import import_previous_settings
+
+    import_previous_settings(store, db)
     # Decode and validate all records before committing; a mismatched database
     # encryption key must not leave a partially restored service.
     if not store.validate_critical()["ok"]:
@@ -212,6 +238,9 @@ def finish_restore(store, db, assets, finalize):
     verify_stickers(store)
     from .file_library import verify_files
     verify_files(store)
+    from .library_versions import verify_versions
+
+    verify_versions(store)
     # Restore requires stopped tasks. Holds belonged to exited task owners;
     # their processing receipts and unfinished events remain in the snapshot.
     db.execute('DELETE FROM media_original_holds')
@@ -223,5 +252,11 @@ def finish_restore(store, db, assets, finalize):
         db.execute("UPDATE " + table + " SET status='cancelled' WHERE status='prepared'")
         db.execute("UPDATE " + table + " SET status='uncertain' WHERE status='dispatching'")
     asset_transfer.enqueue(store, assets, db)
+    # The desktop runtime can advance this sequence but does not own the table.
+    # Advance only after consuming the archive. A later rollback may leave a gap
+    # but will never reuse an audit ID from the original database.
+    db.execute("""SELECT setval('content_audit_id_seq', restored.highest, true)
+                  FROM content_audit_id_seq, (SELECT MAX(id) AS highest FROM content_audit) AS restored
+                  WHERE last_value < restored.highest OR (last_value = restored.highest AND NOT is_called)""")
     if finalize is not None:
         finalize(db)

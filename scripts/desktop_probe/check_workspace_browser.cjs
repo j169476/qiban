@@ -6,26 +6,26 @@ const fs=require('node:fs/promises');
 const {execFileSync}=require('node:child_process');
 const os=require('node:os');
 const assets=path.join(__dirname,'Assets');
-const supported=['learning.goals','learning.snapshot','learning.tile','learning.search','learning.detail','learning.edit','learning.index_control','context.workspace','context.save','context.publish','context.rollback','context.history','context.preview'];
+const supported=['learning.goals','learning.snapshot','learning.tile','learning.search','learning.detail','learning.edit','learning.index_control','context.workspace'];
 
 function bridgeFixture({operations}){
  const listeners=[], requests=window.requests=[];
- let snap=1,notes={},draftRev='initial',activeV='initial',prior=[];
- const initial={guidance:{},limits:{},order:['memory_records','summary']};
- let draft=structuredClone(initial),active=structuredClone(initial);
+ let snap=1,notes={};
+ const initial={guidance:{},limits:{},order:['memory_records','summary','relations','growth','catalog','files','stickers']};
  let persona={version:'p1',data:{name:'窗边来客',core:{description:'一份隔离的人物资料',speaking_style:[]},interests:[]}};
  let chat=[{id:'before',speaker:'user',text:'会客室历史来信'}],running=true;
- let chosen='a',effort='low',modelRevision='m1';
- const catalog=()=>({account_id:'desktop-fixture',model:chosen,effort,revision:modelRevision,available:true,
-  models:[{id:'a',name:'测试模型 A',efforts:['low','new-level'],default_effort:'low'},{id:'auto',name:'测试模型 B',efforts:[],default_effort:null}]});
+ let chosen='a',effort='low',modelRevision='m1',ultrafast=false;
+ const catalog=()=>({account_id:'desktop-fixture',model:chosen,effort,ultrafast,revision:modelRevision,available:true,
+  models:[{id:'a',name:'测试模型 A',efforts:['low','new-level'],default_effort:'low',ultrafast:true},{id:'auto',name:'测试模型 B',efforts:[],default_effort:null,ultrafast:false}]});
  const nodes=()=>[{id:'math',title:'验收项',type:'criterion',version:'v1',body:'',x:0,y:0,parent_id:null,prerequisites:[],archived:false},...Object.values(notes)];
- const workspace=()=>({active:{version:activeV,config:active},draft:{revision:draftRev,base:activeV,config:draft},scenes:['private','group'],layers:initial.order});
+ const workspace=()=>({active:{version:'initial',config:initial},scenes:['private','group'],layers:initial.order});
  const report={after:{chars:25,estimated_tokens:60},before:{chars:40},limits:{reply_output_reserve:10},sections:{summary:{kept:1,offered:2,duplicates:1}}};
  window.allowed=operations;window.pendingReads=1;
  function respond(req){
   const a=req.arguments,op=req.operation;
   const emit=(response)=>listeners.forEach(fn=>fn({data:{type:'management',request_id:req.request_id,response:structuredClone(response)}}));
   const ok=result=>emit({ok:true,result}),fail=error=>emit({ok:false,error,message:error});
+  if(window.fixtureReply?.(req,ok,fail))return;
   switch(op){
    case 'workspace.capabilities':return ok({operations:window.allowed,context_scope:'installation',context_routes:['local','qq'],trace_detail:'reply_trace.detail'});
    case 'session.status':return ok({locked:!!window.fixtureLocked,room_session:window.fixtureLocked?null:'unit'});
@@ -37,7 +37,7 @@ function bridgeFixture({operations}){
    case 'backups.list':return ok({backups:[{name:'验收备份',bytes:1280}]});
    case 'notifications.page':return ok({items:[],unread:0,total:0,page:1,pages:1});
    case 'runtime.status':return ok({platforms:['local','bilibili','qq','wechat'].map((platform,i)=>({platform,status:i===1&&running?'active':'stopped',available:true,model_ready:true,read_only:i===1})),
-    runtime_instance:'fixture',activities:running?[{platform:'bilibili',state:window.activity||'watching'}]:[],preference_revision:'pref1',generated_at:'2026-11-19T08:00:00Z'});
+    active_preset:window.fixtureActive||{id:'default',name:'默认',revision:'initial'},runtime_instance:'fixture',activities:running?[{platform:'bilibili',state:window.activity||'watching'}]:[],preference_revision:'pref1',generated_at:'2026-11-19T08:00:00Z'});
    case 'runtime.control':running=a.action!=='stop';return ok({});
    case 'room.history':return ok({messages:chat,next:null});
    case 'room.post':chat.push({id:'new',text:a.text,speaker:'user'});return ok({accepted:true});
@@ -47,7 +47,7 @@ function bridgeFixture({operations}){
    case 'model.catalog':return ok(catalog());
    case 'model.configure':
     if(a.account_id!=='desktop-fixture'||a.expected!==modelRevision)return fail('edit_conflict');
-    chosen=a.model;effort=a.effort;modelRevision='m2';return ok(catalog());
+    chosen=a.model;effort=a.effort;ultrafast=a.ultrafast;modelRevision='m2';return ok(catalog());
    case 'learning.goals':return ok({account:'test-account',items:[{id:'first',definition:'D1',title:'第一棵树'},{id:'second',definition:'D2',title:'第二棵树'}],after:null});
    case 'learning.snapshot':{
     if(window.indexPaused)return ok({ready:false,snapshot:null,index:{paused:true,pending:1,last_success:null,error:null}});
@@ -73,23 +73,17 @@ function bridgeFixture({operations}){
     return ok({node:a.node,version:notes[a.node].version,refresh:'learning.snapshot'});
    }
    case 'context.workspace':return ok(workspace());
-   case 'context.save':case 'context.publish':case 'context.rollback':{
-    if(op==='context.save'&&window.contextConflict){
-     window.contextConflict=false;draft=structuredClone(draft);draft.guidance.private='另一个窗口的修改';draftRev='external';return fail('edit_conflict');
-    }
-    if(a.expected!==draftRev||a.base!==activeV)return fail('edit_conflict');
-    if(op==='context.save')draft=structuredClone(a.config);
-    else{prior.unshift({version:activeV,config:structuredClone(active)});active=op==='context.rollback'?prior.find(h=>h.version===a.version).config:structuredClone(draft);activeV='pub'+requests.length;draft=structuredClone(active);}
-    draftRev='draft'+requests.length;return ok(workspace());
-   }
-   case 'context.history':return ok({items:[{version:activeV},...prior],after:null});
-   case 'context.preview':return ok({scene:a.scene,source:'synthetic',reports:{active:report,draft:report},excluded:[{layer:'personal_facts',reason:'private_scope'}]});
    case 'reply_trace.list':return ok({items:[{id:'trace',platform:'wechat',started:'2026-01-01T00:00:00Z',duration_ms:7109,status:'completed',outcome:'cancelled'}]});
    case 'reply_trace.detail':return ok({id:'trace',platform:'wechat',started:'2026-01-01T00:00:00Z',duration_ms:7109,status:'completed',outcome:'cancelled',outcome_error:'wechat_driver_prepare_failed',steps:[{stage:'context_budget',workspace_version:'pinned',...report}],sources:[{resource:'visible/source',version:'v1',version_current:false}]});
    default:return fail('unsupported');
   }
  }
- (window.chrome??={}).webview={addEventListener:(type,fn)=>{if(type==='message')listeners.push(fn);},postMessage(req){if(req.action!=='management')return;requests.push(structuredClone(req));setTimeout(()=>respond(req),req.operation==='learning.snapshot'?85:12);}};
+ window.uninstallState=state=>listeners.forEach(fn=>fn({data:{type:'uninstall',state}}));
+ (window.chrome??={}).webview={addEventListener:(type,fn)=>{if(type==='message')listeners.push(fn);},postMessage(req){
+  if(req.action.startsWith('uninstall-')){requests.push(structuredClone(req));return;}
+  if(req.action!=='management'&&!['library-replace','library-export-version'].includes(req.action))return;
+  requests.push(structuredClone(req));setTimeout(()=>respond(req),req.operation==='learning.snapshot'?85:12);
+ }};
  window.access=(ready)=>dispatchEvent(new CustomEvent('qiban-management-state',{detail:{ready,locked:!ready,roomSession:ready?'unit':null}}));
  window.desktopService=ready=>listeners.forEach(fn=>fn({data:{type:'service',ready,management:true,state:ready?'ready':'stopped',members:[],windowsUser:'测试用户'}}));
 }
@@ -104,7 +98,7 @@ async function checkHouse(p){
  };
  const waitActor=pose=>p.waitForFunction(pose=>{
   const w=document.getElementById('monitor-window');
-  const correctPose=pose==='idle'?['reading','sleeping','window'].includes(w.dataset.pose):w.dataset.pose===pose;
+  const correctPose=pose==='idle'?['reading','sleeping','window','tail'].includes(w.dataset.pose):w.dataset.pose===pose;
   return correctPose && w.dataset.phase==='still' && w.actor?.querySelector('img')?.naturalWidth>0;
  },pose);
  const draw=async name=>{
@@ -149,9 +143,11 @@ async function checkHouse(p){
  await p.locator('#room-close').click();
  await nav('model');await p.locator('#model-effort-choices button').filter({hasText:'new-level'}).click();
  await p.locator('#model-applied').filter({hasText:'new-level'}).waitFor();await draw('02-model');
- await p.locator('#model-choice').selectOption('auto');await p.locator('#model-applied').filter({hasText:'由模型决定'}).waitFor();
+ const speed=p.locator('#model-ultrafast');assert.equal(await speed.getAttribute('aria-pressed'),'false');await speed.click();
+ await p.waitForFunction(()=>requests.some(r=>r.operation==='model.configure'&&r.arguments.ultrafast===true));
+ await p.locator('#model-choice').selectOption('auto');await p.locator('#model-applied').filter({hasText:'由模型决定'}).waitFor();assert.ok(await speed.isHidden());
  const modelWrites=await p.evaluate(()=>requests.filter(r=>r.operation==='model.configure').map(r=>r.arguments));
- assert.deepEqual(modelWrites.at(-1),{account_id:'desktop-fixture',expected:'m2',model:'auto',effort:null});
+ assert.deepEqual(modelWrites.at(-1),{account_id:'desktop-fixture',expected:'m2',model:'auto',effort:null,ultrafast:false});
  await nav('platforms');await p.locator('[data-tab-target=wechat]').click();assert.ok(await p.locator('#audience-panel').isVisible());
  await nav('records');await call('tasks.list');await p.locator('[data-tab-target=trace]').click();await call('reply_trace.list');
  await p.locator('#reply-trace-list button').first().click();await call('reply_trace.detail');
@@ -186,6 +182,21 @@ async function checkPublicReader(p){
  const before=await p.evaluate(()=>requests.length);
  await enter('declaration');await article.getByText('开发者：Yi_Ning和ta的龙娘').waitFor();
  await article.locator('summary').filter({hasText:'MIT'}).click();await article.locator('pre').first().filter({hasText:'Permission is hereby granted'}).waitFor();
+ const upstream=article.locator('.reader-upstreams');await upstream.locator('summary').click();
+ const source=await fs.readFile(path.join(__dirname,'../../THIRD_PARTY_NOTICES.md'),'utf8');
+ const index=source.split('## 桌面许可索引')[1].split(/^## /m)[0];
+ const links=[...index.matchAll(/\[([^\]]+)\]\((https:\/\/[^)]+)\)/g)].map(m=>[m[1],m[2]]);
+ assert.ok(links.length>0);
+ assert.deepEqual(await upstream.locator('a').evaluateAll(nodes=>nodes.map(n=>[n.textContent,n.href])),links);
+ const firstProject=links[0][1];
+ await p.context().route(firstProject,route=>route.fulfill({contentType:'text/html',body:'<title>上游仓库</title>'}));
+ const [outside]=await Promise.all([p.waitForEvent('popup'),upstream.locator('a').first().click()]);
+ await outside.waitForURL(firstProject);await outside.close();await p.context().unroute(firstProject);
+ assert.ok(await dialog.isVisible());
+ assert.equal(await upstream.locator('pre').count(),0);assert.equal(await upstream.locator('tbody tr').count(),index.split(/\r?\n/).filter(l=>l.startsWith('|')).length-2);
+ await p.setViewportSize({width:360,height:650});
+ assert.ok(await upstream.evaluate(n=>n.scrollWidth<=n.clientWidth+1));
+ await p.setViewportSize({width:1250,height:870});
  await close('Escape');
  assert.equal(await p.evaluate(()=>document.activeElement.hash),'#declaration');
  await enter('support');await article.getByRole('heading',{name:'可用版本'}).waitFor();
@@ -230,6 +241,42 @@ async function checkPublicReader(p){
  assert.deepEqual(externalRequests,[]);p.off('request',inspect);await p.context().setOffline(false);
 }
 
+async function checkUninstall(p){
+ const option=p.locator('.uninstall-clear-option'),box=option.getByRole('checkbox'),skip=p.locator('#uninstall-skip'),next=p.locator('#uninstall-continue');
+ const preparing={registered:true,backup_available:true,backup:'none',can_clear_profile:true,continue_refusal:'uninstall_backup_incomplete'};
+ const state=overrides=>p.evaluate(s=>uninstallState(s),{...preparing,...overrides});
+ const colors=button=>button.evaluate(async b=>{
+  await Promise.all(b.getAnimations().map(animation=>animation.finished));
+  const css=getComputedStyle(b);return [css.backgroundColor,css.color,css.borderColor];
+ });
+ for(const width of [1250,360]){
+  await p.setViewportSize({width,height:800});
+  await p.goto('https://workspace.test/uninstall.html');
+  await state({});
+  assert.ok(await skip.isEnabled()&&await next.isDisabled()&&!(await box.isChecked()));
+  const enabled=await colors(skip),disabled=await colors(next);
+  assert.notDeepEqual(enabled,disabled);
+  const bounds=await option.evaluate(n=>{
+   const rect=e=>e.getBoundingClientRect(),input=rect(n.querySelector('input')),text=rect(n.querySelector('span')),line=Number.parseFloat(getComputedStyle(n).lineHeight);
+   return {left:input.left-rect(n).left,gap:text.left-input.right,
+    centered:Math.abs((input.top+input.bottom-text.top-text.bottom)/2),lines:text.height/line,
+    fits:document.documentElement.scrollWidth<=innerWidth};
+  });
+  assert.ok(bounds.fits&&bounds.left<1&&bounds.gap>=4&&bounds.centered<=1&&bounds.lines<=1.1,JSON.stringify(bounds));
+  await option.locator('span').click();assert.ok(await box.isChecked());
+  await skip.click();assert.ok(await next.isDisabled()&&await skip.isDisabled());
+  await state({backup:'skipped',continue_refusal:''});
+  assert.ok(await next.isEnabled()&&await skip.isDisabled()&&await box.isChecked());
+  assert.deepEqual(await colors(next),enabled);assert.deepEqual(await colors(skip),disabled);
+  await next.click();await p.locator('#uninstall-confirm-text').filter({hasText:'个人资料及目录内的本机备份将被清空'}).waitFor();
+  await p.locator('#uninstall-confirm-no').click();
+  await state({can_clear_profile:false});
+  assert.ok(await box.isDisabled()&&!(await box.isChecked()));
+  assert.deepEqual(await p.evaluate(()=>requests.map(r=>r.action)),['uninstall-status','uninstall-skip']);
+ }
+ await p.setViewportSize({width:1250,height:870});
+}
+
 async function main(){
  const browser=await chromium.launch({headless:true,...(process.env.QIBAN_CHROME?{executablePath:process.env.QIBAN_CHROME}:{})});
  const generated=await fs.mkdtemp(path.join(os.tmpdir(),'qiban-public-pages-'));
@@ -249,6 +296,7 @@ async function main(){
     else await route.fulfill({path:source});
    }catch{await route.fulfill({status:404});}
   });
+  await checkUninstall(p);
   await checkPublicReader(p);
   await p.goto('https://workspace.test/index.html');
   await checkHouse(p);
@@ -288,21 +336,9 @@ async function main(){
   await p.waitForFunction(()=>!!window.releaseDetail);await p.evaluate(()=>{access(false);releaseDetail();});await p.getByText('解锁桌面管理后可查看。').waitFor();
   assert.equal(await p.locator('[data-editor]').count(),0);
   await nav('context');await p.evaluate(()=>access(true));
-  await p.locator('[data-field=scene]').selectOption('group');await p.locator('[data-field=guidance]').fill('群里请简短');
-  await p.locator('[data-limit=reply_output_reserve]').fill('1000');await click('down-0');
-  await p.locator('[data-layer=summary]').uncheck();
-  await p.evaluate(()=>{window.contextConflict=true;});await click('save');
-  await p.getByText('核对未保存的修改').waitFor();await click('reapply');
-  await click('save');await p.getByText('草稿已保存。').waitFor();
-  const save=(await reqs('context.save')).at(-1);assert.equal(save.config.guidance.group,'群里请简短');assert.equal(save.config.guidance.private,'另一个窗口的修改');assert.equal(save.expected,'external');assert.equal(save.config.order[0],'summary');
-  assert.deepEqual(save.config.disabled,['summary']);
-  await click('preview');await p.getByText('合成场景试算',{exact:false}).waitFor();assert.equal((await reqs('reply_trace.detail')).length,0);
-  await click('publish');await click('accept');await p.getByText('生效版本已更新。').waitFor();
-  await click('history');await p.locator('[data-version=initial]').click();await click('accept');
-  await p.locator('[data-field=guidance]').waitFor();assert.equal(await p.locator('[data-field=guidance]').inputValue(),'');
-  await click('traces');await p.locator('[data-trace=trace]').click();await p.getByText('visible/source',{exact:false}).waitFor();
-  await p.getByRole('heading',{name:'真实回复 · 未发送'}).waitFor();
-  assert.deepEqual((await reqs('reply_trace.detail')).at(-1),{identifier:'trace'});
+  await p.locator('[data-field=guidance]').waitFor();assert.ok(await p.locator('[data-field=guidance]').isDisabled());
+  assert.ok(await p.locator('[data-ws=preset-save]').isDisabled());assert.ok(await p.locator('[data-ws=preview]').isDisabled());
+  assert.equal(await p.locator('[data-ws=publish],[data-ws=save],[data-ws=history]').count(),0);
   await p.evaluate(()=>{access(false);window.allowed=['learning.goals'];access(true);});
   await p.getByText('当前后台尚未提供此功能。').waitFor();await nav('learn');await p.getByText('当前后台仅提供目标目录。').waitFor();
   assert.equal(await p.locator('[data-ws=new]').count(),0);
@@ -310,10 +346,12 @@ async function main(){
   await p.evaluate(()=>desktopService(true));
   await p.waitForFunction(()=>{const scene=document.getElementById('monitor-window');return scene?.base?.naturalWidth>0&&scene.actor.firstChild?.naturalWidth>0;});
   await p.setViewportSize({width:360,height:720});
+  await p.locator('#house-preset-line').getByText('默认').waitFor();
   const roomBounds=await p.locator('#monitor-window').boundingBox();
   assert.ok(roomBounds.width>=300&&Math.abs(roomBounds.width/roomBounds.height-16/9)<.04);
   assert.deepEqual(errors,[]);
   console.log('通过：离线支持页与模型简表、微信结果、键盘返回、窄屏、会客室草稿保留、监控场景、模型档位、学习树与上下文工作台。');
  }finally{await browser.close();await fs.rm(generated,{recursive:true,force:true});}
 }
-main().catch(error=>{console.error(error);process.exitCode=1;});
+module.exports={bridgeFixture,supported};
+if(require.main===module)main().catch(error=>{console.error(error);process.exitCode=1;});

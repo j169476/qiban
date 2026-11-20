@@ -67,7 +67,7 @@ class DesktopModel:
                 with span("model.account_access"):
                     access = await asyncio.to_thread(self.broker.model_access)
             with span("model.catalog_resolve"):
-                model, effort = await asyncio.to_thread(self.catalog.resolve, self.broker.store, access)
+                model, effort, tier = await asyncio.to_thread(self.catalog.resolve, self.broker.store, access)
 
             def check():
                 guard()
@@ -82,11 +82,11 @@ class DesktopModel:
                     return await generate_web(instructions, context, output_schema, images,
                         policy=policy, guard=check, phase=phase, observation=observation,
                         access=access, model=model, reasoning_effort=effort,
-                        transport=self.web_transport)
+                        transport=self.web_transport, service_tier=tier)
                 from companion_codex.app_server import generate
 
                 return await generate(instructions, context, output_schema, images,
                     native=native,
                     store=store, policy=policy, guard=check, phase=phase, observation=observation,
                     model=model, reasoning_effort=effort,
-                    plan_access_token=access.access_token, executable=self.executable)
+                    plan_access_token=access.access_token, executable=self.executable, service_tier=tier)

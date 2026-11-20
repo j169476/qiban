@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -8,39 +7,34 @@ from companion_core.errors import AssistantError
 from companion_core.reply_authorization import ReplyAuthorizations, ReplyScope
 from companion_core.runtime import Companion
 from companion_qq.module import QQModule
+from companion_qq.native_sender import NativeSendReceipt
+from tests.test_qq_native_normalization import IDENTITY, normalize
+from tests.test_qq_native_normalization import raw as native_raw
 from tests_postgres.test_wechat_role import Host, Model
 
 STAMP = 1792922400
-OPTIONS = {"version": 1, "account": "10001", "private_targets": ["10002"], "groups": ["10003"],
-           "http": "http://127.0.0.1:3000", "ws": "ws://127.0.0.1:3001"}
+def options(tmp_path):
+    return {"version": 2, "transport": "native", "uid": "u_self", "account": "10001",
+            "private_targets": ["10002"], "groups": ["10003"],
+            "runtime": str(tmp_path / "qq"), "data": str(tmp_path / "data")}
+
+
+class SyntheticQQ(QQModule):
+    def accept(self, value):
+        self.accept_native(value, identity=IDENTITY)
 
 
 def incoming(n, *, group=False, mention=False, sender="10002", text="same text", quote=None):
-    segments = [{"type": "text", "data": {"text": text}}]
+    value = native_raw(n, group=group)
+    value["senderUin"] = sender
+    element = value["elements"][0]["textElement"]
+    element["content"] = text
     if mention:
-        segments.append({"type": "at", "data": {"qq": "10001"}})
+        element.update(atType=2, atUid="10001", atNtUid="u_self")
     if quote is not None:
-        segments.append({"type": "reply", "data": {"id": quote}})
-    return {"post_type": "message", "self_id": 10001, "message_type": "group" if group else "private",
-            "sub_type": "normal" if group else "friend", "user_id": sender, "group_id": 10003,
-            "time": STAMP, "message_id": n, "message": segments}
-
-
-class Socket:
-    def __init__(self):
-        self.queue = asyncio.Queue()
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        item = await self.queue.get()
-        if item is None:
-            raise StopAsyncIteration
-        return item
-
-    async def close(self):
-        self.queue.put_nowait(None)
+        value["elements"].append({"elementType": 7, "replyElement": {
+            "senderUid": "10001", "senderUidStr": "u_self", "replayMsgSeq": str(quote)}})
+    return value
 
 
 class Provider:
@@ -49,7 +43,6 @@ class Provider:
         self.unknown = False
         self.before = lambda: None
         self.wrong_account = False
-        self.sockets = []
 
     def probe(self):
         self.identity()
@@ -60,17 +53,13 @@ class Provider:
             raise AssistantError("qq_account_mismatch", "synthetic")
         return {"user_id": 10001}
 
-    async def connect(self):
-        socket = Socket()
-        self.sockets.append(socket)
-        return socket
-
-    def send(self, scope, text):
+    def send_action(self, action_id, scope, text):
         self.before()
         self.sent.append((scope, text))
         if self.unknown:
             raise TimeoutError()
-        return str(5000 + len(self.sent))
+        identifier = str(5000 + len(self.sent))
+        return NativeSendReceipt(identifier, "native-seq:" + identifier)
 
     def close(self):
         pass
@@ -79,7 +68,7 @@ class Provider:
 @pytest.fixture
 async def env(pg_store, tmp_path):
     provider = Provider()
-    module = QQModule(pg_store, tmp_path, options=OPTIONS, factory=lambda: provider)
+    module = SyntheticQQ(pg_store, tmp_path, options=options(tmp_path), factory=lambda: provider)
     module.probe()
     for target in module.reply_targets():
         ReplyAuthorizations(pg_store).update(target.scope, enabled=True, expected_version=None, actor="test")
@@ -278,7 +267,7 @@ async def test_historical_group_flood_pins_trigger_cuts_before_model_and_replies
     from companion_core.context_budget import encoded
     for index in range(40):
         raw = incoming(300 + index, group=True, mention=index == 2, text=f'message-{index}:' + '水群' * 500)
-        raw['time'] = STAMP - 86400 + index
+        raw['msgTime'] = str(STAMP - 86400 + index)
         env.module.accept(raw)
     anchor = (await env.module.runtime_poll())[0]
     assert (await env.core.handle(anchor))['action']['status'] == 'succeeded'
@@ -340,9 +329,8 @@ async def test_poll_batches_different_conversations_without_overtaking_same_chat
     for raw in (incoming(101), incoming(102), incoming(103, group=True, mention=True)):
         env.module.accept(raw)
     batch = await env.module.runtime_poll()
-    from companion_qq.normalization import normalize
 
-    assert [event.id for event in batch] == [normalize(raw, OPTIONS, sent_reference=lambda *_: False).id
+    assert [event.id for event in batch] == [normalize(raw).id
         for raw in (incoming(102), incoming(103, group=True, mention=True))]
     assert len({event.thread for event in batch}) == 2
     await handle_batch(env.core, batch)
@@ -423,7 +411,7 @@ async def test_restart_resumes_frozen_batch_and_group_catches_up_once(env, tmp_p
     first = (await env.module.runtime_poll())[0]
     env.core.stop("restart-test")
     await env.module.close()
-    replacement = QQModule(env.store, tmp_path, options=OPTIONS, factory=lambda: env.provider)
+    replacement = SyntheticQQ(env.store, tmp_path, options=options(tmp_path), factory=lambda: env.provider)
     core = Companion(env.store, Model(), Host(), [replacement], clock=env.core.clock, run_key="core-run:qq")
     core.start()
     try:
@@ -443,19 +431,13 @@ async def test_restart_resumes_frozen_batch_and_group_catches_up_once(env, tmp_p
 
 
 @pytest.mark.asyncio
-async def test_event_reader_reconnect_retains_encrypted_queue_and_dedupes_replay(env):
-    import json
-
-    socket = env.provider.sockets[-1]
-    socket.queue.put_nowait(json.dumps(incoming(1)))
-    socket.queue.put_nowait(json.dumps(incoming(1)))
-    socket.queue.put_nowait(None)
-    await asyncio.wait_for(env.module.reader, 2)
-    assert not env.module.ready and env.module.retry_at > 0
+async def test_native_reconnect_retains_encrypted_queue_and_dedupes_replay(env):
+    env.module.accept(incoming(1))
+    env.module.accept(incoming(1))
+    env.module.ready = False
     assert len(env.store.state(env.module.queue_key)) == 1
-    env.module.retry_at = 0  # Advance deterministic reconnect deadline, no long wait.
     pending = await env.module.runtime_poll()
-    assert env.module.ready and len(env.provider.sockets) == 2
+    assert env.module.ready
     assert (await env.core.handle(pending[0]))["action"]["status"] == "succeeded"
     assert await handle(env, incoming(1)) == [] and len(env.provider.sent) == 1
     with env.store.db() as db:
@@ -465,8 +447,7 @@ async def test_event_reader_reconnect_retains_encrypted_queue_and_dedupes_replay
 @pytest.mark.asyncio
 async def test_reconnect_to_other_logged_in_account_blocks_pending_reply(env):
     env.module.accept(incoming(1))
-    await env.provider.sockets[-1].close()
-    await asyncio.wait_for(env.module.reader, 2)
+    env.module.ready = False
     env.provider.wrong_account = True
     env.module.retry_at = 0
     with pytest.raises(AssistantError) as error:
@@ -477,13 +458,8 @@ async def test_reconnect_to_other_logged_in_account_blocks_pending_reply(env):
 
 
 @pytest.mark.asyncio
-async def test_wrong_self_id_from_event_channel_stops_before_model(env):
-    import json
-
-    env.provider.sockets[-1].queue.put_nowait(json.dumps(incoming(1) | {"self_id": 10002}))
-    await asyncio.wait_for(env.module.reader, 2)
-    assert env.module.code == "qq_account_mismatch"
+async def test_wrong_native_identity_stops_before_model(env):
     with pytest.raises(AssistantError) as error:
-        await env.module.runtime_poll()
+        env.module.accept_native(incoming(1), identity={**IDENTITY, "uin": "10002"})
     assert error.value.code == "qq_account_mismatch"
     assert not env.model.calls and not env.provider.sent and not env.store.state(env.module.queue_key)

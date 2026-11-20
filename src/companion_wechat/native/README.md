@@ -49,4 +49,4 @@ Python 测试位于 `tests_wechat/test_native_sender.py`；编译后的导出通
 Python `NativeSenderGateway` 复用核心加密动作账本。原生完成回调与只读数据库中严格匹配的
 新发送记录必须同时成立，动作才算成功。该成功表示本机已记录发送，不等于对方已读。
 
-版本维护与验证步骤见 [微信兼容维护](../../../docs/WECHAT_COMPATIBILITY.md)。
+用户可在[微信支持版本](../../../docs/微信支持范围.md)查看可用版本和操作提示。

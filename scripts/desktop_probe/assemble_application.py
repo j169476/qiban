@@ -25,11 +25,15 @@ MAIN_EXE = 'Qiban.exe'
 ALIAS_EXE = 'uninstall.exe'
 
 
-def validate(directory, entrypoint):
+def resource_manifest(directory, entrypoint):
     manifest = json.loads((directory/'runtime-manifest.json').read_text(encoding='utf8'))
     if manifest['format'] != 1 or manifest['entrypoint'] != entrypoint:
         raise ValueError('Wrong resource package')
-    for row in manifest['files']:
+    return manifest['files']
+
+
+def validate(directory, entrypoint):
+    for row in resource_manifest(directory, entrypoint):
         file = (directory/row['path']).resolve(strict=True)
         if not file.is_relative_to(directory) or hashlib.sha256(file.read_bytes()).hexdigest() != row['sha256']:
             raise ValueError('Resource mismatch')

@@ -92,19 +92,7 @@ class PlatformSetup:
                   "running_job": platform in self.running, "job": self.store.state("platform-setup:" + platform),
                   "role_started": False}
         if platform == "qq":
-            from companion_qq.config import management_url, token
-
-            present = False
-            if options:
-                try:
-                    token(self.project, options["account"])
-                    present = True
-                except Exception:
-                    pass
-            result.update(configuration=options, token_saved=present,
-                          installation_url="https://napneko.github.io/guide/boot/Shell",
-                          login_url=management_url(self.project),
-                          instructions="先在 NapCat 登录机器人 QQ，启用本机 HTTP 与正向 WebSocket，设置相同 Token，然后核验。普通 QQ 登录不能代替桥接登录。")
+            result.update(configuration=options, instructions="请在栖伴的平台与会话页管理 QQ。")
         else:
             files = {key: bool(options and options[key].is_file()) for key in ("database_python", "native_dll", "locations", "targets")}
             result.update(files=files, instructions="在本机微信登录机器人账号。填写账号数据目录及目标内部 ID；核验前保持客户端运行。发送阶段需要最小化客户端。")
@@ -122,6 +110,8 @@ class PlatformSetup:
         self.service.admin.authority.require(request, administrator=True)
         require(isinstance(arguments, dict) and arguments.get("platform") in ("qq", "wechat"))
         platform = arguments["platform"]
+        if platform == "qq" and name != "platform_setup_status":
+            raise AssistantError("qq_desktop_setup", "请在栖伴的平台与会话页管理 QQ。")
         if name == "platform_setup_status":
             require(set(arguments) == {"platform"})
             return self.status(platform)
@@ -177,26 +167,7 @@ class PlatformSetup:
                 self.active_tasks.discard(task)
 
     def save(self, platform, settings):
-        if platform == "qq":
-            import keyring
-
-            from companion_qq.config import credential_key, validate
-
-            fields = {"account", "private_targets", "groups", "http", "ws", "token"}
-            require(fields <= set(settings) and not set(settings) - fields - {"launch"})
-            secret = settings["token"]
-            require(isinstance(secret, str) and (not secret or 16 <= len(secret) <= 512))
-            value = validate({"version": 1, **{k: v for k, v in settings.items() if k != "token"}})
-            old = self.options(platform)
-            if old and old["account"] == value["account"]:
-                if "launch" not in settings and "launch" in old:
-                    value["launch"] = old["launch"]
-                for key in ("private_targets", "groups"):
-                    value[key] = list(dict.fromkeys(old[key] + value[key]))
-            if secret:
-                keyring.set_password("local-companion-qq", credential_key(self.project, value["account"]), secret)
-            atomic_write(self.project / ".dev/qq/module.json", json.dumps(value).encode())
-            return
+        require(platform == "wechat")
         require(set(settings) == {"account_dirs", "targets"})
         from companion_wechat.db_cli import load_config
         from companion_wechat.db_probe import validate_config
@@ -260,9 +231,8 @@ class PlatformSetup:
         self.store.set_state(key, {**self.store.state(key, {}), "stage": stage})
 
     async def dependencies_ready(self, python, platform):
-        checks = ("import websockets; from importlib.metadata import version; "
-                  "assert 15 <= int(version('websockets').split('.')[0]) < 17" if platform == "qq" else
-                  "import sqlcipher3, cryptography, zstandard; from importlib.metadata import version; "
+        require(platform == "wechat")
+        checks = ("import sqlcipher3, cryptography, zstandard; from importlib.metadata import version; "
                   "assert version('sqlcipher3') == '0.6.4'; "
                   "assert 46 <= int(version('cryptography').split('.')[0]) < 51; "
                   "assert version('zstandard') == '0.25.0'")
@@ -273,14 +243,7 @@ class PlatformSetup:
             return False
 
     async def prepare(self, platform):
-        if platform == "qq":
-            self.prepare_stage(platform, "dependencies_check")
-            if await self.dependencies_ready(sys.executable, platform):
-                return {"dependencies": "reused"}
-            self.prepare_stage(platform, "dependencies_install")
-            await self.command([sys.executable, "-m", "pip", "install", "websockets>=15,<17"])
-            require(await self.dependencies_ready(sys.executable, platform), "setup_dependency_failed")
-            return {"dependencies": "installed"}
+        require(platform == "wechat")
         from companion_wechat.native.bridge import validate_build
 
         options = self.options(platform)

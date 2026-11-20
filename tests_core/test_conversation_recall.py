@@ -67,11 +67,10 @@ def test_detail_omitted_by_summary_is_recalled_with_adjacent_correction():
     assert not any(item["data"]["id"] in {row["data"]["id"] for row in result["turns"]} for item in recalled)
 
 
-def test_existing_expansions_recover_long_foreign_language_evidence_with_original_offsets():
+def test_local_alias_recovers_long_foreign_language_evidence_with_original_offsets():
     store = archive()
     store.turns[5] = turn(5, "Background details. " * 400 + "The cobalt lantern rendezvous is on Friday.")
     store.turns[6] = turn(6, "Confirmed by the user.", speaker="assistant", status="sent")
-    assert store.context("秘密会面地点")["recalled"] == []
     result = store.context("秘密会面地点", ["cobalt lantern rendezvous"])
     target = next(item for item in result["recalled"] if item["data"]["id"] == store.turns[5]["data"]["id"])
     assert "Friday" in target["data"]["content"]

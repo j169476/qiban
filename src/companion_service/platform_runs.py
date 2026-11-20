@@ -53,10 +53,6 @@ class PlatformRuns:
         fault = self.store.state("platform-fault-stage:" + platform, {})
         if fault.get("code") == result["reason"] and fault.get("generation") == result["generation"]:
             result["fault"] = fault
-        if platform == "qq":
-            from companion_qq.config import management_url
-
-            result["management_url"] = management_url(getattr(self.service.host, "project", None))
         if run.get("reply_test"):
             result["reply_test"] = run["reply_test"]
         core = self.cores.get(platform)

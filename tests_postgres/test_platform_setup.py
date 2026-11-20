@@ -19,20 +19,13 @@ def setup(service, tmp_path):
     return service.setup
 
 
-def test_setup_status_does_not_connect_and_secret_is_never_returned(setup, monkeypatch):
-    saved = {}
-    monkeypatch.setattr('keyring.set_password', lambda service, key, value: saved.update(value=value))
-    monkeypatch.setattr('keyring.get_password', lambda *args: saved.get('value'))
-    assert not setup.status('qq')['configured']
-    settings = dict(account='10001', private_targets=['10002'], groups=['20001'],
-                    http='http://127.0.0.1:3000', ws='ws://127.0.0.1:3001', token='synthetic-secret-12345')
-    setup.save('qq', settings)
-    assert setup.status('qq')['token_saved']
-    assert settings['token'] not in json.dumps(setup.status('qq'))
-    assert settings['token'] not in (setup.project / '.dev/qq/module.json').read_text()
-    setup.save('qq', {**settings, 'private_targets': ['10003', '10002'], 'token': ''})
-    assert setup.options('qq')['private_targets'] == ['10002', '10003']
-    assert ReplyAuthorizations(setup.store).records() == []
+def test_qq_setup_uses_desktop_account_page(setup):
+    status = setup.status("qq")
+    assert not status["configured"] and "平台与会话" in status["instructions"]
+    assert "login_url" not in status
+    with pytest.raises(AssistantError):
+        setup.save("qq", {})
+    assert not (setup.project / ".dev/qq/module.json").exists()
 
 
 def test_setup_malformed_existing_config_is_reported_without_breaking_dashboard(setup):
@@ -44,8 +37,7 @@ def test_setup_malformed_existing_config_is_reported_without_breaking_dashboard(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("platform", ["qq", "wechat"])
-async def test_dependency_prepare_reuses_verified_configured_environment(setup, monkeypatch, platform):
+async def test_dependency_prepare_reuses_verified_configured_environment(setup, monkeypatch):
     python, dll = setup.project / 'custom-python.exe', setup.project / 'custom.dll'
     python.write_bytes(b'synthetic')
     monkeypatch.setattr(setup, 'options', lambda _: {'database_python': python, 'native_dll': dll})
@@ -57,11 +49,10 @@ async def test_dependency_prepare_reuses_verified_configured_environment(setup, 
         assert args[1] == '-c'  # No pip, compiler, client, or network call.
 
     monkeypatch.setattr(setup, 'command', command)
-    result = await setup.prepare(platform)
+    result = await setup.prepare("wechat")
     assert result['dependencies'] == 'reused'
-    if platform == 'wechat':
-        assert result['native'] == 'reused' and checked == [dll]
-        assert commands[0][0] == str(python)
+    assert result['native'] == 'reused' and checked == [dll]
+    assert commands[0][0] == str(python)
     assert len(commands) == 1
     assert ReplyAuthorizations(setup.store).records() == []
 

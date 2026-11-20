@@ -235,7 +235,7 @@ test('a locked page posts nothing and unlocking reads the claim list',async()=>{
  const text=p.text(itemsBox(p));
  assert.match(text,/QQ · 10001 → 微信 · wxid_b · 同事 · 仅声明（尚未核对）/);
  assert.equal(p.node('relation-claims-status').textContent,'已读取 1 条声明。');
- assert.match(text,/只有本机管理员能读取/);
+ assert.match(text,/管理员还可核对证据和历史/);
  // The area follows the management panel, including when nothing else changed.
  p.node('management-panel').hidden=true;
  p.state(true,true);
@@ -284,7 +284,7 @@ test('a failed list read leaves no claim, draft or preview behind',async()=>{
  await p.flush(3);
  assert.match(p.node('relation-claims-status').textContent,/每次只能查看 1 至 50 条声明/);
  assert.equal(p.text(itemsBox(p)),
-  '还没有读取人际关系声明。点“读取关系声明”开始；本页只读取已有声明，不会新增关系。');
+  '点「读取关系声明」查看已有的人际关系。');
  assert.equal(p.text(detailBox(p)),'先在上方选择一条声明，这里会显示它的状态、证据、来源与依赖影响。');
  assert.equal(p.text(historyBox(p)),'');
  assert.equal(p.node('relation-claims-preview-area').hidden,true);
@@ -328,7 +328,7 @@ test('detail shows evidence only for a matching pinned version and names the res
  assert.match(text,/当前版本已更换，不是当初引用的版本；本页不展示新正文/);
  assert.match(text,/引用的记录已不存在，本页不重建原文/);
  assert.match(text,/这一类型不提供文本摘录/);
- assert.match(text,/只有引用版本与当前一致时才会给出摘录，不用现在的正文冒充当时的证据/);
+ assert.match(text,/引用版本与当前版本一致时可查看证据摘录/);
  // Exactly one item carried an excerpt: the changed/missing/unsupported ones do not.
  assert.equal(p.tags(detailBox(p),'p').filter(line=>
   line.textContent.includes('引用版本下的原文摘录')).length,1);
@@ -613,8 +613,8 @@ test('history pages append, keep their order and say where the record starts',as
  assert.match(text,/这里共记录了 1 次状态更正/);
  assert.match(text,/本机 · 管理员：仅声明（尚未核对） → 已确认/);
  assert.match(text,/更正说明：合成说明/);
- assert.match(text,/历史按写入顺序列出，每条不可变，不会自动删除/);
- assert.match(text,/不包含本功能开始记录之前的裁决/);
+ assert.match(text,/历次更改按写入顺序保留/);
+ assert.match(text,/从启用记录功能起/);
  // The next page is read with the cursor the server returned and appended, not replaced.
  const more=p.buttons(historyBox(p),'读取更多变更历史')[0];
  assert.equal(more.disabled,false);

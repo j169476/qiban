@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT
 // Only explicit user actions request a QR; callbacks cannot restart a login.
 class LoginState {
-  constructor(login, {clock = () => Date.now(), lifetimeMs = 300000} = {}) {
-    this.login = login; this.clock = clock; this.lifetimeMs = lifetimeMs;
+  constructor(login, {clock = () => Date.now(), lifetimeMs = 300000, pictureTimeoutMs = 30000} = {}) {
+    this.login = login; this.clock = clock; this.lifetimeMs = lifetimeMs; this.pictureTimeoutMs = pictureTimeoutMs;
     this.value = {status: 'connecting'}; this.deadline = null; this.closed = false;
   }
   connected() {if (!this.closed && this.value.status === 'connecting') this.value = {status: 'ready'};}
@@ -12,12 +12,13 @@ class LoginState {
     if (this.status().status === 'qr_ready') this.value = {...this.value, status: 'qr_scanned'};
   }
   status() {
-    if (this.active() && this.clock() >= this.deadline) this.fail('expired');
+    if (this.active() && this.clock() >= this.deadline)
+      this.fail(this.value.status === 'requesting_qr' ? 'picture_timeout' : 'expired');
     return {...this.value};
   }
   request() {
     if (this.closed || this.status().status !== 'ready') throw Error('qq_login_state');
-    this.value = {status: 'requesting_qr'}; this.deadline = this.clock() + this.lifetimeMs;
+    this.value = {status: 'requesting_qr'}; this.deadline = this.clock() + this.pictureTimeoutMs;
     try {
       Promise.resolve(this.login.getQRCodePicture()).catch(() => this.fail('failed'));
     } catch {this.fail('failed');}
@@ -51,6 +52,7 @@ class LoginState {
     if (png.length > 262144 || png.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
       this.fail('failed'); return;
     }
+    if(this.value.status === 'requesting_qr') this.deadline = this.clock() + this.lifetimeMs;
     this.value = {status: 'qr_ready', png_base64: png.toString('base64')};
   }
   succeeded(event) {
@@ -60,7 +62,7 @@ class LoginState {
     this.value = {status: 'authenticated', uin};
   }
   fail(status = 'failed') {
-    if (!this.closed && !['authenticated', 'expired', 'failed', 'verification_required'].includes(this.value.status)) this.value = {status};
+    if (!this.closed && !['authenticated', 'expired', 'failed', 'picture_timeout', 'verification_required'].includes(this.value.status)) this.value = {status};
   }
   close() {this.closed = true; this.value = {status: 'cancelled'};}
 }

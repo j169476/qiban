@@ -40,7 +40,6 @@ def cases():
 @pytest.mark.skipif(os.getenv("QIBAN_COMPARE_LIVE") != "1", reason="requires real model quota")
 @pytest.mark.parametrize(("sample", "model"), cases())
 async def test_compare_reply(pg_store, monkeypatch, sample, model):
-    monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", "off")  # Original two-call model benchmark.
     assert not os.getenv("QIBAN_DESKTOP_TEST_ROOT")
     service, token = started(pg_store, daily_local_replies=10)
     current = pg_store.read("companion")
@@ -107,7 +106,7 @@ async def test_compare_reply(pg_store, monkeypatch, sample, model):
     if row["status"] == "model_unavailable":
         return
     assert row["status"] == "succeeded" and row.get("synthetic_reply")
-    assert row["thread_models"] == [model, model] and not row["rerouted"]
+    assert row["thread_models"] == [model] and not row["rerouted"]
     assert row.get("old_joke_in_context") and row.get("first_text_ms")
-    assert [call["purpose"] for call in row["calls"]] == ["recall.expand", "reply.generate"]
+    assert [call["purpose"] for call in row["calls"]] == ["reply.generate"]
     assert all((call["checks"] > 0) == baseline for call in row["calls"])

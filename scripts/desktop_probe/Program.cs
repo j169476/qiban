@@ -249,10 +249,21 @@ internal sealed class ProbeWindow : Form
         ["/art/hoodie-avatar.webp"]="hoodie-avatar.webp",
         ["/workspace.js"]="workspace.js", ["/workspace-map.js"]="workspace-map.js",
         ["/workspace-context.js"]="workspace-context.js", ["/workspace-learning.js"]="workspace-learning.js",
+        ["/workspace-sources.js"]="workspace-sources.js", ["/workspace-presets.js"]="workspace-presets.js",
         ["/workspace.css"]="workspace.css",
         ["/management.js"]="management.js",["/room.js"]="room.js",["/tasks.js"]="tasks.js",["/model.js"]="model.js",["/bili.js"]="bili.js",["/qq.js"]="qq.js",["/audience.js"]="audience.js",["/reply_quota.js"]="reply_quota.js",["/reply_trace.js"]="reply_trace.js",["/media.js"]="media.js",["/stickers.js"]="stickers.js",["/files.js"]="files.js",["/growth.js"]="growth.js",["/memories.js"]="memories.js",["/baseline.js"]="baseline.js",["/relationship.js"]="relationship.js",["/sharing.js"]="sharing.js",["/relation-claims.js"]="relation-claims.js",["/navigation.js"]="navigation.js",["/static/app.css"]="app.css", ["/static/qiban.css"]="qiban.css",
         ["/static/white-dragon-tea.png"]="white-dragon-tea.png"
     };
+    static readonly Lazy<HashSet<string>> PublicUpstreams = new(() => {
+        using var stream = typeof(ProbeWindow).Assembly.GetManifestResourceStream("public-upstreams.txt");
+        var links = new HashSet<string>(StringComparer.Ordinal);
+        if (stream is null) return links;
+        using var reader = new StreamReader(stream);
+        while (reader.ReadLine() is string link)
+            if (Uri.TryCreate(link, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)
+                links.Add(uri.AbsoluteUri);
+        return links;
+    });
     public ProbeWindow(EventWaitHandle activation)
     {
         foreach (var name in typeof(ProbeWindow).Assembly.GetManifestResourceNames())
@@ -370,7 +381,14 @@ internal sealed class ProbeWindow : Form
             core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
             core.WebResourceRequested += (_, e) => Serve(environment, e);
             core.NavigationStarting += (_, e) => { if (!Allowed(e.Uri)) { e.Cancel = true; Log("navigation_blocked"); } };
-            core.NewWindowRequested += (_, e) => { e.Handled = true; Log("popup_blocked"); };
+            core.NewWindowRequested += (_, e) => {
+                e.Handled = true;
+                if (!e.IsUserInitiated || !Allowed(core.Source) || !PublicUpstreams.Value.Contains(e.Uri))
+                { Log("popup_blocked"); return; }
+                try { Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true }); }
+                catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException)
+                { MessageBox.Show(this,"无法打开系统浏览器。项目地址为\n" + e.Uri,"栖伴"); }
+            };
             core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
             core.DownloadStarting += (_, e) => e.Cancel = true;
             core.WebMessageReceived += async (_, e) => await Receive(e);
@@ -482,6 +500,8 @@ internal sealed class ProbeWindow : Form
                 case "portable-cancel": await PortableCancel(message.RootElement); break;
                 case "wechat-client-login": await OpenWechatLogin(); break;
                 case "bili-browser-login": await LoginBiliBrowser(message.RootElement); break;
+                case "library-replace": await LibraryVersionFile(message.RootElement,true); break;
+                case "library-export-version": await LibraryVersionFile(message.RootElement,false); break;
                 case "management":
                     if(!Program.ManagedInstall || component.State!="ready" || backend is null)
                     {Post(new{type="management",request_id=message.RootElement.GetProperty("request_id").GetString(),response=new{ok=false,error="management_unavailable",message="后台尚未就绪"}});break;}
@@ -491,6 +511,12 @@ internal sealed class ProbeWindow : Form
                         if(exiting || component.State!="ready" || backend is null)throw new IOException("management_unavailable");
                         var request=message.RootElement;
                         string? operation=request.GetProperty("operation").GetString();
+                        if(operation is "library.replace" or "library.export")
+                        {
+                            Post(new{type="management",request_id=request.GetProperty("request_id").GetString(),
+                                response=NativeError("native_picker_required","请通过文件选择器完成此操作。")});
+                            break;
+                        }
                         if(operation=="room.post_files")
                         {
                             // A path is accepted only through a File object from WebView's picker.
@@ -625,6 +651,56 @@ internal sealed class ProbeWindow : Form
         {Reply(NativeError("bili_login_unavailable","登录连接已结束，请重新打开登录窗口。"));}
         finally{biliBrowserBusy=false;}
     }
+    async Task LibraryVersionFile(JsonElement message,bool replace)
+    {
+        var versionField=replace?"expected":"revision";
+        if(message.EnumerateObject().Count()!=5 || !message.TryGetProperty("request_id",out var request)
+            || request.ValueKind!=JsonValueKind.String || !Guid.TryParseExact(request.GetString(),"N",out _)
+            || !message.TryGetProperty("layer",out var layerValue) || layerValue.ValueKind!=JsonValueKind.String
+            || layerValue.GetString() is not ("files" or "stickers")
+            || !message.TryGetProperty("identifier",out var item) || item.ValueKind!=JsonValueKind.String
+            || !Guid.TryParseExact(item.GetString(),"N",out _)
+            || !message.TryGetProperty(versionField,out var version) || version.ValueKind!=JsonValueKind.String
+            || !Guid.TryParseExact(version.GetString(),"N",out _))
+        {Log("invalid_message_rejected");return;}
+        string layer=layerValue.GetString()!,identifier=item.GetString()!,revision=version.GetString()!,id=request.GetString()!;
+        void Reply(JsonElement response)=>Post(new{type="management",request_id=id,response});
+        var server=backend;
+        var epoch=controlEpoch;
+        if(exiting || !Program.ManagedInstall || server is null || component.State!="ready")
+        {Reply(NativeError("management_unavailable","后台尚未就绪。"));return;}
+        Task<JsonElement> Exchange(string requestId,string operation,object arguments)=>
+            PortableSend(server,epoch,JsonSerializer.SerializeToElement(new{action="management",operation,arguments,request_id=requestId}));
+        try
+        {
+            var status=await Exchange(Guid.NewGuid().ToString("N"),"library.version",new{layer,identifier,revision});
+            if(!status.GetProperty("ok").GetBoolean()){Reply(status);return;}
+            var info=status.GetProperty("result");
+            if(replace && !info.GetProperty("current").GetBoolean())
+            {Reply(NativeError("edit_conflict","资料已更新，请重新读取。"));return;}
+            var name=info.GetProperty("name").GetString()!;
+            if(replace)
+            {
+                using var picker=new OpenFileDialog{CheckFileExists=true,Multiselect=false,Title="选择新版本原件",
+                    Filter=layer=="files"?"所有文件|*.*":"图片|*.png;*.jpg;*.jpeg;*.webp;*.gif"};
+                if(picker.ShowDialog(this)!=DialogResult.OK ||
+                    MessageBox.Show(this,$"将「{Path.GetFileName(picker.FileName)}」保存为「{name}」的新版本？",
+                        "保存新版本",MessageBoxButtons.OKCancel,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.OK)
+                {Reply(NativeError("cancelled","已取消。"));return;}
+                Reply(await Exchange(id,"library.replace",new{layer,identifier,expected=revision,path=picker.FileName}));
+            }
+            else
+            {
+                var safeName=string.Concat(name.Select(c=>Path.GetInvalidFileNameChars().Contains(c)?'_':c)).TrimEnd('.',' ');
+                if(layer=="stickers" && info.TryGetProperty("format",out var format))
+                    safeName+="."+format.GetString()!.ToLowerInvariant();
+                using var picker=new SaveFileDialog{OverwritePrompt=true,FileName=safeName,Title="导出此版原件",Filter="所有文件|*.*"};
+                if(picker.ShowDialog(this)!=DialogResult.OK){Reply(NativeError("cancelled","已取消。"));return;}
+                Reply(await Exchange(id,"library.export",new{layer,identifier,revision,path=picker.FileName}));
+            }
+        }
+        catch(IOException){Reply(NativeError("management_unavailable","后台连接已结束，请重试。"));return;}
+    }
     async Task ImportFile(JsonElement message)
     {
         if(message.EnumerateObject().Count()!=3 || !message.TryGetProperty("request_id",out var id)
@@ -638,7 +714,7 @@ internal sealed class ProbeWindow : Form
             var status=await StorageComponent.Call(pipeName+"-storage",backend,JsonSerializer.SerializeToElement(new{
                 action="management",operation="files.list",arguments=new{after="",limit=1},request_id=Guid.NewGuid().ToString("N")}));
             if(!status.GetProperty("ok").GetBoolean()){Post(new{type="management",request_id=id.GetString(),response=status});return;}
-            using var dialog=new OpenFileDialog{Title="导入文件到栖伴（不会立即发送）",CheckFileExists=true,Multiselect=false,Filter="所有文件|*.*"};
+            using var dialog=new OpenFileDialog{Title="选择要导入文件库的文件",CheckFileExists=true,Multiselect=false,Filter="所有文件|*.*"};
             if(dialog.ShowDialog(this)!=DialogResult.OK)
             {Post(new{type="management",request_id=id.GetString(),response=new{ok=false,error="cancelled",message="已取消导入，文件库未改变。"}});return;}
             var response=await StorageComponent.Call(pipeName+"-storage",backend,JsonSerializer.SerializeToElement(new{
@@ -661,7 +737,7 @@ internal sealed class ProbeWindow : Form
             var status=await StorageComponent.Call(pipeName+"-storage",backend,JsonSerializer.SerializeToElement(new{
                 action="management",operation="stickers.list",arguments=new{after="",limit=1},request_id=Guid.NewGuid().ToString("N")}));
             if(!status.GetProperty("ok").GetBoolean()){Post(new{type="management",request_id=id.GetString(),response=status});return;}
-            using var dialog=new OpenFileDialog{Title="导入表情到栖伴（保存原图，不会立即发送）",CheckFileExists=true,Multiselect=false,Filter="图片|*.png;*.jpg;*.jpeg;*.webp;*.gif"};
+            using var dialog=new OpenFileDialog{Title="选择要导入表情库的图片",CheckFileExists=true,Multiselect=false,Filter="图片|*.png;*.jpg;*.jpeg;*.webp;*.gif"};
             if(dialog.ShowDialog(this)!=DialogResult.OK)
             {Post(new{type="management",request_id=id.GetString(),response=new{ok=false,error="cancelled",message="已取消导入，表情库未改变。"}});return;}
             string label=string.IsNullOrWhiteSpace(name.GetString())?Path.GetFileNameWithoutExtension(dialog.FileName):name.GetString()!;
@@ -762,7 +838,7 @@ internal sealed class ProbeWindow : Form
             {Reply(NativeError("management_unavailable","后台尚未就绪"));return;}
             var status=await RecordCall(server,Guid.NewGuid().ToString("N"),"records.list",new{kind,after="",limit=1});
             if(!status.GetProperty("ok").GetBoolean()){Reply(status);return;}
-            using var dialog=new OpenFileDialog{Title="选择高级资料 YAML 文件（先预览，确认前不会写入）",
+            using var dialog=new OpenFileDialog{Title="选择要预览的资料文件（YAML）",
                 CheckFileExists=true,Multiselect=false,Filter="YAML 文件|*.yaml;*.yml|所有文件|*.*"};
             if(dialog.ShowDialog(this)!=DialogResult.OK){Reply(NativeError("cancelled","已取消导入，资料未改变。"));return;}
             // The picker can stay open indefinitely; revalidate before reading the file.
@@ -1159,6 +1235,12 @@ internal sealed class ProbeWindow : Form
         throw new TimeoutException("Desktop smoke assertion timed out");
     }
     async Task<bool> JsBool(string expression) => await view.CoreWebView2.ExecuteScriptAsync(expression)=="true";
+    async Task ConfirmSourceEditForTest()
+    {
+        const string selector=".ws-source-dialog[open] .source-confirm [data-do=yes]";
+        await Until(()=>JsBool($"!!document.querySelector('{selector}')"));
+        await view.CoreWebView2.ExecuteScriptAsync($"document.querySelector('{selector}').click()");
+    }
     Task UntilBackendReady()=>Until(async()=>
     {
         if(component.State=="failed")throw new IOException(component.Detail??"backend_start_failed");
@@ -1504,6 +1586,7 @@ internal sealed class ProbeWindow : Form
             await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#fact-items button').click();document.querySelector('#fact-clear').click()");
             if(!await JsBool("document.querySelector('#fact-confirm').disabled && document.querySelector('#fact-notice').textContent.includes('事实未改变')"))throw new IOException("fact_cancel_failed");
             await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#fact-items button').click();{const c=document.querySelectorAll('#fact-items input')[1];c.checked=true;c.dispatchEvent(new Event('change'));}document.querySelector('#fact-reason').value='窗口核实中文123🙂';document.querySelector('#fact-reason').dispatchEvent(new Event('input'));document.querySelector('#fact-confirm').click()");
+            await ConfirmSourceEditForTest();
             await Until(()=>JsBool("document.querySelector('#fact-notice').textContent.includes('确认已追加') && !document.querySelector('#fact-refresh').disabled"));
             await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#fact-refresh').click()");
             await Until(()=>JsBool("document.querySelector('#fact-summary').textContent.includes('当前 1，冲突 0，历史 2') && document.querySelector('#fact-items').textContent.includes('窗口核实中文123🙂')"));
@@ -1511,6 +1594,7 @@ internal sealed class ProbeWindow : Form
             await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#fact-items button').click();document.querySelector('#fact-value').value='管理员更正142城';document.querySelector('#fact-value').dispatchEvent(new Event('input'));document.querySelector('#fact-reason').value='现场核实142🙂';document.querySelector('#fact-reason').dispatchEvent(new Event('input'))");
             if(!await JsBool("document.querySelector('#fact-confirm').disabled && !document.querySelector('#fact-correct').disabled && document.querySelector('#memory-refresh').disabled"))throw new IOException("fact_correction_controls_invalid");
             await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#fact-correct').click()");
+            await ConfirmSourceEditForTest();
             await Until(()=>JsBool("document.querySelector('#fact-notice').textContent.includes('管理员更正已保存') && !document.querySelector('#fact-refresh').disabled"));
             await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#fact-refresh').click()");
             await Until(()=>JsBool("document.querySelector('#fact-summary').textContent.includes('当前 1，冲突 0，历史 3') && document.querySelector('#fact-items').textContent.includes('管理员更正142城') && document.querySelector('#fact-items').textContent.includes('原始来源原话（更正前）')"));
@@ -1580,6 +1664,7 @@ internal sealed class ProbeWindow : Form
                 await view.CoreWebView2.ExecuteScriptAsync($"document.querySelector('#memory-content').value='窗口更正147{label}中文456🙂';document.querySelector('#memory-content').dispatchEvent(new Event('input'));document.querySelector('#memory-tags').value='核实标签147';document.querySelector('#memory-tags').dispatchEvent(new Event('input'))");
                 if(!await JsBool("document.querySelector('#memory-kind').disabled && !document.querySelector('#memory-save').disabled"))throw new IOException("document_draft_controls_invalid");
                 await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#memory-save').click()");
+                await ConfirmSourceEditForTest();
                 await Until(()=>JsBool($"document.querySelector('#memory-notice').textContent.includes('{label}已保存') && !document.querySelector('#memory-refresh').disabled"));
                 await view.CoreWebView2.ExecuteScriptAsync("document.querySelector('#memory-refresh').click()");
                 await Until(()=>JsBool($"document.querySelector('#memory-items').textContent.includes('窗口更正147{label}') && !document.querySelector('#memory-refresh').disabled"));

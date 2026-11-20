@@ -135,6 +135,8 @@ CIPHER_PAYLOADS = (
     # file_library.FileLibrary.import_bytes
     CipherPayload("file_library", "body", "id", "sha256", kind="file-library",
                   size_column="size", max_bytes=MAX_LIBRARY_BYTES),
+    CipherPayload("library_version_bodies", "body", "id", "sha256", kind_column="kind",
+                  size_column="size", max_bytes=MAX_LIBRARY_BYTES),
     # asset_transfer.enqueue/finish; a complete export has no pending job rows.
     CipherPayload("asset_restore_jobs", "body", "id", "digest", kind="asset-restore",
                   max_bytes=MAX_ASSET_BYTES),
@@ -160,6 +162,7 @@ LEDGER_PAYLOADS = (
                   mapping=True),
     LedgerPayload("sticker_library", "metadata", prefix="sticker:", key_column="id", mapping=True),
     LedgerPayload("file_library", "metadata", prefix="file-library:", key_column="id", mapping=True),
+    LedgerPayload("library_versions", "metadata", prefix="library-version:", key_column="revision", mapping=True),
 )
 
 # The PostgreSQL backend never journals a pending relationship: relationship_store.commit

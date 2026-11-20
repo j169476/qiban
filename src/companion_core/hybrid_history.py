@@ -60,13 +60,11 @@ class HybridHistory:
     @classmethod
     def configured(cls):
         override = os.getenv("QIBAN_HYBRID_HISTORY_DIR")
-        if override == "off":
-            return None
         try:
             return cls(shared_encoder(Path(override).resolve() if override else MODEL_DIR))
         except Exception as exc:
-            logger.warning("Local history encoder unavailable (%s), using standard recall", type(exc).__name__)
-            return None
+            logger.warning("Local history vectors unavailable (%s)", type(exc).__name__)
+            return cls(None)
 
     def encode(self, texts):
         try:
@@ -74,12 +72,11 @@ class HybridHistory:
         except Exception as exc:
             raise EncoderUnavailable(type(exc).__name__) from exc
 
-    def __call__(self, records, query, queries=(), *, passages=None, current_sender=None):
-        if not records:
-            return {}
-        sparse = scores(records, query, queries, passages=passages)
+    def vector_scores(self, records, query):
         dense = {}
-        with self.lock:
+        if self.encoder is None:
+            return dense
+        try:
             question = self.encode(["为这个句子生成表示以用于检索相关文章：" + query])[0]
             # Score cache hits first so inserting a miss cannot evict a later hit in this scan.
             missing = []
@@ -98,6 +95,19 @@ class HybridHistory:
                     self.cache[key] = vector.copy()
                     if len(self.cache) > 2048:
                         self.cache.popitem(last=False)
+        except EncoderUnavailable as exc:
+            logger.warning("Local history vectors unavailable (%s)", exc)
+            self.encoder = None
+            self.cache.clear()
+            return {}
+        return dense
+
+    def __call__(self, records, query, queries=(), *, passages=None, current_sender=None):
+        if not records:
+            return {}
+        sparse = scores(records, query, queries, passages=passages)
+        with self.lock:
+            dense = self.vector_scores(records, query)
         fused = {}
         for ranking in (sparse, dense):
             for rank, key in enumerate(sorted((k for k in ranking if ranking[k] > 0),

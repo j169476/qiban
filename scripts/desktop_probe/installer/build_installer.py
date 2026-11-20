@@ -1,55 +1,8 @@
-"""Compile the per-user Qiban installer from one already assembled application directory.
+"""Build a per-user installer from a verified application directory.
 
-This tool does not build the desktop shell, the storage worker, PostgreSQL or any model resource:
-``build.ps1`` + ``assemble_application.py`` already produced that directory, and this tool only
-proves it is still exactly the assembled application before handing it to the official Inno Setup
-compiler unchanged.
-
-Compile-time inputs are checked before anything is written, and nothing here is a fallback hash
-scheme of its own:
-
-* the payload root file set must equal this release's exact published list - ``Qiban.exe``,
-  ``README.txt``, ``managed-application.json``, ``desktop-build.json``, ``desktop-sources.zip`` and
-  the eight shipped license/notice files. The only root directory is ``resources``, whose children
-  may only be ``storage``, ``postgres``, ``speech``, ``wechat``, ``qq``;
-* ``build_desktop_sources.verify`` re-proves that the executable, its sources archive and its
-  build record still belong to each other;
-* ``assemble_application.validate`` re-proves every component manifest digest, and each component
-  tree must contain exactly its ``runtime-manifest.json`` plus the files that manifest lists - an
-  unregistered file (a copied profile, a stray log, a hand-added binary) is refused;
-* ``companion_qq.native_resources.verify_runtime`` re-proves the QQ native runtime;
-* every directory and file is refused when it is a symbolic link, junction or other reparse point,
-  so the walk can never leave the payload and pack something else;
-* the digest of the whole ``desktop-build.json`` becomes the Inno macro that lets the installer
-  recognise the same build later for a repair, and refuse any other build;
-* one deterministic ``qiban-payload.json`` lists every published file with its byte count and
-  SHA-256 - relative paths only, no clock, no version, no source path - and the digest of that
-  document is the build identity the installer compares before it writes anything. It is written
-  next to the setup and installed by the script; the assembled payload is never modified. The
-  comparison reads that one record and never re-hashes the target's files, because a damaged or
-  missing payload file is exactly what a same-build repair has to be able to overwrite.
-
-The payload identity covers every published file, so a build that changes only one component -
-for example a rebuilt ``resources/postgres`` with an unchanged executable and shell record - is a
-different build and is refused instead of being repaired over the other one.
-
-The package does not implement an upgrade transaction itself: pairing a new program with existing
-data is done by the *installed* build's own frozen maintenance worker, asked for it by the setup's
-embedded glue (``prepare_upgrade.ps1``), and only a build that reports that it can prepare one is
-ever upgraded. A build without the maintenance verb is refused before a single file is written;
-the same-build repair, a first install and a replacement of a program whose default profile never
-created an installation stay plain file copies. An uninstaller only removes the files and
-shortcuts it recorded, plus the one upgrade-recovery shortcut the glue creates, and personal data
-outside the program directory is retained unless the user explicitly selects default-profile cleanup. The identity identifies which published file set
-is installed; it is not a publisher signature, it is not claimed to resist deliberate local
-tampering, and it pairs no program with any data on its own. Non-zero exit means no setup and no
-build record were produced; a validated ``qiban-payload.json`` may stay in the output directory to
-show what the compile failed on.
-
-Two deterministic manifests are written beside the setup: ``qiban-payload.json`` (installed into
-the program directory and compared by the gate) and ``qiban-target-payload.json``, byte-identical
-under a setup-only name that the setup embeds without installing, so the maintenance glue always
-receives this package's own published file list as one unambiguous path.
+The payload manifest records every installed path and digest. The compiler uses the
+same manifest to share identical file data. Setup also embeds the manifest under a
+private name for the installed maintenance worker during repairs and upgrades.
 """
 from __future__ import annotations
 
@@ -62,6 +15,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -72,7 +26,7 @@ NOTES = HERE/'INSTALL-NOTES.txt'
 GLUE = HERE/'prepare_upgrade.ps1'
 DEFAULT_OUTPUT = REPO/'.dev/refactor-r0/desktop/installer-174/output'
 DEFAULT_ISCC = REPO/'.dev/refactor-r0/desktop/installer-174/tools/inno/ISCC.exe'
-DEFAULT_VERSION = '0.9.9.1'
+DEFAULT_VERSION = '0.9.9.4'
 RECORD = 'installer-build.json'
 IDENTITY = 'qiban-payload.json'
 # Byte-identical copy of IDENTITY under a setup-only name. The setup embeds this one (dontcopy) so
@@ -104,7 +58,7 @@ VERSION_PATTERN = re.compile(r'\d+(\.\d+){1,3}')
 REPARSE = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)
 sys.path.insert(0, str(PROBE))
 sys.path.insert(0, str(REPO/'src'))
-from assemble_application import validate as validate_resources  # noqa: E402
+from assemble_application import resource_manifest  # noqa: E402
 from build_desktop_sources import MANIFEST, BuildError  # noqa: E402
 from build_desktop_sources import verify as verify_desktop_build  # noqa: E402
 
@@ -187,7 +141,7 @@ def _entries(directory):
 
 def _walk(payload):
     """Every regular file below the payload, refusing links before anything is followed."""
-    found, pending = [], ['']
+    found, directories, pending = set(), set(), ['']
     while pending:
         relative = pending.pop()
         current = payload/relative if relative else payload
@@ -196,26 +150,19 @@ def _walk(payload):
             if _linked(entry):
                 raise BuildError('installer_payload_link', f'应用目录中存在链接或目录联接：{name}')
             if entry.is_dir(follow_symlinks=False):
+                directories.add(name)
                 pending.append(name)
             elif entry.is_file(follow_symlinks=False):
-                found.append(name)
+                found.add(name)
             else:
                 raise BuildError('installer_payload_file', f'应用目录中存在非常规文件：{name}')
-    return found
+    return found, directories
 
 
-def _root_layout(payload):
+def _root_layout(paths, folders):
     """The root must be this release's exact file list plus the single resources directory."""
-    files, directories = set(), set()
-    for entry in _entries(payload):
-        if _linked(entry):
-            raise BuildError('installer_payload_link', f'应用目录中存在链接或目录联接：{entry.name}')
-        if entry.is_dir(follow_symlinks=False):
-            directories.add(entry.name)
-        elif entry.is_file(follow_symlinks=False):
-            files.add(entry.name)
-        else:
-            raise BuildError('installer_payload_file', f'应用目录中存在非常规文件：{entry.name}')
+    files = {name for name in paths if '/' not in name}
+    directories = {name for name in folders if '/' not in name}
     if directories != ROOT_DIRECTORIES:
         unexpected = sorted(directories - ROOT_DIRECTORIES)
         missing = sorted(ROOT_DIRECTORIES - directories)
@@ -227,16 +174,11 @@ def _root_layout(payload):
                          f'根文件与本次发布清单不符：缺少 {missing}，多余 {unexpected}。')
 
 
-def _resources(payload):
+def _resources(paths, folders):
     """Only the known component directories may live under resources."""
-    root = payload/'resources'
-    names = set()
-    for entry in _entries(root):
-        if _linked(entry):
-            raise BuildError('installer_payload_link', f'组件资源中存在链接或目录联接：{entry.name}')
-        if not entry.is_dir(follow_symlinks=False):
-            raise BuildError('installer_resource_unexpected', f'组件资源目录下不接受文件：{entry.name}')
-        names.add(entry.name)
+    if any(name.startswith('resources/') and name.count('/') == 1 for name in paths):
+        raise BuildError('installer_resource_unexpected', '组件资源目录下不接受文件。')
+    names = {name.split('/')[1] for name in folders if name.startswith('resources/') and name.count('/') == 1}
     if not names <= RESOURCE_NAMES:
         raise BuildError('installer_resource_unexpected',
                          f'组件资源目录不接受：{sorted(names - RESOURCE_NAMES)}')
@@ -244,18 +186,6 @@ def _resources(payload):
         if name not in names:
             raise BuildError('installer_resource_missing', f'应用目录缺少组件资源 resources/{name}。')
     return names
-
-
-def _manifest_files(resource, entrypoint):
-    """The exact file set of one component: its own manifest plus everything the manifest lists."""
-    try:
-        manifest = json.loads((resource/MANIFEST_NAME).read_text(encoding='utf8'))
-    except (OSError, ValueError):
-        raise BuildError('installer_resource_mismatch', f'{resource.name} 缺少可读的 {MANIFEST_NAME}。') from None
-    if manifest.get('format') != 1 or manifest.get('entrypoint') != entrypoint:
-        raise BuildError('installer_resource_mismatch', f'{resource.name} 的资源包不是 {entrypoint}。')
-    recorded = {row['path'] for row in manifest['files']}
-    return recorded | {MANIFEST_NAME}
 
 
 def check_payload(directory):
@@ -266,29 +196,33 @@ def check_payload(directory):
     payload = payload.resolve()
     if payload == REPO or (payload/'.git').exists():
         raise BuildError('installer_payload_project', '不接受项目目录本身：请传入 assemble_application.py 的输出目录。')
-    present = set(_walk(payload))
-    # The exact root list already proves the assembled files are there; nothing else is accepted.
-    _root_layout(payload)
-    _resources(payload)
+    present, folders = _walk(payload)
+    _root_layout(present, folders)
+    resources = _resources(present, folders)
     if json.loads((payload/MANAGED).read_text(encoding='utf-8-sig')) != MANAGED_RECORD:
         raise BuildError('installer_payload_managed', '应用目录不是托管应用构建（managed-application.json 不符）。')
     verify_desktop_build(payload, payload/APP_EXE)
     # The uninstall entry is the same program under its own name, never a second build: a copy that
     # differs by one byte is refused here, so the installed alias cannot be something else.
-    if _digest(payload/ALIAS_EXE) != _digest(payload/APP_EXE):
+    identity = payload_identity(payload, present)
+    hashes = {row['path']: row['sha256'] for row in identity['files']}
+    if hashes[ALIAS_EXE] != hashes[APP_EXE]:
         raise BuildError('installer_payload_alias',
                          '卸载入口 uninstall.exe 与主程序 Qiban.exe 不是同一份程序文件。')
     # Registered files only: the manifest must account for every file the component ships.
     for name, entrypoint in MANIFEST_RESOURCES:
         resource = payload/'resources'/name
-        if not resource.is_dir():
+        if name not in resources:
             continue
         try:
-            validate_resources(resource, entrypoint)
-        except (ValueError, OSError) as failure:
+            rows = resource_manifest(resource, entrypoint)
+            for row in rows:
+                if hashes.get(f"resources/{name}/{row['path']}") != row['sha256']:
+                    raise ValueError('Resource mismatch')
+        except (ValueError, OSError, KeyError, TypeError) as failure:
             raise BuildError('installer_resource_mismatch',
                              f'组件资源 resources/{name} 与自己的清单不符：{failure}') from None
-        expected = {f'resources/{name}/{path}' for path in _manifest_files(resource, entrypoint)}
+        expected = {f"resources/{name}/{row['path']}" for row in rows} | {f'resources/{name}/{MANIFEST_NAME}'}
         actual = {path for path in present if path.startswith(f'resources/{name}/')}
         if actual != expected:
             missing, unexpected = sorted(expected - actual)[:5], sorted(actual - expected)[:5]
@@ -302,14 +236,10 @@ def check_payload(directory):
         except Exception as failure:
             raise BuildError('installer_resource_mismatch',
                              f'组件资源 resources/qq 与固定版本不符：{failure}') from None
-    files = [payload/path for path in present]
-    summary = {'files': len(files), 'bytes': sum(path.stat().st_size for path in files),
-               'exe_sha256': _digest(payload/APP_EXE),
-               'alias_sha256': _digest(payload/ALIAS_EXE),
-               'build_record_sha256': _digest(payload/MANIFEST),
-               'present_resources': sorted(name for name in RESOURCE_NAMES
-                                           if (payload/'resources'/name).is_dir())}
-    return payload, summary, payload_identity(payload, present)
+    summary = {'files': identity['count'], 'bytes': identity['bytes'], 'exe_sha256': hashes[APP_EXE],
+               'alias_sha256': hashes[ALIAS_EXE], 'build_record_sha256': hashes[MANIFEST],
+               'present_resources': sorted(resources)}
+    return payload, summary, identity
 
 
 def _source_record(paths):
@@ -332,8 +262,34 @@ def _compiler_version(iscc):
     return first[0] if finished.returncode == 0 and first else None
 
 
+def payload_entries(payload, identity):
+    # ISCC stores a repeated Source once, including when the installed filenames differ.
+    sources = {}
+    lines = ['[Dirs]']
+    for directory, children, files in os.walk(payload):
+        if not children and not files:
+            name = Path(directory).relative_to(payload).as_posix()
+            lines.append(f'Name: "{{app}}\\{installer_name(name)}"')
+    lines.append('[Files]')
+    for row in identity['files']:
+        name = Path(row['path'])
+        source = sources.setdefault((row['bytes'], row['sha256']), row['path'])
+        folder = '{app}'
+        if name.parent != Path('.'):
+            folder += '\\' + installer_name(name.parent.as_posix())
+        lines.append(f'Source: "{{#PayloadDir}}\\{installer_name(source)}"; DestDir: "{folder}"; '
+                     f'DestName: "{installer_name(name.name)}"; Flags: ignoreversion')
+    return '\n'.join(lines) + '\n'
+
+
+def installer_name(name):
+    if any(c in name for c in '"{}\r\n') or Path(name).is_absolute() or '..' in Path(name).parts:
+        raise BuildError('installer_payload_path', f'无法打包此路径：{name}')
+    return name.replace('/', '\\')
+
+
 def compile_setup(iscc, script, output, payload, version, record_sha256, identity_path,
-                  identity_sha256):
+                  identity_sha256, *, file_table=None):
     """Run the official compiler with the validated payload; the output path stays separate."""
     iscc = Path(iscc)
     if not iscc.is_file():
@@ -348,6 +304,8 @@ def compile_setup(iscc, script, output, payload, version, record_sha256, identit
                f'--define=ExpectedPayloadIdentitySha256={identity_sha256}',
                '--no-ide-signtools', '--quiet-progress', str(script)]
     print(' '.join(command), flush=True)
+    if file_table:
+        command.insert(1, f'--define=PayloadEntries={_plain(file_table)}')
     try:
         finished = subprocess.run(command, check=False)
     except OSError as failure:
@@ -393,8 +351,12 @@ def main(argv=None):
             print(json.dumps({**report, 'compiled': False}))
             return 0
         identity_file, identity_sha256 = write_identity(output, document)
-        setup = compile_setup(args.iscc, script, output, payload, args.version,
-                              summary['build_record_sha256'], output/identity_file, identity_sha256)
+        with tempfile.TemporaryDirectory(prefix='qiban-setup-') as temporary:
+            entries = Path(temporary) / 'payload.iss'
+            entries.write_text(payload_entries(payload, identity), encoding='utf-8-sig')
+            setup = compile_setup(args.iscc, script, output, payload, args.version,
+                                  summary['build_record_sha256'], output/identity_file, identity_sha256,
+                                  file_table=entries)
         setup_bytes, setup_sha256 = setup.stat().st_size, _digest(setup)
         record = {'format': FORMAT, 'version': args.version,
                   'setup': {'file': setup.name, 'bytes': setup_bytes, 'sha256': setup_sha256},

@@ -1,14 +1,16 @@
 """Application reply settings. Revisions are immutable; each reply pins one."""
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import NAMESPACE_OID, uuid4, uuid5
 
 from .context_budget import PROPERTIES
 from .errors import AssistantError
 
 HEAD = "reply-workspace:head"
-DRAFT = "reply-workspace:draft"
 PREFIX = "reply-workspace:version:"
+PRESETS = "reply-workspace:preset:"
+DEFAULT_PRESET = {"id": "default", "name": "默认", "revision": "initial"}
 SCENES = ("private", "group", "public")
 LAYERS = ("memory_records", "summary", "relations", "growth", "catalog", "files", "stickers")
 DEFAULT = {"guidance": {}, "limits": {}, "order": list(LAYERS)}
@@ -17,12 +19,16 @@ DEFAULT = {"guidance": {}, "limits": {}, "order": list(LAYERS)}
 def revision(store, version=None, db=None):
     version = store.state(HEAD, "initial", db) if version is None else version
     if version == "initial":
-        return {"version": version, "parent": None, "config": deepcopy(DEFAULT), "at": None, "actor": None}
+        return {"version": version, "parent": None, "config": deepcopy(DEFAULT), "at": None, "actor": None,
+                "preset": DEFAULT_PRESET.copy()}
     if not isinstance(version, str) or len(version) != 32:
         raise AssistantError("workspace_version", "找不到该配置版本")
     record = store.state(PREFIX + version, None, db)
     if record is None:
         raise AssistantError("workspace_version", "找不到该配置版本")
+    if "preset" not in record:
+        record = {**record, "preset": {"id": uuid5(NAMESPACE_OID, PREFIX + version).hex,
+                                      "name": "升级前方案", "revision": version}}
     return record
 
 
@@ -47,43 +53,60 @@ def validate_config(value):
 
 def state(store, db=None):
     active = revision(store, db=db)
-    draft = store.state(DRAFT, None, db) or {"base": active["version"], "revision": "initial", "config": active["config"]}
-    return {"active": active, "draft": draft, "scenes": list(SCENES), "layers": list(LAYERS)}
+    return {"active": active, "scenes": list(SCENES), "layers": list(LAYERS)}
 
 
-def edit(store, action, args, actor, authorize):
+@contextmanager
+def editing(store, args, authorize):
     with store.lock, store.db() as db:
         db.execute("BEGIN IMMEDIATE")
         authorize()
         if store.state("desktop-last-restore", {}, db).get("status") == "assets_pending":
             raise AssistantError("restore_pending", "资料正在恢复")
         view = state(store, db)
-        draft, head = view["draft"], view["active"]["version"]
-        if args["expected"] != draft["revision"] or args["base"] != head:
-            raise AssistantError("edit_conflict", "配置已变更，请重新读取草稿")
-        if action == "save":
-            config = args["config"]
-        elif action == "rollback":
-            config = revision(store, args["version"], db)["config"]
-        else:
-            config = draft["config"]
-        validate_config(config)
-        from .context_budget import DEFAULTS
-        effective = {**DEFAULTS, **store.read("companion")["data"], **config["limits"]}
-        if effective["reply_context_tokens"] <= effective["reply_output_reserve"]:
-            raise AssistantError("workspace_config", "输出预留必须小于总预算")
-        changed = sorted(k for k in set(config) | set(view["active"]["config"])
-                         if config.get(k) != view["active"]["config"].get(k))
-        if action != "save" and (changed or action == "rollback" and args["version"] != head):
-            version = uuid4().hex
-            store.set_state(PREFIX + version, {"version": version, "parent": head, "config": config,
-                            "actor": actor, "at": datetime.now(timezone.utc).isoformat(),
-                            "action": action, "changed": changed, "restored_from": args.get("version")}, db)
-            head = version
-            store.set_state(HEAD, head, db)
-        if draft["config"] != config or draft["base"] != head:
-            store.set_state(DRAFT, {"config": config, "base": head, "revision": uuid4().hex}, db)
-        return state(store, db)
+        if "base" in args and args["base"] != view["active"]["version"]:
+            raise AssistantError("edit_conflict", "当前方案已变更，请重新加载")
+        yield db, view
+
+
+def validate_effective(store, config):
+    from .context_budget import DEFAULTS
+    validate_config(config)
+    effective = {**DEFAULTS, **store.read("companion")["data"], **config["limits"]}
+    if effective["reply_context_tokens"] <= effective["reply_output_reserve"]:
+        raise AssistantError("workspace_config", "输出预留必须小于总预算")
+
+
+def apply_preset(store, db, view, preset, actor):
+    config = preset["config"]
+    validate_effective(store, config)
+    identity = {k: preset[k] for k in DEFAULT_PRESET}
+    head = view["active"]["version"]
+    changed = sorted(k for k in set(config) | set(view["active"]["config"])
+                     if config.get(k) != view["active"]["config"].get(k))
+    if changed or view["active"]["preset"] != identity:
+        version = uuid4().hex
+        store.set_state(PREFIX + version, {"version": version, "parent": head, "config": config,
+                        "actor": actor, "at": datetime.now(timezone.utc).isoformat(),
+                        "action": "apply_preset", "changed": changed, "preset": identity}, db)
+        head = version
+        store.set_state(HEAD, head, db)
+    return state(store, db)
+
+
+def import_previous_settings(store, db):
+    active = revision(store, db=db)
+    preset = active["preset"]
+    if preset["id"] != "default" and not store.state(PRESETS + preset["id"], db=db):
+        store.set_state(PRESETS + preset["id"], {**preset, "config": active["config"]}, db)
+    old_key = "reply-workspace:draft"
+    draft = store.state(old_key, db=db)
+    if draft:
+        if draft["config"] != active["config"]:
+            identifier = uuid4().hex
+            store.set_state(PRESETS + identifier, {"id": identifier, "name": "升级前草稿",
+                            "revision": uuid4().hex, "config": draft["config"]}, db)
+        db.execute("DELETE FROM state WHERE key=?", (old_key,))
 
 
 def policy(settings, pinned):

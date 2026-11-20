@@ -50,7 +50,13 @@ def parse_catalog(value):
             continue
         name = row.get('display_name')
         priority = row.get('priority', 10000)
+        tiers = row.get('service_tiers')
+        if not isinstance(tiers, list):
+            tiers = row.get('additional_speed_tiers') or []
+        ultrafast = isinstance(tiers, list) and any(
+            (tier.get('id') if isinstance(tier, dict) else tier) == 'ultrafast' for tier in tiers)
         found[model] = {'id': model, 'name': name[:128] if isinstance(name, str) else model,
+                        'ultrafast': ultrafast,
                         'efforts': list(dict.fromkeys(efforts)), 'default_effort': default,
                         'priority': priority if type(priority) is int else 10000}
     if not found:
@@ -81,15 +87,17 @@ class ModelCatalog:
         model = saved.get('model', rows[0]['id'])
         row = next((r for r in rows if r['id'] == model), None)
         effort = saved.get('effort', row['default_effort'] if row else '')
+        ultrafast = saved.get('ultrafast') is True
         return {'account_id': access.account_id, 'revision': saved.get('revision', ''),
-                'models': rows, 'model': model, 'effort': effort,
-                'available': bool(row and effort in (row['efforts'] or [None]))}
+                'models': rows, 'model': model, 'effort': effort, 'ultrafast': ultrafast,
+                'available': bool(row and effort in (row['efforts'] or [None])
+                                  and (not ultrafast or row.get('ultrafast')))}
 
-    def configure(self, store, *, account_id, expected, model, effort):
+    def configure(self, store, *, account_id, expected, model, effort, ultrafast=False):
         with self.lock:
-            return self._configure(store, account_id, expected, model, effort)
+            return self._configure(store, account_id, expected, model, effort, ultrafast)
 
-    def _configure(self, store, account_id, expected, model, effort):
+    def _configure(self, store, account_id, expected, model, effort, ultrafast):
         access = self.broker.model_access()
         status = self.status(store, access=access)
         if access.account_id != account_id or status['revision'] != expected:
@@ -97,15 +105,17 @@ class ModelCatalog:
         row = next((r for r in status['models'] if r['id'] == model), None)
         if not row or effort not in (row['efforts'] or [None]):
             raise AssistantError('model_selection', '请选择列表中的模型和推理档位。')
+        if type(ultrafast) is not bool or ultrafast and not row.get('ultrafast'):
+            raise AssistantError('model_selection', '此模型当前不支持所选速度。')
         with store.lock, store.db() as db:
             db.execute('BEGIN IMMEDIATE')
             self.broker.check_model_access(access)
             values = store.state(KEY, {}, db)
             if values.get(account_id, {}).get('revision', '') != expected:
                 raise AssistantError('edit_conflict', '模型选择已变化，请刷新列表。')
-            if expected and status['model'] == model and status['effort'] == effort:
+            if expected and (status['model'], status['effort'], status['ultrafast']) == (model, effort, ultrafast):
                 return status
-            values[account_id] = dict(model=model, effort=effort, revision=secrets.token_hex(16))
+            values[account_id] = dict(model=model, effort=effort, ultrafast=ultrafast, revision=secrets.token_hex(16))
             store.set_state(KEY, values, db)
         return self.status(store, access=access)
 
@@ -113,4 +123,4 @@ class ModelCatalog:
         status = self.status(store, access=access)
         if not status['available']:
             raise AssistantError('model_selection', '所选模型已不可用，请在模型与用量中重新选择。')
-        return status['model'], status['effort']
+        return status['model'], status['effort'], 'ultrafast' if status['ultrafast'] else None

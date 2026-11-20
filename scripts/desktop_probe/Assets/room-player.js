@@ -2,7 +2,7 @@
 (() => {
  'use strict';
  const base=new URL('.',document.currentScript.src);
- const idlePoses=['sleeping','reading','window'];
+ const idlePoses=['sleeping','reading','window','tail'];
  const working=new Set(['replying','learning','watching']);
  const fadeMs=1100,blackMs=300;
  let roomNumber=0;

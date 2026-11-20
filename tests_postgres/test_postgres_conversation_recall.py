@@ -55,7 +55,7 @@ def restrict(store, resource):
 
 
 def test_permissions_and_thread_scope_filter_before_decryption_and_scoring(pg_store, monkeypatch):
-    from companion_core import conversation_recall
+    from companion_core import hybrid_history
 
     _, keys = seed(pg_store)
     denied = record(pg_store, event(100, "DENIED_CANARY 北岸灯塔"))
@@ -67,7 +67,7 @@ def test_permissions_and_thread_scope_filter_before_decryption_and_scoring(pg_st
     events.ingest(pg_store, replace(stale_source, text="corrected source"))
     forbidden = {denied, stale, *foreign}
     decoded, ranked = [], []
-    original_decode, original_scores = pg_store._decode, conversation_recall.scores
+    original_decode, original_scores = pg_store._decode, hybrid_history.scores
 
     def decode(kind, key, *args):
         if kind == "conversation_turns":
@@ -79,7 +79,7 @@ def test_permissions_and_thread_scope_filter_before_decryption_and_scoring(pg_st
         return original_scores(records, *args, **kwargs)
 
     monkeypatch.setattr(pg_store, "_decode", decode)
-    monkeypatch.setattr(conversation_recall, "scores", scores)
+    monkeypatch.setattr(hybrid_history, "scores", scores)
     current = event(200, "北岸灯塔")
     governed = GovernedContext(pg_store, current)
     result = governed.conversation("bot", conversations.thread_id("bot", "alpha", current.thread), query="北岸灯塔")
@@ -139,8 +139,7 @@ class Model:
 
 
 @pytest.mark.asyncio
-async def test_history_only_uses_one_shared_expansion_and_scoped_plan_cache(pg_store, monkeypatch):
-    monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", "off")
+async def test_history_only_keeps_corrections_without_cloud_expansion(pg_store):
     seed(pg_store)
     assert not pg_store.records("memories")[0]
     model, adapter = Model(), Adapter()
@@ -153,15 +152,14 @@ async def test_history_only_uses_one_shared_expansion_and_scoped_plan_cache(pg_s
             conversation = model.decisions[-1]["conversation"]
             assert "钴蓝纸鹤" in str(conversation["recalled"]) and "周五" in str(conversation["recalled"])
             assert conversation["context_chars"] <= 12000
-        assert model.expansions == [{"query": "之前那个碰面安排"}]
+        assert not model.expansions
         assert len(model.decisions) == len(adapter.sent) == 2
     finally:
         core.stop()
 
 
 @pytest.mark.asyncio
-async def test_failed_expansion_falls_back_to_original_history_query(pg_store, monkeypatch):
-    monkeypatch.setenv("QIBAN_HYBRID_HISTORY_DIR", "off")
+async def test_history_query_works_without_cloud_expansion(pg_store):
     seed(pg_store)
     model, adapter = Model(fail_expansion=True), Adapter()
     core = Companion(pg_store, model, Host(), [adapter])
@@ -169,7 +167,7 @@ async def test_failed_expansion_falls_back_to_original_history_query(pg_store, m
     try:
         assert (await core.handle(event(200, "北岸灯塔")))["action"]["status"] == "succeeded"
         assert "钴蓝纸鹤" in str(model.decisions[-1]["conversation"]["recalled"])
-        assert len(model.expansions) == len(model.decisions) == 1
+        assert not model.expansions and len(model.decisions) == 1
     finally:
         core.stop()
 

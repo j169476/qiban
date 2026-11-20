@@ -75,6 +75,25 @@ class FactManagement:
             raise AssistantError("invalid_query", "更正后的事实值需要 1 至 160 字")
         return self._append(request, identifier, expected, reason, supersedes, value=value.strip())
 
+    def restore(self, request, identifier, version, expected, reason, supersedes):
+        """Copy a prior value of this subject and attribute into a new correction."""
+        self.admin.authority.require(request, administrator=True)
+        if not isinstance(version, str) or not isinstance(identifier, str):
+            raise AssistantError("invalid_query", "请选择要恢复的事实版本")
+        with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            facts = self.view(request, identifier)
+            if facts.signature != expected:
+                raise AssistantError("edit_conflict", "事实已变化，请重新读取")
+            headers = {row["id"]: row for row in facts.headers}
+            old = headers.get(version)
+            if (old is None or old["attribute"] != headers[identifier]["attribute"]
+                    or facts.states[version] not in {"historical", "disputed", "active"}):
+                raise AssistantError("invalid_query", "该版本不属于这条事实的可用历史")
+            value = facts.read(old)["data"]["fact"]["value"]
+            facts.governed.freeze().check()
+            return self.correct(request, identifier, expected, reason, supersedes, value)
+
     def _append(self, request, identifier, expected, reason, supersedes, *, value=None):
         self.admin.authority.require(request, administrator=True)
         if (not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 1000

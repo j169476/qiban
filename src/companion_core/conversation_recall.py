@@ -1,9 +1,9 @@
-"""Lexical recall of already-authorized raw turns, with versioned source excerpts."""
+"""Local hybrid recall of authorized conversation turns, with versioned source excerpts."""
 import json
 from copy import deepcopy
 
+from .hybrid_history import HybridHistory
 from .passages import LONG_RECORD_CHARS, excerpt, metadata, split, terms
-from .retrieval import scores
 
 MAX_CHARS = 6000
 MAX_ANCHORS = 2
@@ -47,8 +47,9 @@ def recall(available, query, queries=(), *, excluded=(), max_chars=MAX_CHARS, ra
                   if item["data"]["id"] not in excluded and item["data"]["content"]]
     spans = {("conversation_turns", item["data"]["id"]): split(item["data"]["content"])
              for item in candidates if len(item["data"]["content"]) > LONG_RECORD_CHARS}
-    ranked = (ranker(candidates, query, queries, passages=spans, current_sender=current_sender) if ranker
-              else scores(candidates, query, queries, passages=spans))
+    if ranker is None:
+        ranker = HybridHistory.configured()
+    ranked = ranker(candidates, query, queries, passages=spans, current_sender=current_sender)
     positions = {item["data"]["id"]: index for index, item in enumerate(available)}
     matches = sorted((key[1] for key, score in ranked.items() if score > 0),
                      key=lambda key: (ranked["conversation_turns", key], positions[key]), reverse=True)

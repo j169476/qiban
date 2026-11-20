@@ -25,24 +25,31 @@ def read(manager, op, args=None):
     return value["result"]
 
 
-def test_preview_publish_conflict_rollback_and_frozen_reply(service):
+def save(service, config):
+    return read(service, "context.preset_save", {"id": uuid4().hex, "revision": None,
+                "config": config, "name": "测试用方案"})["preset"]
+
+
+def apply(service, preset, base):
+    return read(service, "context.preset_apply", {"id": preset["id"], "revision": preset["revision"],
+                "base": base})["workspace"]
+
+
+def test_preview_apply_conflict_reset_and_frozen_reply(service):
     initial = read(service, "context.workspace")
-    assert "context.publish" in read(service, "workspace.capabilities")["operations"]
-    expected = {"base": "initial", "expected": "initial"}
+    assert "context.publish" not in read(service, "workspace.capabilities")["operations"]
     config = {**initial["active"]["config"], "guidance": {"private": "请简短作答"}, "disabled": ["summary"]}
-    draft = read(service, "context.save", {**expected, "config": config})["draft"]
-    preview = read(service, "context.preview", {"scene": "private", "expected": draft["revision"]})
+    item = save(service, config)
+    preview = read(service, "context.preview_config", {"scene": "private", "config": config})
     assert preview["reports"]["draft"]["sections"]["summary"]["reason"] == "disabled"
     assert preview["reports"]["active"]["sections"]["summary"]["kept"] == 1
-    assert read(service, "context.preview", {"scene": "public", "expected": draft["revision"]})["excluded"]
+    assert read(service, "context.preview_config", {"scene": "public", "config": config})["excluded"]
     old = workspace.revision(service.store)
-    assert call(service, "context.save", {**expected, "config": config})["error"] == "edit_conflict"
-    published = read(service, "context.publish", {**expected, "expected": draft["revision"]})
+    published = apply(service, item, "initial")
     one = published["active"]["version"]
     assert old["config"]["guidance"] == {} and one != old["version"]
-    args = {"base": one, "expected": published["draft"]["revision"]}
-    assert read(service, "context.publish", args)["active"]["version"] == one
-    restored = read(service, "context.rollback", {**args, "version": "initial"})
+    assert apply(service, item, one)["active"]["version"] == one
+    restored = apply(service, workspace.DEFAULT_PRESET, one)
     assert restored["active"]["parent"] == one and restored["active"]["config"] == old["config"]
     assert [v["version"] for v in read(service, "context.history", {"after": None})["items"]] == [
         restored["active"]["version"], one, "initial"]
@@ -57,11 +64,11 @@ async def test_publish_during_desktop_reply_only_changes_the_following_reply(ser
     from tests_postgres.test_runtime import Model
 
     config = {**workspace.DEFAULT, "guidance": {"private": "合成的局部规则"}}
-    draft = read(service, "context.save", {"config": config, "expected": "initial", "base": "initial"})["draft"]
+    item = save(service, config)
     class Publishing(Model):
         async def generate(self, instructions, context, schema, images=(), **kwargs):
             if not self.contexts:
-                self.version = read(service, "context.publish", {"base": "initial", "expected": draft["revision"]})["active"]["version"]
+                self.version = apply(service, item, "initial")["active"]["version"]
             return await super().generate(instructions, context, schema, images, **kwargs)
     model = Publishing()
     runtime = DesktopRuntime(service, "workspace-test", room_model=model, adapters=[service.room])
@@ -78,6 +85,14 @@ async def test_publish_during_desktop_reply_only_changes_the_following_reply(ser
             trace = read(service, "reply_trace.detail", {"identifier": row["id"]})
             versions.append(next(s["workspace_version"] for s in trace["steps"] if s["stage"] == "context_budget"))
         assert versions == [model.version, "initial"]
+        assert runtime.status()["active_preset"]["id"] == item["id"]
+        pages = [read(service, "context.preset_replies", {"id": key, "after": None})
+                 for key in ("default", item["id"])]
+        assert all(len(p["items"]) == 1 and p["items"][0]["text"] for p in pages)
+        assert pages[0]["items"][0]["id"] != pages[1]["items"][0]["id"]
+        with service.store.db() as db:
+            db.execute("DELETE FROM content_records WHERE kind='conversation_turns' AND id=?", (pages[0]["items"][0]["id"],))
+        assert read(service, "context.preset_replies", {"id": "default", "after": None})["items"] == []
     finally:
         runtime.close()
 

@@ -130,7 +130,7 @@
   stale=false;list=null;selected=null;claim=null;history=null;preview=null;
   draft=blankDraft();notes.clear();render();
  }
- function blankDraft(){return {status:'',reason:''};}
+ function blankDraft(){return {status:'',reason:'',text:null,declaredReason:null};}
  function clearPreview(){preview=null;previewSeq++;previewActive=0;forget('preview');}
  function clearHistory(){history=null;historySeq++;historyActive=0;forget('history');}
  function dropSelection(message){
@@ -143,7 +143,7 @@
  function renderList(){
   const box=el('items');box.replaceChildren();
   if(!allowed)return;
-  if(!list){paragraph(box,'还没有读取人际关系声明。点“读取关系声明”开始；本页只读取已有声明，不会新增关系。','note');return;}
+  if(!list){paragraph(box,'点「读取关系声明」查看已有的人际关系。','note');return;}
   if(!list.claims.length){
    paragraph(box,list.after?'没有更多声明了。':'没有符合当前筛选的声明。可切换筛选后重新读取。','note');
    return;
@@ -155,7 +155,7 @@
    if(selected&&selected===item.id)row.setAttribute('aria-current','true');
    row.onclick=()=>{void openClaim(item.id);};
   }
-  paragraph(box,'这里只显示声明双方、关系描述与状态；只有本机管理员能读取原文证据与变更历史。','note');
+  paragraph(box,'选中一条声明，可查看双方、关系描述和状态。管理员还可核对证据和历史。','note');
  }
  // --- detail and evidence ----------------------------------------------------
  async function openClaim(identifier){
@@ -237,7 +237,7 @@
     ?'引用版本与当前一致，但本页摘录总量已达上限，这一项的正文没有展示。'
     :'引用版本与当前一致，但这一项没有可展示的正文。','note');
   }else{
-   paragraph(box,'不展示正文：只有引用版本与当前一致时才会给出摘录，不用现在的正文冒充当时的证据。','note');
+   paragraph(box,'引用版本与当前版本一致时可查看证据摘录。','note');
   }
   technical(box,['来源标识：'+textValue(item&&item.resource),
    '引用时版本：'+textValue(item&&item.pinned_version),
@@ -336,7 +336,7 @@
   if(claim.claim&&claim.claim.restorable===true)
    paragraph(box,'这条声明当前已撤销：改回“已确认”或“有争议”就是恢复此声明。'+
     '已失效或已更换的来源不会因此重新可读，来源版本不会被重新固定，旧依赖版本也不会自动恢复。','note');
-  const label=document.createElement('label');label.textContent='新的状态（不会为同状态增加版本）';
+  const label=document.createElement('label');label.textContent='新的状态';
   const select=document.createElement('select');
   for(const item of targets){
    const option=document.createElement('option');
@@ -412,6 +412,15 @@
   for(const item of items){
    const entry=document.createElement('article');entry.className='relation-claims-history';
    for(const line of historyLines(item))paragraph(entry,line,'note');
+   for(const [side,name] of [['before','更改前'],['after','更改后']]){
+    const part=item[side];
+    if(!Number.isInteger(item.sequence)||!part?.text?.relation)continue;
+    paragraph(entry,name+' · '+part.text.relation+(part.text.reason?' · '+part.text.reason:''));
+    const restore=button(entry,'预览恢复'+name+'的版本','secondary');
+    restore.disabled=!allowed||busy()||stale||part.version===claim.claim?.version;
+    restore.onclick=()=>previewChange(null,draft.reason,'relations.restore_preview',
+     {sequence:item.sequence,side,expected:claim.claim.version});
+   }
    technical(entry,historyTechnical(item));
    box.append(entry);
   }
@@ -422,7 +431,7 @@
   const reload=button(actions,'重新读取变更历史','secondary');
   reload.disabled=!allowed||busy()||!selected;
   reload.onclick=()=>{void loadHistory('');};
-  paragraph(actions,'历史按写入顺序列出，每条不可变，不会自动删除；不包含本功能开始记录之前的裁决。','note');
+  paragraph(actions,'从启用记录功能起，历次更改按写入顺序保留。','note');
   actions.append(feedback(actions,'history'));
   box.append(actions);
  }
@@ -451,6 +460,19 @@
   technical(box,[...claimTechnical(),...sourceTechnical(claim.source),'来源状态摘要：'+
    textValue(claim.source&&claim.source.digest)]);
   box.append(statusForm());
+  if(claim.claim&&!claim.claim.body_error){
+   const form=document.createElement('details'),toggle=document.createElement('summary');
+   toggle.textContent='修改声明正文';form.append(toggle);
+   for(const [key,title,max,value] of [['text','关系正文',80,claim.claim.relation],['declaredReason','声明说明',1000,claim.claim.declared_reason]]){
+    const field=document.createElement('label'),input=document.createElement('textarea');field.textContent=title;
+    input.maxLength=max;input.rows=2;input.value=draft[key]??value??'';input.oninput=()=>{draft[key]=input.value;};
+    field.append(input);form.append(field);
+   }
+   const edit=button(form,'预览正文修改','secondary');edit.disabled=!allowed||busy()||stale;
+   edit.onclick=()=>previewChange(null,draft.reason,'relations.text_preview',{expected:claim.claim.version,
+    relation:draft.text??claim.claim.relation,declared_reason:draft.declaredReason??claim.claim.declared_reason??''});
+   box.append(form);
+  }
   if(typeof claim.meaning==='string'&&claim.meaning)paragraph(box,claim.meaning,'note');
  }
  // --- preview and commit -----------------------------------------------------
@@ -462,7 +484,10 @@
    rows.push('这一次是恢复此声明：已撤销改回可用状态；来源不被重新固定，旧依赖版本不自动恢复。');
   rows.push('更正说明：'+(typeof preview.reason==='string'&&preview.reason?preview.reason:'未填写')+
    '（只写入变更历史）');
-  rows.push('保持不变：正文、主体、对象、声明人、原证据、归属账号与到期时间；'+
+  if(after.text){
+   rows.push('当前正文：'+(before.text?.relation||'')+' · '+(before.text?.reason||''),
+    '提交后正文：'+after.text.relation+' · '+(after.text.reason||''));
+  }else rows.push('保持不变：正文、主体、对象、声明人、原证据、归属账号与到期时间；'+
    '账号关联、回复授权和其他资料权限也不变。');
   return rows;
  }
@@ -473,7 +498,7 @@
   if(!allowed||(!preview&&!message)){wrap.hidden=true;return;}
   wrap.hidden=false;
   if(!preview){paragraph(box,message,'note');return;}
-  heading(box,'h4','确认这次状态更正');
+  heading(box,'h4',preview.after?.text?'确认修改声明':'确认这次状态更正');
   paragraph(box,'这一步还没有写入任何更改：只有点“确认提交”才会提交这次预览的服务端口令。','note');
   lines(box,previewLines());
   heading(box,'h5','来源检查');
@@ -496,15 +521,15 @@
   cancel.onclick=()=>{void cancelPreview();};
   box.append(actions);box.append(feedback(box,'preview'));
  }
- async function previewChange(status,reason){
+ async function previewChange(status,reason,operation='relations.preview',fields={status}){
   if(!allowed||navigating()||stale||!selected||!claim)return undefined;
   const current=epoch,op=++previewSeq;
   previewActive=op;preview=null;
   say('preview','正在核对这次状态更正的影响……');
   render();
   try{
-   const value=await call('relations.preview',
-    {identifier:selected,status,reason},'预览超时，请重新核对后再预览。');
+   const value=await call(operation,
+    {identifier:selected,reason,...fields},'预览超时，请重新核对后再预览。');
    if(epoch!==current||op!==previewSeq)return undefined;
    preview=value;forget('preview','preview-action');
   }catch(error){
@@ -639,9 +664,13 @@
   const next=list&&list.next;
   if(allowed&&!navigating()&&typeof next==='string'&&next)void loadPage(next);
  };
+ let sourceSession=null;
  window.addEventListener('qiban-management-state',({detail})=>{
   el('panel').hidden=document.getElementById('management-panel').hidden;
   const now=Boolean(detail&&detail.ready&&!detail.locked);
+  const session=detail?.roomSession??null;
+  if(now&&allowed&&sourceSession!==session)setAllowed(false);
+  sourceSession=now?session:null;
   if(now===allowed)return;
   setAllowed(now);
   if(allowed)void loadPage('');

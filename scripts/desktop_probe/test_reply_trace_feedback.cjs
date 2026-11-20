@@ -139,7 +139,7 @@ test('an empty history is stated plainly and the button stays usable',async()=>{
  await p.flush(2);
  const text=p.texts(p.node('reply-trace-list')).join('|');
  assert.match(text,/本机还没有回复处理记录/);
- assert.match(text,/超过保留期后会被自动清理/);
+ assert.match(text,/到期记录会自动清理/);
  assert.match(p.node('reply-trace-status').textContent,/已读取最近 0 条回复处理记录/);
  assert.equal(p.node('reply-trace-load').disabled,false);
  // The area follows the management panel, including when nothing else changed.
@@ -214,7 +214,7 @@ test('a record shows platform, times, stages and source version state',async()=>
  assert.match(text,/资源：memories\/rotated；版本：r1；已不是当前版本/);
  assert.match(text,/另有 1 个来源按当前读权限不可读，已隐藏/);
  assert.match(text,/记录只保留了前 100 个（已截断）/);
- assert.match(text,/不提供打开原文的入口/);
+ assert.match(text,/本次回复参考的资料及版本/);
  assert.match(text,/不保存提示词、原文或模型内部推理/);
  // Never raw markup: the page builds text nodes only.
  assert.deepEqual(p.markup,[]);

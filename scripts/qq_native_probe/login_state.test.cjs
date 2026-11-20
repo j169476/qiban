@@ -2,6 +2,16 @@
 const test = require('node:test'), assert = require('node:assert/strict');
 const {LoginState} = require('../../src/companion_qq/native/login_state.cjs');
 const picture = {pngBase64QrcodeData: Buffer.from('89504e470d0a1a0a00', 'hex').toString('base64')};
+test('picture acquisition and scan have independent deadlines', () => {
+  let now = 0;
+  const make = () => new LoginState({getQRCodePicture() {}}, {clock: () => now, pictureTimeoutMs: 10, lifetimeMs: 30});
+  const timedOut = make(); timedOut.connected(); timedOut.request();
+  now = 10; timedOut.picture(picture); assert.equal(timedOut.status().status, 'picture_timeout');
+  const shown = make(); shown.connected(); shown.request();
+  now = 19; shown.picture(picture);
+  now = 48; assert.equal(shown.status().status, 'qr_ready');
+  now = 49; assert.equal(shown.status().status, 'expired');
+});
 test('login never requests QR until explicit action and does not refresh automatically', () => {
   let calls = 0;
   const state = new LoginState({getQRCodePicture() {calls++;}});

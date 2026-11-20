@@ -102,10 +102,11 @@ def http_failure(status, payload):
     return _failure(code, diagnostics)
 
 
-def request_body(instructions, context, output_schema, model, reasoning_effort):
+def request_body(instructions, context, output_schema, model, reasoning_effort, service_tier=None):
     """Fixed request: one native web tool, JSON-schema text, streamed and unretained."""
     body = {
         "model": model,
+        **({"service_tier": service_tier} if service_tier else {}),
         **({"reasoning": {"effort": reasoning_effort}} if reasoning_effort is not None else {}),
         "store": False,
         "stream": True,
@@ -386,7 +387,7 @@ def _decision(evidence, output_schema):
 
 async def generate(instructions, context, output_schema, images=(), *, policy, guard, observation,
                    access, model=None, reasoning_effort=None, phase=lambda value: None,
-                   transport=None):
+                   transport=None, service_tier=None):
     if images:
         raise _failure("model_input_unsupported")
     if (not isinstance(model, str) or not IDENTIFIER.fullmatch(model)
@@ -396,7 +397,7 @@ async def generate(instructions, context, output_schema, images=(), *, policy, g
     token = getattr(access, "access_token", "")
     if not isinstance(token, str) or not token:
         raise _failure("model_auth")
-    body = request_body(instructions, context, output_schema, model, reasoning_effort)
+    body = request_body(instructions, context, output_schema, model, reasoning_effort, service_tier)
     seconds = _duration(policy)
     deadline = time.monotonic() + seconds
     evidence = Evidence(model)

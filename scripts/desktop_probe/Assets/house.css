@@ -57,6 +57,9 @@ body[data-room-open] .probe #room-open {color:#59416f;background:var(--tint);bor
 #reader-body details{margin-top:14px;padding:10px 13px;border:1px solid var(--line);border-radius:11px}
 #reader-body summary{cursor:pointer;font-weight:600}
 #reader-body pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}
+#reader-body .reader-upstreams table{min-width:0;table-layout:fixed}
+#reader-body .reader-upstreams th:first-child{width:60%}
+#reader-body .reader-upstreams a{color:#624676;text-decoration:underline;text-underline-offset:.16em}
 .reader-table{max-width:100%;overflow:auto;overscroll-behavior-x:contain;border:1px solid var(--line);border-radius:12px;margin:10px 0}
 .reader-table table{width:100%;min-width:max-content;border-collapse:collapse;font-size:13px;line-height:1.5}
 .reader-table :is(th,td){padding:8px 11px;border-bottom:1px solid var(--line);max-width:38ch;white-space:normal;text-align:start}
@@ -102,6 +105,11 @@ body[data-room-open] .probe #room-open {color:#59416f;background:var(--tint);bor
 #model-effort-choices p {margin:.8rem 0 .35rem;font-size:13px;font-weight:600}
 #model-effort-choices button {margin:0 .35rem .35rem 0;min-height:31px;padding:4px 10px}
 #model-effort-choices button[aria-pressed=true] {background:#ebe0f3;border-color:#c9afd9;color:#4f3561}
+.model-choice-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 8px}
+.model-choice-row label{grid-column:1/-1}
+.model-choice-row select{width:100%;min-width:0}
+.model-choice-row:has(button[hidden]) select{grid-column:1/-1}
+#model-ultrafast[aria-pressed=true]{background:#ebe0f3;border-color:#987aa8;color:#4f3561}
 .probe #model-choice-panel>.actions {margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
 .house-card-head {margin-bottom:10px}.house-card-head h2 {font-size:20px;line-height:1.35}
 #house-platform-count {color:#8a6c9b;font:italic 17px Georgia,serif}

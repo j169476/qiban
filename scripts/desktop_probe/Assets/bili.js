@@ -48,11 +48,12 @@
   el('policy-day').textContent='UID '+value.uid+' · '+value.day+'（'+value.timezone+'）';
   for(const [kind,label] of Object.entries(labelsByAction)){
    const row=document.createElement('tr'),enabled=document.createElement('input'),limit=document.createElement('input');
-   enabled.type='checkbox';enabled.checked=value.actions[kind].enabled;enabled.setAttribute('aria-label','启用'+label);
+   enabled.type='checkbox';enabled.id='bili-action-'+kind;enabled.checked=value.actions[kind].enabled;enabled.setAttribute('aria-label','启用'+label);
    limit.type='number';limit.min=0;limit.max=1000;limit.step=1;limit.required=true;limit.value=value.actions[kind].daily_limit;
    limit.setAttribute('aria-label',label+'日限额');edits.push({kind,enabled,limit});
    enabled.onchange=limit.oninput=()=>{policyDirty=true;el('policy-note').textContent='修改后点击保存生效。';};
-   for(const item of [label,enabled,limit,String(value.used[kind]),String(Math.max(0,value.actions[kind].daily_limit-value.used[kind]))]){
+   const actionName=document.createElement('label');actionName.htmlFor=enabled.id;actionName.textContent=label;
+   for(const item of [actionName,enabled,limit,String(value.used[kind]),String(Math.max(0,value.actions[kind].daily_limit-value.used[kind]))]){
     const cell=document.createElement('td');if(typeof item==='string')cell.textContent=item;else cell.append(item);row.append(cell);
    }
    rows.push(row);

@@ -7,7 +7,6 @@ import pytest
 
 from bili_assistant.storage import Store
 from companion_core.errors import AssistantError
-from companion_qq import config as qq_config
 from companion_qq.module import QQModule
 from companion_wechat.module import WeChatModule
 from companion_wechat.native.bridge import validate_build
@@ -67,19 +66,6 @@ def test_qq_new_provider_is_not_a_retry_and_real_disconnect_is_preserved(tmp_pat
     assert module.runtime_status()['state'] == 'retrying'
     module.ready, module.code = True, ''
     assert module.runtime_status()['state'] == 'connected'
-
-
-def test_qq_management_link_uses_local_webui_port_and_never_token(tmp_path):
-    assert qq_config.management_url(tmp_path) == 'http://127.0.0.1:6099/webui'
-    path = tmp_path / '.dev/qq/runtime/config/webui.json'
-    path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({'host': '0.0.0.0', 'port': 6109, 'token': 'private-token'}))
-    assert qq_config.management_url(tmp_path) == 'http://127.0.0.1:6109/webui'
-    for value in ({'port': 80}, {'port': True}, {'port': '6099'}, {'port': 6099, 'host': 'example.com'}):
-        path.write_text(json.dumps(value))
-        assert qq_config.management_url(tmp_path) is None
-    path.write_text('{broken')
-    assert qq_config.management_url(tmp_path) is None
 
 
 @pytest.mark.asyncio
