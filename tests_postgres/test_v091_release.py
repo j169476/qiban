@@ -106,17 +106,16 @@ def test_connection_details_preserve_real_faults_and_uncertain_sends(pg_store, d
     assert service.platform_runs.status('wechat')['connection'] == expected
 
 
-def test_qq_card_and_setup_share_local_management_url_without_mutating_run(pg_store, tmp_path):
+def test_qq_setup_points_to_desktop_without_starting_platform(pg_store, tmp_path):
     service = prepare(pg_store)
     service.host.project = tmp_path
-    path = tmp_path / '.dev/qq/runtime/config/webui.json'
-    path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({'host': '127.0.0.1', 'port': 6209, 'token': 'private-token'}))
     card = service.platform_runs.status('qq')
     wizard = service.setup.status('qq')
-    assert card['management_url'] == wizard['login_url'] == 'http://127.0.0.1:6209/webui'
-    assert 'private-token' not in json.dumps([card, wizard])
+    assert wizard['platform'] == 'qq' and '平台与会话' in wizard['instructions']
+    assert 'management_url' not in card and 'login_url' not in wizard
+    assert not wizard['running_job'] and not wizard['role_started']
     assert card['status'] == 'paused' and not card['busy']
+    assert service.platform_runs.status('qq') == card
 
 
 @pytest.mark.parametrize('state,owner,allowed', [
