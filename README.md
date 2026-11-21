@@ -32,4 +32,4 @@ Windows 安装包附带独立的 PostgreSQL 数据库，由栖伴在本机管理
 
 ## 署名与许可
 
-开发者为 **Yi_Ning和ta的龙娘**。栖伴自有代码采用 MIT 许可，第三方组件遵循各自的许可条款，其中部分微信组件仅限非商业用途。[项目许可](LICENSE) · [第三方许可](THIRD_PARTY_NOTICES.md)
+开发者为 Ning_Yi和ta的龙娘。栖伴自有代码采用 MIT 许可，第三方组件遵循各自的许可条款，其中部分微信组件仅限非商业用途。[项目许可](LICENSE) · [第三方许可](THIRD_PARTY_NOTICES.md)
