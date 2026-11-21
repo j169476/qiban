@@ -73,7 +73,7 @@ ROOT_FILES = {
     "output/design-review/tools/receive_room_art.py", "output/design-review/tools/check_pixel_room.py",
     "docs/DEVELOPMENT.md", "docs/GETTING_STARTED.md", "docs/RELEASE_NOTES.md",
     "docs/微信支持范围.md", "docs/桌面声明.md", "docs/模型选择参考.md",
-    "platforms/linux/README.md",
+    "platforms/linux/.gitkeep",
 }
 SOURCE_DIRS = {"src", "tests", "tests_core", "tests_postgres", "tests_wechat", "scripts",
                "plugins", "packages", "requirements", ".github", ROOM_ORIGINALS}
