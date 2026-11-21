@@ -40,7 +40,7 @@
 ;   PayloadDir                  assembled application directory (contains Qiban.exe)
 ;   OutputDir                   separate build output directory
 ;   PayloadIdentity             qiban-payload.json written by build_installer.py
-;   Version                     development version, e.g. 0.9.4.174 (never a fake 1.0)
+;   Version                     Windows application release version
 ;   ExpectedBuildRecordSha256   SHA-256 of that payload's desktop-build.json
 ;   ExpectedPayloadIdentitySha256  SHA-256 of that qiban-payload.json
 ;

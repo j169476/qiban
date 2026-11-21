@@ -10,8 +10,8 @@ python -m venv .dev/storage-python
 .dev/storage-python/Scripts/python.exe scripts/desktop_probe/build_storage.py --output .dev/storage --work .dev/storage-work
 python scripts/desktop_probe/build_postgres.py --source "C:/BuildTools/postgresql" --output .dev/postgres
 ./scripts/desktop_probe/build.ps1 -ManagedApplication -SubscriptionValidation -OutputDirectory .dev/desktop
-python scripts/desktop_probe/assemble_application.py --desktop .dev/desktop --storage .dev/storage/Qiban.Storage --postgres .dev/postgres --output dist/Qiban-0.9.9.4
-python scripts/desktop_probe/installer/build_installer.py --app dist/Qiban-0.9.9.4 --output-dir dist/Qiban-0.9.9.4-Installer --iscc "C:/BuildTools/InnoSetup/ISCC.exe"
+python scripts/desktop_probe/assemble_application.py --desktop .dev/desktop --storage .dev/storage/Qiban.Storage --postgres .dev/postgres --qq-runtime .dev/qq --wechat-runtime .dev/wechat --speech .dev/speech --output dist/Qiban-1.0.0
+python scripts/desktop_probe/installer/build_installer.py --app dist/Qiban-1.0.0 --output-dir dist/Qiban-1.0.0-Installer --iscc "C:/BuildTools/InnoSetup/ISCC.exe"
 ```
 
 组装时可用 `--qq-runtime`、`--wechat-runtime` 和 `--speech` 指定已准备的对应组件。生成的 `installer-build.json` 记录安装包大小和 SHA-256。
@@ -22,10 +22,12 @@ python scripts/desktop_probe/installer/build_installer.py --app dist/Qiban-0.9.9
 
 ```powershell
 python scripts/prepare_release.py
-python scripts/prepare_release.py --output .dev/releases/windows-0.9.9.4
+python scripts/prepare_release.py --output .dev/releases/windows-1.0.0
 ```
 
 发布工具导出经审查的源码、使用文档、许可与美术素材。公开仓库保留当前用户指南和模型参考表。原始测试记录、交接文档和完整安装包存放在本机。
+
+后续 Linux 桌面入口和打包使用独立的 [Linux 平台目录](../platforms/linux/README.md)。
 
 ## 隐藏的单次回复计时
 

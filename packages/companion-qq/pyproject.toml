@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-companion-qq"
-version = "0.9.9"
+version = "1.0.0"
 description = "Native QQ connector with shared reply authorization and participation policy."
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
-dependencies = ["local-companion-core>=0.9.9,<0.10"]
+dependencies = ["local-companion-core>=1.0.0,<1.1"]
 
 [tool.setuptools.packages.find]
 where = ["../../src"]

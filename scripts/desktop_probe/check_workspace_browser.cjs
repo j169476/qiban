@@ -110,6 +110,11 @@ async function checkHouse(p){
  await p.locator('#monitor-state').filter({hasText:'正在观看视频'}).waitFor();
  await waitActor('watching');
  assert.ok(await p.locator('#monitor-window').evaluate(w=>w.dataset.rendering==='pixel'&&w.base.naturalWidth===w.media.size[0]&&getComputedStyle(w.actor.firstChild).imageRendering==='pixelated'));
+ const season=await p.locator('#monitor-window').evaluate(w=>{
+  const expected=w.media.seasons.find(s=>s.months.includes(new Date().getMonth()+1));
+  return w.landscape.firstChild?.src.endsWith(expected.src)?w.dataset.season:null;
+ });
+ assert.ok(season);
  assert.equal(await p.locator('iframe').count(),0);assert.equal(await p.locator('#runtime-platforms details').count(),4);
  assert.equal(await p.locator('[data-nav-target=home]').getAttribute('aria-current'),'page');
  await draw('01-monitor');
@@ -134,6 +139,7 @@ async function checkHouse(p){
  await p.locator('#save-persona').click();await p.locator('#profile-notice').filter({hasText:'修改未保存'}).waitFor();
  await p.locator('#save-persona').click();await p.locator('#profile-notice').filter({hasText:'资料已保存'}).waitFor();
  await p.locator('#room-open').click();await p.locator('#room-history').filter({hasText:'会客室历史来信'}).waitFor();
+ await p.waitForFunction(s=>{const room=document.getElementById('room-window');return room.dataset.season===s&&room.landscape.firstChild?.naturalWidth>0;},season);
  await p.locator('#room-text').fill('留在会客室的草稿');
  await p.locator('.house-public-links a[href="#declaration"]').click();await p.locator('#reader-body h2').first().waitFor();
  await p.keyboard.press('Escape');await p.locator('#public-reader').waitFor({state:'hidden'});

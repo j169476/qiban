@@ -149,7 +149,20 @@ def test_windows_minimizes_only_unique_hidden_main_without_activation(monkeypatc
         assert not desktop.minimize_hidden(expected)
         assert api.DestroyWindow(second)
         handles.remove(second)
-        assert desktop.minimize_hidden(expected)
+        clock = [0]
+        policy = windows.WeChatTaskbar(desktop, clock=lambda: clock[0])
+        assert policy.observe() is None
+        with monkeypatch.context() as patch:
+            patch.setattr(api, "ShowWindowAsync", lambda hwnd, command: 0)
+            for t in (1, 6):
+                clock[0] = t
+                assert policy.observe() == expected
+                policy.restore(expected)
+                clock[0] = t + 4
+                assert policy.observe() is None
+        clock[0] = 11
+        assert policy.observe() == expected
+        policy.restore(expected)
         deadline = time.monotonic() + 2
         msg = w.MSG()
         while time.monotonic() < deadline and not api.IsIconic(first):

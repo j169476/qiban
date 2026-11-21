@@ -1,4 +1,4 @@
 开源许可
 
-栖伴使用 MIT 许可。安装目录中包含 Qiban-LICENSE.txt、桌面源码 desktop-sources.zip 和各组件的许可文件。
+栖伴自有代码采用 MIT 许可。安装目录中包含 Qiban-LICENSE.txt、桌面源码 desktop-sources.zip 和各组件的许可文件。
 安装器使用 Inno Setup，许可见 https://jrsoftware.org/files/is/license.txt

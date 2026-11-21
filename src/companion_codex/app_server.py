@@ -25,6 +25,7 @@ from companion_core.observability import current_stage
 from companion_core.reply_timing import first_model_delta, model_part, model_turn, timed
 from companion_core.reply_timing import span as timing_span
 
+from . import __version__
 from .isolation import DISABLED_FEATURES, IsolatedJob, login_params, model_settings
 from .process_scope import ProcessScope
 
@@ -398,7 +399,7 @@ async def generate(instructions, context, output_schema, images=(), *, native=No
         cleanup.push_async_callback(asyncio.to_thread, client.close)
         with timing_span("model.initialize"):
             initialized = await client.call("initialize", {
-                "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": "0.9.9"} if plan_access_token is not None
+                "clientInfo": ({"name": "Qiban", "title": "Qiban", "version": __version__} if plan_access_token is not None
                                else {"name": "companion_isolated", "version": "0.6.0"}),
                 "capabilities": {"experimentalApi": True},
             })

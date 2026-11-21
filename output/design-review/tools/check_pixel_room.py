@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from PIL import Image
-from receive_room_art import DESKTOP, INBOX, PERIODS, POSES
+from receive_room_art import DESKTOP, INBOX, PERIODS, POSES, SEASONS
 
 
 def verify(inbox, desktop):
@@ -14,6 +14,10 @@ def verify(inbox, desktop):
     assert [(p["id"],p["label"],p["start"]) for p in periods] == list(PERIODS)
     assert catalog["rendering"] == "pixel"
     pairs = [(inbox/"backgrounds"/(p["id"]+".webp"),desktop/p["src"]) for p in periods]
+    seasons = catalog["seasons"]
+    assert {s["id"]:tuple(s["months"]) for s in seasons} == SEASONS
+    sheets = {desktop/s["src"] for s in seasons}
+    pairs.extend((inbox/"seasons"/(s["id"]+".webp"),desktop/s["src"]) for s in seasons)
     poses = catalog["characters"]["hoodie"]
     assert set(poses) == set(POSES)
     for pose,layer in poses.items():
@@ -21,11 +25,20 @@ def verify(inbox, desktop):
         assert set(layer["lighting"]) == {p["id"] for p in periods}
         pairs.append((inbox/"characters/hoodie"/(pose+".webp"), desktop/layer["still"]))
     assert {path for _,path in pairs} == set((desktop/"room-stills").glob("*.webp"))
+    width, height = catalog["size"]
+    windows_by_period = [set() for _ in periods]
     for original,published in pairs:
         assert original.read_bytes() == published.read_bytes(), published
         with Image.open(published) as im:
-            assert list(im.size) == catalog["size"] and im.n_frames == 1, published
-    print(f"{len(periods)} backgrounds, {len(poses)} portraits: all static files match the originals byte for byte")
+            expected = (width*len(periods) if published in sheets else width, height)
+            assert im.size == expected and im.n_frames == 1, published
+            if published in sheets:
+                frames = [im.crop((i*width,0,(i+1)*width,height)).tobytes() for i in range(len(periods))]
+                assert len(set(frames)) == len(periods), published
+                for variants,frame in zip(windows_by_period,frames):
+                    variants.add(frame)
+    assert all(len(variants) == len(seasons) for variants in windows_by_period)
+    print(f"{len(periods)} backgrounds, {len(seasons)} seasonal sheets and {len(poses)} poses match their originals")
 
 
 if __name__ == "__main__":

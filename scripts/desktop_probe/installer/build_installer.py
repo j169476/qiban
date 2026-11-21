@@ -26,7 +26,7 @@ NOTES = HERE/'INSTALL-NOTES.txt'
 GLUE = HERE/'prepare_upgrade.ps1'
 DEFAULT_OUTPUT = REPO/'.dev/refactor-r0/desktop/installer-174/output'
 DEFAULT_ISCC = REPO/'.dev/refactor-r0/desktop/installer-174/tools/inno/ISCC.exe'
-DEFAULT_VERSION = '0.9.9.4'
+DEFAULT_VERSION = '1.0.0'
 RECORD = 'installer-build.json'
 IDENTITY = 'qiban-payload.json'
 # Byte-identical copy of IDENTITY under a setup-only name. The setup embeds this one (dontcopy) so

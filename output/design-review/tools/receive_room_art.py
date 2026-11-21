@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 INBOX = ROOT / "output/design-art/room-static-v1"
 DESKTOP = ROOT / "scripts/desktop_probe/Assets"
 POSES = ("replying", "learning", "watching", "sleeping", "reading", "window", "tail")
+SEASONS = {"spring": (3, 4, 5), "summer": (6, 7, 8), "autumn": (9, 10, 11), "winter": (12, 1, 2)}
 # Local wall-clock minutes. The desktop and the preview read the same generated catalog.
 PERIODS = (
     ("midnight", "深夜", 0), ("predawn", "黎明", 300), ("morning", "清晨", 420),
@@ -33,7 +34,7 @@ def publish(inbox, desktop):
         raise ValueError(f"Expected a 16:9 room, got {size}")
     reference_file = inbox/"lighting-reference.json"
     references = json.loads(reference_file.read_text(encoding="utf-8-sig")) if reference_file.exists() else {}
-    catalog = {"size":size, "rendering":"pixel", "periods":[], "characters":{"hoodie":{}}}
+    catalog = {"size":size, "rendering":"pixel", "periods":[], "seasons":[], "characters":{"hoodie":{}}}
     destination = desktop / "room-stills"
     destination.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=desktop) as temp:
@@ -48,6 +49,16 @@ def publish(inbox, desktop):
             rooms[period] = image.convert("RGB")
             shutil.copyfile(original,stage/filename)
             catalog["periods"].append({"id":period,"label":label,"start":start,"src":"room-stills/"+filename})
+        for season, months in SEASONS.items():
+            original = inbox/"seasons"/(season+".webp")
+            sheet = read_still(original,(size[0]*len(PERIODS),size[1]))
+            for i, (period, _, _) in enumerate(PERIODS):
+                alpha = sheet.getchannel("A").crop((size[0]*i,0,size[0]*(i+1),size[1]))
+                if alpha.getextrema() != (0,255):
+                    raise ValueError(f"{original}: expected a visible window on transparency for {period}")
+            filename = season+".webp"
+            shutil.copyfile(original,stage/filename)
+            catalog["seasons"].append({"id":season,"months":months,"src":"room-stills/"+filename})
         for pose in POSES:
             original = inbox/"characters/hoodie"/(pose+".webp")
             alpha = read_still(original,size).getchannel("A")
@@ -67,7 +78,7 @@ def publish(inbox, desktop):
         manifest = stage/"room-assets.js"
         manifest.write_text("window.qibanRoomScenes = "+json.dumps(catalog,ensure_ascii=False,indent=2)+";\n",encoding="utf-8")
         manifest.replace(desktop/manifest.name)
-    print(f"Published {len(PERIODS)} periods and {len(POSES)} static portraits to {destination}")
+    print(f"Published {len(PERIODS)} periods, {len(SEASONS)} window sheets and {len(POSES)} poses to {destination}")
 
 
 if __name__ == "__main__":

@@ -35,6 +35,8 @@ async function run(){
   },{pose,period,phase},{timeout:9000});
   const untilPhase=phase=>page.waitForFunction(phase=>document.querySelector('qiban-room').dataset.phase===phase,phase);
   await wait('sleeping','forenoon');
+  assert.equal(await room.getAttribute('data-season'),'autumn');
+  assert.deepEqual([...new Set(requests.filter(u=>/\/(spring|summer|autumn|winter)\.webp$/.test(u)))],[url+'room-stills/autumn.webp']);
   await room.evaluate(w=>{
    window.roomChanges=[];
    new MutationObserver(()=>{
@@ -72,7 +74,7 @@ async function run(){
   assert.equal(periodList.length,8);
   const folder=process.env.QIBAN_UI_CAPTURES;
   if(folder)await fs.mkdir(folder,{recursive:true});
-  await page.setViewportSize({width:676,height:720});
+  await page.setViewportSize({width:656,height:720});
   const samplePoses=['sleeping','window','reading','replying','learning','watching','window','reading'];
   for(const [i,period] of periodList.entries()){
    const pose=samplePoses[i];
@@ -106,19 +108,46 @@ async function run(){
     await page.clock.setFixedTime(new Date(time));await room.evaluate(w=>w.update());await wait(null,id);
    }
   }
+  // Use actual local dates with a fixed pose so season and period selection are tested independently.
+  await action('tail');
+  for(const [season,month] of [['spring','03'],['summer','06'],['autumn','09'],['winter','12']]){
+   for(const [slot,period] of periodList.entries()){
+    const time=Date.parse('2026-'+month+'-01T00:00:00+08:00')+period.start*60000;
+    await page.clock.setFixedTime(new Date(time));await room.evaluate(w=>w.update());
+    await wait('tail',period.id);
+    await page.waitForFunction(s=>document.querySelector('qiban-room').dataset.season===s,season);
+    const geometry=await room.evaluate(w=>{
+     const strip=w.landscape.firstElementChild, bounds=strip.getBoundingClientRect(),box=w.landscape.getBoundingClientRect();
+     return {src:strip.src,cols:bounds.width/box.width,slot:(box.left-bounds.left)/box.width,height:bounds.height/box.height,
+      pixels:[strip.naturalWidth,strip.naturalHeight],layers:w.base.nextElementSibling===w.landscape&&w.landscape.nextElementSibling===w.actor};
+    });
+    assert.equal(geometry.src,url+'room-stills/'+season+'.webp');
+    assert.deepEqual(geometry.pixels,[2560,180]);assert.ok(geometry.layers);
+    assert.ok(Math.abs(geometry.cols-8)<.01&&Math.abs(geometry.slot-slot)<.01&&Math.abs(geometry.height-1)<.01);
+    if(folder)await room.screenshot({path:path.join(folder,season+'-'+period.id+'.png')});
+   }
+  }
+  await action('sleeping');await wait('sleeping','night');
+  if(folder)await room.screenshot({path:path.join(folder,'winter-night-sleeping.png')});
   const clockPage=await context.newPage();await clockPage.emulateMedia({reducedMotion:'reduce'});
-  await clockPage.clock.install({time:new Date('2026-11-20T23:59:55+08:00')});await clockPage.goto(url);
-  await clockPage.waitForFunction(()=>document.querySelector('qiban-room').dataset.period==='night');
+  await clockPage.clock.install({time:new Date('2026-11-30T23:59:55+08:00')});await clockPage.goto(url);
+  const clockState=([p,s])=>{const w=document.querySelector('qiban-room');return w.dataset.period===p&&w.dataset.season===s;};
+  await clockPage.waitForFunction(clockState,['night','autumn']);
   await clockPage.clock.fastForward(5100);
-  await clockPage.waitForFunction(()=>document.querySelector('qiban-room').dataset.period==='midnight');
+  await clockPage.waitForFunction(clockState,['midnight','winter']);
   await clockPage.close();
+  const fallback=await context.newPage();await fallback.emulateMedia({reducedMotion:'reduce'});
+  await fallback.route('**/room-stills/spring.webp',r=>r.abort());
+  await fallback.clock.setFixedTime(new Date('2026-03-01T10:00:00+08:00'));await fallback.goto(url);
+  await fallback.waitForFunction(()=>{const w=document.querySelector('qiban-room');return w.base.naturalWidth&&w.actor.firstChild?.naturalWidth&&w.dataset.season==='';});
+  await fallback.close();
   await page.setViewportSize({width:360,height:720});
   assert.ok(await room.evaluate(w=>w.stage.clientWidth>=320&&Math.abs(w.stage.clientWidth/w.stage.clientHeight-16/9)<.03));
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  assert.equal(new Set(requests.filter(u=>u.includes('/room-stills/'))).size,15);
+  assert.equal(new Set(requests.filter(u=>u.includes('/room-stills/'))).size,19);
   assert.ok(requests.every(u=>!u.includes('/room-art/')&&!/-(enter|exit|loop)\.webp$/.test(u)));
   assert.deepEqual(errors,[]);
-  console.log('静态房间通过验收：8 个时段及午夜切换，7 张角色静图，黑屏转场 '+Math.round(ms)+' ms，连续选择、待机、减少动态效果与窄屏。');
+  console.log('静态房间通过验收：四季 × 八时段、跨月午夜切换、窗景缺失时显示原房间、七种姿势、黑屏转场 '+Math.round(ms)+' ms、连续选择、待机、减少动态效果与窄屏。');
  }finally{await browser.close();}
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

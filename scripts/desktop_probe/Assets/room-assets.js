@@ -54,6 +54,44 @@ window.qibanRoomScenes = {
       "src": "room-stills/night.webp"
     }
   ],
+  "seasons": [
+    {
+      "id": "spring",
+      "months": [
+        3,
+        4,
+        5
+      ],
+      "src": "room-stills/spring.webp"
+    },
+    {
+      "id": "summer",
+      "months": [
+        6,
+        7,
+        8
+      ],
+      "src": "room-stills/summer.webp"
+    },
+    {
+      "id": "autumn",
+      "months": [
+        9,
+        10,
+        11
+      ],
+      "src": "room-stills/autumn.webp"
+    },
+    {
+      "id": "winter",
+      "months": [
+        12,
+        1,
+        2
+      ],
+      "src": "room-stills/winter.webp"
+    }
+  ],
   "characters": {
     "hoodie": {
       "replying": {
@@ -195,39 +233,39 @@ window.qibanRoomScenes = {
         "still": "room-stills/sleeping-still.webp",
         "lighting": {
           "midnight": [
-            0.797,
-            0.829,
+            0.799,
+            0.83,
             0.941
           ],
           "predawn": [
-            0.902,
-            0.921,
-            1.095
+            0.885,
+            0.907,
+            1.099
           ],
           "morning": [
-            1.157,
-            1.185,
+            1.104,
+            1.144,
             1.2
           ],
           "forenoon": [
-            1.177,
+            1.115,
             1.2,
             1.2
           ],
           "noon": [
-            1.189,
+            1.127,
             1.2,
             1.2
           ],
           "afternoon": [
-            1.2,
+            1.156,
             1.2,
             1.2
           ],
           "dusk": [
-            1.2,
-            1.139,
-            1.099
+            1.168,
+            1.108,
+            1.114
           ],
           "night": [
             1.0,
@@ -330,19 +368,19 @@ window.qibanRoomScenes = {
         "still": "room-stills/tail-still.webp",
         "lighting": {
           "midnight": [
-            0.654,
-            0.62,
-            0.743
+            0.652,
+            0.617,
+            0.741
           ],
           "predawn": [
-            0.783,
-            0.721,
-            0.865
+            0.78,
+            0.718,
+            0.862
           ],
           "morning": [
-            0.99,
-            0.887,
-            0.947
+            0.988,
+            0.886,
+            0.948
           ],
           "forenoon": [
             1.0,
@@ -352,22 +390,22 @@ window.qibanRoomScenes = {
           "noon": [
             1.006,
             0.993,
-            0.954
+            0.956
           ],
           "afternoon": [
             1.045,
             0.977,
-            0.894
+            0.893
           ],
           "dusk": [
-            1.023,
+            1.022,
             0.828,
-            0.831
+            0.832
           ],
           "night": [
-            0.822,
-            0.745,
-            0.776
+            0.82,
+            0.741,
+            0.773
           ]
         }
       }

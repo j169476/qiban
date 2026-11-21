@@ -29,7 +29,7 @@ try {
     # Record the desktop sources before publishing; the same whitelist is re-read after it.
     & $python $recorder pre --project $projectRoot --snapshot $sourceSnapshot
     if ($LASTEXITCODE -ne 0) { throw 'Desktop source snapshot failed; see the message above' }
-    & dotnet publish (Join-Path $PSScriptRoot 'Qiban.DesktopProbe.csproj') -c Release "-p:DefineConstants=$defines" -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:BaseIntermediateOutputPath=../../.dev/refactor-r0/desktop/obj/ -o $output -v minimal -warnaserror
+    & dotnet publish (Join-Path $PSScriptRoot 'Qiban.DesktopProbe.csproj') -c Release -p:RestoreLockedMode=true "-p:DefineConstants=$defines" -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:BaseIntermediateOutputPath=../../.dev/refactor-r0/desktop/obj/ -o $output -v minimal -warnaserror
     if ($LASTEXITCODE -ne 0) { throw 'Desktop probe publish failed' }
     if($ManagedApplication){ '{"mode":"managed","format":1}' | Set-Content -LiteralPath (Join-Path $output 'managed-application.json') -Encoding utf8 }
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'licenses/WebView2-SDK.txt') -Destination $output

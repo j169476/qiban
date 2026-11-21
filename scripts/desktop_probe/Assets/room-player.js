@@ -1,4 +1,4 @@
-/* Local time selects the room. Platform activity selects a single still portrait. */
+/* Local date and time select the window and room. Activity selects a still pose. */
 (() => {
  'use strict';
  const base=new URL('.',document.currentScript.src);
@@ -16,9 +16,9 @@
    if(!doc.querySelector('link[data-room-styles]')){
     const css=doc.createElement('link');css.rel='stylesheet';css.href=new URL('room-scene.css',base);css.dataset.roomStyles='';doc.head.append(css);
    }
-   this.innerHTML='<div class="room-stage"><img class="room-base" alt=""><div class="room-actor"></div><div class="room-shade" aria-hidden="true"></div></div>';
+   this.innerHTML='<div class="room-stage"><img class="room-base" alt=""><div class="room-season"></div><div class="room-actor"></div><div class="room-shade" aria-hidden="true"></div></div>';
    this.stage=this.firstElementChild;
-   [this.base,this.actor,this.shade]=this.stage.children;
+   [this.base,this.landscape,this.actor,this.shade]=this.stage.children;
    this.stage.style.aspectRatio=this.media.size.join(' / ');this.dataset.rendering=this.media.rendering;
    const svg=doc.createElementNS('http://www.w3.org/2000/svg','svg'),id='room-light-'+(++roomNumber);
    svg.setAttribute('class','room-light-map');svg.setAttribute('aria-hidden','true');
@@ -63,7 +63,9 @@
    const observing=visible&&!this.hasAttribute('quiet');this.canFade=observing&&!this.reduced.matches;
    const override=this.hasAttribute('data-preview')?this.getAttribute('preview-hour'):null;
    const minute=override!==null&&Number(override)>=0&&Number(override)<24?Math.floor(Number(override)*60):now.getHours()*60+now.getMinutes();
-   const period=this.media.periods.findLast(item=>item.start<=minute);
+   const slot=this.media.periods.findLastIndex(item=>item.start<=minute);
+   const period=this.media.periods[slot],month=now.getMonth()+1;
+   const season=this.media.seasons?.find(item=>item.months.includes(month));
    const pose=this.resolvePose(this.getAttribute('action')||this.activity||'idle',observing,now.getTime());
    const outfit=this.getAttribute('outfit')||'hoodie';
    const layer=this.media.characters[outfit]?.[pose]||this.media.characters.hoodie[pose];
@@ -73,15 +75,16 @@
     const untilIdle=this.idleDeadline?this.idleDeadline-now.getTime():Infinity;
     this.wake=setTimeout(()=>this.update(),Math.max(1,Math.min(untilMinute,untilIdle)));
    }
-   const key=period.id+'/'+layer.still;
+   const key=(season?.id||'')+'/'+period.id+'/'+layer.still;
    if(this.target?.key!==key){
-    const target={key,pose,period:period.id,light:layer.lighting[period.id]};
+    const target={key,pose,period:period.id,season:season?.id,slot,light:layer.lighting[period.id]};
     this.generation++;this.target=target;this.dataset.target=pose;
     this.readyFrame=this.shown?.key===key?this.shown:null;
     if(!this.readyFrame){
-     Promise.all([this.image(period.src),this.image(layer.still)]).then(([bg,portrait])=>{
+     const windowImage=season?this.image(season.src).catch(()=>null):null;
+     Promise.all([this.image(period.src),this.image(layer.still),windowImage]).then(([bg,portrait,scenery])=>{
       if(this.target!==target||!this.isConnected)return;
-      this.readyFrame={...target,bg,portrait};this.paint();
+      this.readyFrame={...target,bg,portrait,scenery};this.paint();
      }).catch(()=>{
       if(this.target!==target)return;
       this.target=null;this.readyFrame=null;this.resetShade();
@@ -100,10 +103,15 @@
   show(frame){
    if(!frame||this.shown===frame)return;
    if(this.base!==frame.bg){frame.bg.className='room-base';this.base.replaceWith(frame.bg);this.base=frame.bg;}
+   if(frame.scenery){
+    if(this.landscape.firstChild!==frame.scenery)this.landscape.replaceChildren(frame.scenery);
+    frame.scenery.style.width=(this.media.periods.length*100)+'%';
+    frame.scenery.style.left=(-frame.slot*100)+'%';
+   }else this.landscape.replaceChildren();
    if(this.actor.firstChild!==frame.portrait)this.actor.replaceChildren(frame.portrait);
    const [r,g,b]=frame.light;
    this.matrix.setAttribute('values',[r,0,0,0,0,0,g,0,0,0,0,0,b,0,0,0,0,0,1,0].join(' '));
-   this.shown=frame;this.dataset.pose=frame.pose;this.dataset.period=frame.period;
+   this.shown=frame;this.dataset.pose=frame.pose;this.dataset.period=frame.period;this.dataset.season=frame.scenery?frame.season:'';
   }
   resetShade(){
    clearTimeout(this.hold);this.animation?.cancel();this.animation=null;

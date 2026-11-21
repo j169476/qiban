@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from companion_codex import __version__
 from companion_codex.app_server import RpcProcess
 from companion_codex.isolation import DISABLED_FEATURES
 from companion_core.errors import AssistantError
@@ -147,7 +148,7 @@ class DesktopCodex:
         client=await self.rpc.open([str(exe),'app-server','--stdio','--strict-config'],
             cwd=work,env=env,guard=self._guard,deadline=time.monotonic()+(600 if operation=='login' else 30))
         try:
-            initialized=await client.call('initialize',{'clientInfo':{'name':'qiban_account','version':'0.9.9'}})
+            initialized=await client.call('initialize',{'clientInfo':{'name':'qiban_account','version':__version__}})
             if Path(initialized.get('codexHome','')).resolve()!=home:
                 raise AssistantError('model_account_scope','Codex 登录目录不匹配')
             client.send({'method':'initialized','params':{}})

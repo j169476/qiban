@@ -78,8 +78,7 @@ class WindowsDesktop:
             return False
         if (self._pid(expected.hwnd) == expected.pid and not self.api.IsWindowVisible(expected.hwnd)
                 and not self.api.IsIconic(expected.hwnd)):
-            self.api.ShowWindowAsync(expected.hwnd, 7)  # SW_SHOWMINNOACTIVE
-            return True
+            return bool(self.api.ShowWindowAsync(expected.hwnd, 7))  # SW_SHOWMINNOACTIVE
         return False
 
 
@@ -95,7 +94,7 @@ class WeChatTaskbar:
         self.attempts = 0
 
     def observe(self):
-        """Return a stable hidden window at most twice per continuous hide."""
+        """Offer the hidden window until Windows accepts two restore requests."""
         window = self.desktop.hidden_main()
         now = self.clock()
         if window != self.window:
@@ -109,4 +108,4 @@ class WeChatTaskbar:
     def restore(self, window):
         if self.desktop.minimize_hidden(window):
             self.attempts += 1
-            self.due = self.clock() + 5
+        self.due = self.clock() + 5

@@ -18,6 +18,7 @@ from pathlib import Path
 import yaml
 
 REVIEWED_ASSETS = {
+    "output/design-art/room-static-v1/readme-room.webp": "0d9344e812d0579b5a2c4d9ebb320d377ac0fd735a6281e1a3ccaeae6803871e",
     "src/companion_core/history_model/model_quantized.onnx": "15b717c382bcb518ba457b93ea6850ede7f4f1cd8937454aa06972366cd19bcc",
     "src/companion_core/history_model/tokenizer.json": "48cea5d44424912a6fd1ea647bf4fe50b55ab8b1e5879c3275f80e339e8fae26",
     "scripts/desktop_probe/Assets/hoodie-avatar.webp": "3204a6770956ff4da4d39920a4c6b9d0b67614ebf94d75d42a747c2528bcfb23",
@@ -39,13 +40,17 @@ ROOM_IMAGES = {
     "backgrounds/afternoon": "f9fe940a10afaa2eaaa399a04a17556f1554dbc5427a4dd0bedb1804132a0800",
     "backgrounds/dusk": "19fa62d95f7a74b3a5aa307d4479b24af18f138cb0695afab8c35ef8d43e9998",
     "backgrounds/night": "4939b41779c68488b732e51bf23f405e5ac323e038e12ac45f020481d58176ff",
+    "seasons/spring": "875006b6fae633cd519bce6e3dd54fe3e4f709feaad94a1fdcadbc771ec1f5a5",
+    "seasons/summer": "3cd17c54258c4ca9f991376703b1928c8165576f08c611fa9b47e331d025694e",
+    "seasons/autumn": "0b0f02c87ebfbb9f1e487960586b77e5886540d8b3b8bf4155116b7509b19b84",
+    "seasons/winter": "c8556bba4a039a54c24d7ec160eca5efa43308660c08816d26a391610397e475",
     "characters/hoodie/replying": "595eee8f84a31a9023961c56385391d4d80a17ae274c094a1bb8d30f16cc7060",
     "characters/hoodie/learning": "4c0c9457d1f082430b0ad245daeddcbc0e860ce7eb560dde1f1cacc9c1060daa",
     "characters/hoodie/watching": "90c1066e5cb8c1585cf27545bafcc9ce0b399dd148198c396149bcd0e097df2e",
-    "characters/hoodie/sleeping": "ce54a91ad95cffaf249bdaae2df528c08f80edf9f40cca7a61bdbf492c61c9f5",
+    "characters/hoodie/sleeping": "2fcd590d6f9b30251ae0389f6ce915ea96918bb4a3d137627faf49b0270dd732",
     "characters/hoodie/reading": "a58739ae8ed1f9198747ed6a3d1b0d3cbee67c45a74ea6eed39b32b3cac7adca",
     "characters/hoodie/window": "a616288ce879ec1f5cb1629f56c8fbba0321d24135089f80cf25232ee7d54721",
-    "characters/hoodie/tail": "eac0293e4b7f9551b1f0026c86614c63c2ab100d0d29ed6fe19bb7acb26be10c",
+    "characters/hoodie/tail": "2435ffd853f954a698ef6178821757acba0dd92137d0668cd93ef80d415c7576",
 }
 for original, digest in ROOM_IMAGES.items():
     name = original.rsplit("/", 1)[-1]
@@ -68,6 +73,7 @@ ROOT_FILES = {
     "output/design-review/tools/receive_room_art.py", "output/design-review/tools/check_pixel_room.py",
     "docs/DEVELOPMENT.md", "docs/GETTING_STARTED.md", "docs/RELEASE_NOTES.md",
     "docs/微信支持范围.md", "docs/桌面声明.md", "docs/模型选择参考.md",
+    "platforms/linux/README.md",
 }
 SOURCE_DIRS = {"src", "tests", "tests_core", "tests_postgres", "tests_wechat", "scripts",
                "plugins", "packages", "requirements", ".github", ROOM_ORIGINALS}
@@ -83,9 +89,9 @@ SKIP_FILES = {"runtime.json", "local-settings.json"}
 SKIP_SUFFIXES = {".pyc", ".pyo", ".log", ".db", ".sqlite", ".sqlite3", ".pem", ".key",
                  ".ccbackup", ".cckey", ".zip", ".whl"}
 # Explicitly approved public attribution and repository; other identifiers stay blocked.
-PUBLIC_TEXT = ("YiNing和ta的小龙", "https://github.com/j169476/qiban", "github.com/j169476/qiban", "j169476/qiban")
+PUBLIC_TEXT = ("Yi_Ning和ta的龙娘", "https://github.com/j169476/qiban", "github.com/j169476/qiban", "j169476/qiban")
 PUBLIC_TEXT_FILES = {
-    "README.md",
+    "README.md", "docs/桌面声明.md",
     "scripts/prepare_release.py", "tests/test_release_snapshot.py",
 }
 
