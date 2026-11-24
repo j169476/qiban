@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from companion_core import events
+from companion_core import events, privacy
 from companion_core.contracts import ActorRef, Event
 from companion_core.errors import AssistantError
 from companion_core.fact_management import FactManagement
@@ -67,6 +67,41 @@ def test_more_than_200_facts_keep_current_view_bounded_and_history_pageable(pg_s
     page = manager.history(admin, latest, limit=10)
     second = manager.history(admin, latest, limit=10, after=page["next"])
     assert page["total"] == 206 and not ({x["id"] for x in page["items"]} & {x["id"] for x in second["items"]})
+
+
+@pytest.mark.parametrize("change", ["other_conversation", "stale_fragment"])
+def test_long_fact_chain_rechecks_its_oldest_source(pg_store, change):
+    root = "memories/" + seed_chain(pg_store, count=258)
+    oldest = "memories/fact-history-0000"
+    event, governed, _ = facts(pg_store, "read", "合成示例")
+    assert privacy.raw_allowed(pg_store, governed.request, root)
+
+    # The oldest fact is 257 source edges away from the displayed revision.
+    if change == "other_conversation":
+        policy = governed.repository.policy(oldest)
+        governed.repository.set_policy(replace(policy, owners=frozenset({ActorRef("alpha", "b").key}),
+                                              conversation="other-private-thread", version="changed-scope"),
+                                       policy.version, "synthetic")
+    else:
+        from companion_core import privacy_review
+        from qiban.desktop_matters import operate
+
+        source = "event/" + event.id
+        job = {"resource": source, "source_version": events.get(pg_store, event.id)["version"]}
+        fact = dict(quote=event.text, value=event.text, category="ordinary", level="social",
+                    subject="none", evidence="general", until=None)
+        with pg_store.db() as db:
+            privacy_review.store_facts(pg_store, db, job, 0, event.text, {"facts": [fact]}, event,
+                                       governed.repository.policy(source), [])
+            db.execute("UPDATE privacy_jobs SET complete=1 WHERE resource=?", (source,))
+        _, pins = privacy.project(pg_store, event, [source])
+        (fragment, version), = pins
+        privacy.bind(pg_store, oldest, pins)
+        assert privacy.raw_allowed(pg_store, governed.request, root)
+        operate(pg_store, "privacy.correct", {"id": fragment, "expected": version, "level": "private"})
+    assert not privacy.raw_allowed(pg_store, governed.request, root)
+    with pytest.raises(AssistantError):
+        governed.check()
 
 
 def test_confirmation_appends_a_fact_preserves_sources_and_rejects_stale_revision(pg_store):

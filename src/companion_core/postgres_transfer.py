@@ -50,7 +50,8 @@ ADDITIVE_TABLES = {17: VERSION_TABLES, 18: {"preset_reply_turns": ["kind", "id",
                    21: {"privacy_dependencies": ["derived","fragment","revision"]},
                    22: {"privacy_review_sources": ["resource","context_source"]},
                    23: {"privacy_corrections":["resource","fingerprint","level"]},
-                   24: {"role_activity":["matter","updated_at"]}}
+                   24: {"role_activity":["matter","updated_at"]},
+                   25: {}}  # Trigger-only migration; the serialized table layout is unchanged.
 
 
 def upgrade_version_tables(snapshot):

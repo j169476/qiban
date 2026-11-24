@@ -527,83 +527,92 @@ def raw_allowed(store, request, resource, *, dependencies_only=False):
     """Raw archives are for their source conversation. Cross-context use goes through reviewed fragments."""
     if getattr(store, "backend", None) != "postgres":
         return True
-    from .governance import GovernanceRepository
+    from .access import GraphLimits
 
-    with store.db() as db:
-        roots = db.execute(
-            "WITH RECURSIVE deps(k) AS (VALUES (?::text) UNION SELECT d.source FROM "
-            "source_dependencies d JOIN deps ON d.derived=deps.k) SELECT k FROM deps "
-            "LIMIT 257",
-            (resource,),
-        ).fetchall()
-        if len(roots) > 256:
+    # A fact with hundreds of revisions can have one direct source and hundreds of ancestors.
+    # Stream the full closure up to the governance graph budget, under one cursor snapshot.
+    limit = GraphLimits().nodes
+    skip = resource if dependencies_only else None
+    with store.db() as db, db.stream(
+        "WITH RECURSIVE deps(k) AS (VALUES (?::text) UNION SELECT d.source FROM "
+        "source_dependencies d JOIN deps ON d.derived=deps.k) "
+        "SELECT k,p.resource,p.conversation,p.audience,jsonb_exists(p.owners::jsonb, ?) AS owned, "
+        "ARRAY(SELECT ARRAY[fragment,revision] FROM privacy_dependencies WHERE derived=k) AS pins "
+        "FROM deps LEFT JOIN governance_policies p ON p.resource=k LIMIT ?",
+        (resource, request.actor, limit + 1),
+    ) as cursor:
+        checked = 0
+        while rows := cursor.fetchmany(256):
+            checked += len(rows)
+            if checked > limit or not _raw_batch_allowed(store, db, request, rows, skip):
+                return False
+    return True
+
+
+def _raw_batch_allowed(store, db, request, rows, skip):
+    deps = {tuple(pin) for row in rows for pin in row["pins"]}
+    if deps:
+        anchors = db.execute(
+            "SELECT id FROM core_events WHERE deleted=0 AND conversation=? AND actor=? "
+            "ORDER BY occurred DESC LIMIT 1",
+            (request.conversation, request.actor or ""),
+        ).fetchone()
+        if not anchors:
             return False
-        deps = db.execute(
-            "SELECT DISTINCT fragment,revision FROM privacy_dependencies WHERE derived=ANY(?)",
-            ([r[0] for r in roots],),
-        ).fetchall()
-        if deps:
-            anchors = db.execute(
-                "SELECT id FROM core_events WHERE deleted=0 AND conversation=? AND actor=? "
-                "ORDER BY occurred DESC LIMIT 1",
-                (request.conversation, request.actor or ""),
-            ).fetchone()
-            if not anchors:
-                return False
-            from . import events
+        from . import events
 
-            event = Event.from_dict(events.get(store, anchors[0])["event"])
-            try:
-                check_projection(store, event, deps)
-            except AssistantError:
-                return False
-        for (key,) in roots:
-            if dependencies_only and key == resource:
+        event = Event.from_dict(events.get(store, anchors[0])["event"])
+        try:
+            check_projection(store, event, deps)
+        except AssistantError:
+            return False
+    for row in rows:
+        key = row["k"]
+        if key == skip:
+            continue
+        if (
+            key.split("/", 1)[0] not in KINDS
+            or key.startswith("partition/")
+            and key != "partition/public-growth"
+        ):
+            continue
+        if row["resource"] is None:
+            return False
+        if key == "partition/public-growth":
+            saved = store.state("public-growth", {}, db)
+            if saved.get("data") == store.profile.defaults["growth"]:
+                # Shipped constants carry no user text. Other roots are still checked.
+                continue
+        if request.audience == "private" and row["owned"] and not row["conversation"]:
+            continue
+        if (
+            row["conversation"]
+            and row["conversation"] == request.conversation
+            and request.audience == row["audience"]
+        ):
+            if request.audience == "private":
                 continue
             if (
-                key.split("/", 1)[0] not in KINDS
-                or key.startswith("partition/")
-                and key != "partition/public-growth"
+                request.audience == "group"
+                and not db.execute(
+                    "SELECT 1 FROM privacy_slices WHERE resource=? AND "
+                    "level IN ('credential','private') LIMIT 1",
+                    (key,),
+                ).fetchone()
             ):
                 continue
-            policy = GovernanceRepository(store).policy(key)
-            if not policy:
-                return False
-            if key == "partition/public-growth":
-                saved = store.state("public-growth", {}, db)
-                if saved.get("data") == store.profile.defaults["growth"]:
-                    # Shipped constants carry no user text. Other roots are still checked.
-                    continue
-            if request.audience == "private" and request.actor in policy.owners and not policy.conversation:
-                continue
-            if (
-                policy.conversation
-                and policy.conversation == request.conversation
-                and request.audience == policy.audience
-            ):
-                if request.audience == "private":
-                    continue
-                if (
-                    request.audience == "group"
-                    and not db.execute(
-                        "SELECT 1 FROM privacy_slices WHERE resource=? AND "
-                        "level IN ('credential','private') LIMIT 1",
-                        (key,),
-                    ).fetchone()
-                ):
-                    continue
-            # Even a published record can contain real names or exact addresses.
-            job = db.execute("SELECT complete FROM privacy_jobs WHERE resource=?", (key,)).fetchone()
-            if not job or not job[0]:
-                return False
-            rows = db.execute("SELECT * FROM privacy_slices WHERE resource=?", (key,)).fetchall()
-            if not rows or any(
-                r["category"] != "ordinary"
-                or level(store, r, unpack(store, r)) != "social"
-                or not live_source(store, r, unpack(store, r))
-                for r in rows
-            ):
-                return False
+        # Even a published record can contain real names or exact addresses.
+        job = db.execute("SELECT complete FROM privacy_jobs WHERE resource=?", (key,)).fetchone()
+        if not job or not job[0]:
+            return False
+        slices = db.execute("SELECT * FROM privacy_slices WHERE resource=?", (key,)).fetchall()
+        if not slices or any(
+            r["category"] != "ordinary"
+            or level(store, r, unpack(store, r)) != "social"
+            or not live_source(store, r, unpack(store, r))
+            for r in slices
+        ):
+            return False
     return True
 
 

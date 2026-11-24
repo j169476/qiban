@@ -349,7 +349,8 @@ def main():
         assert all(callable(entry) for entry in (RoleRuntime.react, RoleRuntime.wake, review_fragment,
                                                   manage_matters, public_wake, commit_role_turn, run_role_turn))
         assert {"020_role_matters_privacy.sql","021_disclosure_proofs.sql","022_privacy_review_sources.sql",
-                "023_privacy_corrections.sql", "024_role_activity.sql"} <= {path.name for path in scripts}
+                "023_privacy_corrections.sql", "024_role_activity.sql",
+                "025_role_backup_revision.sql"} <= {path.name for path in scripts}
         assert (Path(companion_qq.__file__).parent / "native" / NativeLogin.WORKER).is_file()
         assert runtime_lock()["files"]
         assert callable(DesktopQQ) and callable(adapter)

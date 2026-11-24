@@ -5,16 +5,17 @@ from pathlib import Path
 
 import psycopg
 import pytest
+import yaml
 from psycopg import sql
 
-from companion_core import conversation_index, conversations, postgres
+from companion_core import conversations, postgres
 from companion_core.backup_maintenance import BackupMaintenance
 from companion_core.errors import AssistantError
 from companion_core.pg_roles import provision
 from companion_core.postgres import PostgresStore
 
 
-def test_previous_schema_upgrade_backfills_without_changing_content_or_role(pg_store, tmp_path, monkeypatch):
+def test_previous_schema_upgrade_backfills_without_changing_content_or_role(pg_store, tmp_path):
     options = pg_store.database._options
     schema = 'upgrade_test_' + secrets.token_hex(8)
     role, password = 'upgrade_app_' + secrets.token_hex(8), secrets.token_urlsafe(36)
@@ -34,11 +35,22 @@ def test_previous_schema_upgrade_backfills_without_changing_content_or_role(pg_s
             for kind, spec in owner.profile.schemas.items():
                 db.execute('INSERT INTO record_kinds VALUES(?,?::jsonb,?)', (kind, json.dumps(spec), kind in owner.profile.collections))
         owner.initialize()
-        with monkeypatch.context() as patch:
-            patch.setattr(conversation_index, 'write', lambda *args: None)
-            conversations.append(owner, 'account', 'local', 'synthetic-thread', 'event', 'synthetic old history',
-                'user', 'synthetic-actor', 'received', '2026-10-24T00:00:00Z', '2026-10-24T00:00:00Z')
+        # Seed the actual v5 record layout. Today's writer also queues privacy
+        # review and maintains indexes that did not exist in this schema.
+        thread = conversations.thread_id('account', 'local', 'synthetic-thread')
+        turn = conversations.identifier('turn', thread, 'event', 0)
+        stamp = '2026-10-24T00:00:00Z'
+        document = dict(schema_version=1, id=turn, thread_id=thread, account_uid='account',
+                        channel='local', thread_key='synthetic-thread', speaker='user', sender_uid='synthetic-actor',
+                        content='synthetic old history', status='received', message_id='event', reply_to='',
+                        part=0, sequence=0, occurred_at=stamp, locked=False,
+                        source=dict(type='interaction', recorded_at=stamp, reference='event'))
+        raw = yaml.safe_dump(document, allow_unicode=True, sort_keys=False).encode()
+        version = hashlib.sha256(raw).hexdigest()
+        body = owner.cipher.encrypt(raw, 'conversation_turns', turn, version)
         with owner.db() as db:
+            db.execute("""INSERT INTO content_records(kind,id,version,revision,body,source_type,source_ref)
+                       VALUES('conversation_turns',?,?,1,?,'interaction','event')""", (turn, version, body))
             before = [list(row) for row in db.execute('SELECT kind,id,version FROM content_records ORDER BY kind,id')]
         with psycopg.connect(**scoped) as db:
             provision(db, schema=schema, role=role, password=password)
@@ -59,6 +71,10 @@ def test_previous_schema_upgrade_backfills_without_changing_content_or_role(pg_s
             assert db.execute('SELECT count(*) FROM conversation_index').fetchone()[0] == 1
             assert not db.execute("SELECT has_schema_privilege(current_user,?,'CREATE')", (schema,)).fetchone()[0]
             assert not db.execute("SELECT has_table_privilege(current_user,'schema_migrations','UPDATE')").fetchone()[0]
+            previous = db.execute('SELECT revision FROM maintenance_revision WHERE singleton').fetchone()[0]
+            db.execute("INSERT INTO privacy_jobs(resource,source_version) VALUES('synthetic','v1')")
+            assert db.execute('SELECT revision FROM maintenance_revision WHERE singleton').fetchone()[0] == previous + 1
+        assert app.read('conversation_turns', turn)['data'] == document
         assert BackupMaintenance(app).step()['status'] == 'saved'
         assert app.state('core-run') is None
     finally:

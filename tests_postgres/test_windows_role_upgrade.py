@@ -65,6 +65,7 @@ async def test_v19_in_place_upgrade_preserves_existing_user_data_and_no_resend(e
         assert re.fullmatch("test_[a-f0-9]{32}", schema)
         # Only this disposable fixture schema. Its remaining objects are the
         # actual version-19 tables, including existing events and receipts.
+        db.execute("DROP FUNCTION role_backup_changed() CASCADE")
         for table in (
             "role_activity",
             "privacy_corrections",

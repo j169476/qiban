@@ -109,7 +109,8 @@ def test_repository_is_exportable_with_empty_defaults():
             "platforms/linux/core/Dockerfile.dockerignore", "platforms/linux/core/core_acceptance.py",
             "platforms/windows-remote/build.ps1", "platforms/windows-remote/verify.py",
             "tests_postgres/test_windows_generic_actions.py", "tests_postgres/matter_fixture.py",
-            "src/companion_core/sql/019_role_reminders.sql", "src/companion_core/sql/024_role_activity.sql"} <= names
+            "src/companion_core/sql/019_role_reminders.sql", "src/companion_core/sql/024_role_activity.sql",
+            "src/companion_core/sql/025_role_backup_revision.sql"} <= names
     assert not any(name.startswith(release.PRIVATE_PREFIXES) for name in names)
     assert not any(name.startswith(release.LOCAL_BUILD_PREFIXES) for name in names)
 
