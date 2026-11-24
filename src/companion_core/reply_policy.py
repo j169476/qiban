@@ -133,7 +133,7 @@ class Participation:
     def spent(value):
         return sum(value.get(k, 0) for k in ("confirmed", "reserved", "uncertain"))
 
-    def admit(self, scope, event_id, trigger, generation, *, message_time=None):
+    def admit(self, scope, event_id, trigger, generation, *, message_time=None, allow_voluntary=True):
         from .reply_exclusion import accepts
 
         with self.store.lock, self.store.db() as db:
@@ -159,14 +159,29 @@ class Participation:
                       and window.get("permission") == permission
                       and window.get("expires", 0) > now and self.spent(window) < settings["group_session_replies"]
                       and window.get("decisions", 0) < settings["group_session_decisions"])
+            direct = trigger in {"mention", "reply"}
+            if active and window.get("voluntary") and not direct:
+                return None
             if not active:
-                if trigger not in {"mention", "reply"}:
-                    return None
+                mode = None
+                if not direct:
+                    if not allow_voluntary or (window.get("expires", 0) > now
+                                                and window.get("generation") == generation):
+                        return None
+                    from .group_modes import voluntary
+                    mode = voluntary(self, scope, event_id, message_time, db)
+                    if mode is None:
+                        return None
+                    ticket["voluntary"] = mode
                 window = {"id": uuid4().hex, "status": "active", "generation": generation,
                           "permission": permission, "policy": policy["version"], "started": now,
                           "expires": now + settings["group_session_minutes"] * 60,
                           "reply_limit": settings["group_session_replies"],
                           "decisions": 0, "confirmed": 0, "reserved": 0, "uncertain": 0}
+                if mode:
+                    window["voluntary"] = mode
+            elif direct:
+                window.pop("voluntary", None)
             # Duplicate source events are eliminated by each connector before admission.
             window["decisions"] += 1
             self.store.set_state(key, window, db)
@@ -231,7 +246,33 @@ class Participation:
                     "event_version": source["version"]}
 
     def ticket_bucket(self, ticket, scope):
-        return ticket.get("backlog") or self.window_key(scope)
+        return ticket["window"] if ticket.get("alarm") else ticket.get("backlog") or self.window_key(scope)
+
+    def reserve_reminder(self, scope, permission, generation, action_id):
+        """An explicit group reminder spends quota without opening a conversation."""
+        with self.store.lock, self.store.db() as db:
+            db.execute("BEGIN IMMEDIATE")
+            self.permissions.check(scope, permission, db=db)
+            now = self.now()
+            ticket = {"scope": asdict(scope), "generation": generation, "permission": permission,
+                      "expires": now + 60, "window": None}
+            if scope.kind == "group":
+                limits = self.policies.effective(scope, db)["settings"]
+                live = self.store.state(self.window_key(scope), {}, db)
+                if live.get("generation") == generation and live.get("permission") == permission and live.get("expires", 0) > now:
+                    require(live.get("status") == "active", "reply_quota_exhausted")
+                    ticket["window"] = live["id"]
+                else:
+                    key = stable_key("alarm-group-window", scope.id)
+                    bucket = self.store.state(key, {}, db)
+                    if bucket.get("expires", 0) <= now:
+                        bucket = {"id": key, "status": "active", "reply_limit": limits["group_session_replies"],
+                                  "expires": now + 60 * limits["group_session_minutes"], "reserved": 0,
+                                  "confirmed": 0, "uncertain": 0}
+                        self.store.set_state(key, bucket, db)
+                    require(self.spent(bucket) < limits["group_session_replies"], "reply_quota_exhausted")
+                    ticket.update(alarm=True, window=key)
+            self.reserve(ticket, generation, action_id)
 
     def check(self, ticket, generation, db=None):
         scope = ReplyScope(**ticket["scope"])
@@ -239,6 +280,14 @@ class Participation:
         require(ticket["generation"] == generation and ticket["expires"] > self.now(),
                 "reply_session_expired")
         if scope.kind == "group":
+            if ticket.get("voluntary"):
+                from . import events
+                from .contracts import Event
+                from .group_modes import settings
+                from .role_affinity import close_contact
+                require(settings(self.store, scope, db)["version"] == ticket["voluntary"], "reply_not_authorized")
+                require(close_contact(self.store, Event.from_dict(events.get(self.store, ticket["event_id"])["event"])),
+                        "reply_not_authorized")
             window = self.store.state(self.ticket_bucket(ticket, scope), {}, db)
             if ticket.get("backlog"):
                 from . import events
@@ -258,6 +307,9 @@ class Participation:
         settings = self.policies.effective(scope)["settings"]
         if scope.kind == "private":
             return {"mode": "private", "instruction": "当前为已授权私聊，正常回应当前用户；不需要@唤起。"}
+        if ticket.get("voluntary"):
+            return {"mode": "voluntary", "remaining_replies": 1, "instruction":
+                    "没有人直接唤起你。先判断现在是否适合插话，可以保持沉默；决定回应时再按人设和语境选择表达。"}
         if ticket.get("backlog"):
             return {"mode": "group_backlog", "remaining_replies": 1,
                     "instruction": "本轮仅合并补答停机期间的群聊唤起，最多回复一次；"
@@ -311,7 +363,7 @@ class Participation:
                 bucket["reserved"] = max(0, bucket["reserved"] - 1)
                 if status in {"succeeded", "uncertain"}:
                     field = "confirmed" if status == "succeeded" else "uncertain"
-                    bucket[field] += 1
+                    bucket[field] = bucket.get(field, 0) + 1
                 if record["window"] and status == "uncertain":
                     bucket.update(status="closed", reason="send_uncertain")
                 elif record["window"] and self.spent(bucket) >= bucket["reply_limit"]:

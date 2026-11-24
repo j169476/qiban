@@ -28,6 +28,11 @@ OTHER_PASSWORD = "another-strong-pass"
 def _connection(template):
     """The same disposable test installation as the desktop fixture; only the schema differs."""
     if not os.environ.get("QIBAN_DESKTOP_TEST_ROOT"):
+        config = os.environ.get("COMPANION_TEST_DATABASE")
+        if config:
+            options = json.loads(Path(config).read_text(encoding="utf8"))
+            assert options.get("host") == "127.0.0.1" and options.get("dbname") == "companion_test"
+            return options
         pytest.skip("Requires a disposable running desktop test installation")
     root = Path(os.environ["QIBAN_DESKTOP_TEST_ROOT"])
     state = json.loads((root / "installation.json").read_text(encoding="utf8"))

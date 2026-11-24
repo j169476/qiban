@@ -32,7 +32,7 @@
   const identity=next?detail.roomSession??null:null;
   if(next===enabled&&identity===session)return;
   enabled=next;session=identity;capabilities=null;drafts=new Map();
-  window.dispatchEvent(new CustomEvent('qiban-workspace-access-change'));
+  window.dispatchEvent(new CustomEvent('qiban-workspace-access-change',{detail:{ready:enabled,roomSession:session}}));
   if(root)open(page,root);
  }
  bridge?.addEventListener('message',({data})=>{

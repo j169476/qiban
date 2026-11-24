@@ -340,6 +340,16 @@ def main():
         assert "video_progress" in profile.schemas and "videos" in profile.extra_tables
         scripts = sorted((root / "sql").glob("[0-9]*.sql"))
         assert scripts and all(path.read_text(encoding="utf8").strip() for path in scripts)
+        from companion_core.matter_runner import tick as run_role_turn
+        from companion_core.privacy_review import tick as review_fragment
+        from companion_core.role_actions import commit as commit_role_turn
+        from companion_core.role_runtime import RoleRuntime
+        from qiban.desktop_matters import operate as manage_matters
+        from qiban.desktop_public_tools import wake as public_wake
+        assert all(callable(entry) for entry in (RoleRuntime.react, RoleRuntime.wake, review_fragment,
+                                                  manage_matters, public_wake, commit_role_turn, run_role_turn))
+        assert {"020_role_matters_privacy.sql","021_disclosure_proofs.sql","022_privacy_review_sources.sql",
+                "023_privacy_corrections.sql", "024_role_activity.sql"} <= {path.name for path in scripts}
         assert (Path(companion_qq.__file__).parent / "native" / NativeLogin.WORKER).is_file()
         assert runtime_lock()["files"]
         assert callable(DesktopQQ) and callable(adapter)

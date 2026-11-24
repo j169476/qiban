@@ -239,6 +239,9 @@ class PostgresStore(Store):
                        (*key, version, old["revision"] + 1 if old else 1, encrypted, bool(data.get("locked")),
                         source.get("type", ""), source.get("reference", "")))
             from .conversation_index import write as index_conversation
+            from .privacy import enqueue
+
+            enqueue(db, *key, version)
 
             index_conversation(db, kind, data)
             from .fact_index import write as index_fact
@@ -300,6 +303,9 @@ class PostgresStore(Store):
 
             db.execute("BEGIN IMMEDIATE")
             invalidate_state(GovernanceRepository(self), db)
+            if isinstance(value,dict) and isinstance(value.get("version"),str):
+                from .privacy import enqueue
+                enqueue(db,"partition","public-growth",value["version"])
         db.execute("INSERT INTO state VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                    (key, self.ledger_encode("state:" + key, value)))
         if tracked(key):

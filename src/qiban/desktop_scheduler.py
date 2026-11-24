@@ -41,6 +41,7 @@ class DesktopScheduler:
         self.maintenance, self.maintenance_error = maintenance, None
         self.wechat_taskbar = wechat_taskbar
         self.wechat_window_generation = None
+        self.review_job = self.review_core = None
         self.schedules = {platform: Schedule() for platform in PLATFORMS}
         self.platform_locks = {platform: asyncio.Lock() for platform in PLATFORMS}
 
@@ -66,6 +67,7 @@ class DesktopScheduler:
         self.loop = asyncio.get_running_loop()
         self.ready.set()
         workers = [asyncio.create_task(self._work(platform)) for platform in PLATFORMS]
+        workers.append(asyncio.create_task(self._privacy_work()))
         if self.wechat_taskbar is not None:
             workers.append(asyncio.create_task(self._watch_wechat_window()))
         if getattr(self.runtime, 'manual', None) is not None:
@@ -93,6 +95,37 @@ class DesktopScheduler:
                         close = getattr(adapter, "close", None)
                         if close:
                             cleanup.push_async_callback(close)
+
+    async def _privacy_work(self):
+        from companion_core.privacy_review import tick
+
+        while not self.stop_requested.is_set():
+            if not self.runtime.tasks.blocked:
+                for core in tuple(self.runtime.cores.values()):
+                    if getattr(core.store, "backend", None) != "postgres":
+                        continue
+                    try:
+                        self.review_core = core
+                        self.review_job = asyncio.create_task(self.runtime.tasks.run(lambda: tick(core)))
+                        await self.review_job
+                    except asyncio.CancelledError:
+                        if asyncio.current_task().cancelling():
+                            raise
+                    except Exception as error:
+                        # The durable lease expires after a failure. Keep intake running and logs content-free.
+                        logging.getLogger(__name__).debug("Privacy review deferred: %s", getattr(error, "code", type(error).__name__))
+                    finally:
+                        self.review_core = self.review_job = None
+            await asyncio.sleep(max(self.tick, 2))
+
+    def _prioritize_input(self, core):
+        # A shared single-worker subscription must yield its low-priority call.
+        # The model adapter owns subprocess cleanup. The input worker proceeds
+        # with admission, history and retrieval while that worker releases capacity.
+        model = getattr(getattr(core, "decisions", None), "model", None)
+        if (self.review_job and self.review_core and self.review_core.decisions.model is model
+                and getattr(model, "capacity", None) and model.capacity.locked()):
+            self.review_job.cancel()
 
     async def _watch_wechat_window(self):
         previous = None
@@ -314,11 +347,27 @@ class DesktopScheduler:
             (getattr(a, "poll_interval_seconds", settings.get("inbox_poll_seconds", 60)) for a in adapters),
             default=60,
         )
+        if incoming:
+            self._prioritize_input(core)
         await handle_batch(
             core, incoming[: settings.get("inbox_batch_size", 3)], concurrency=2 if custom else 1
         )
         await asyncio.to_thread(core.guard, run["generation"])
-        if not custom and not run.get("reply_test") and self.clock() >= state.next_cycle:
+        if not paused and not run.get("reply_test"):
+            for adapter in adapters:
+                if getattr(core.store, "backend", None) == "postgres" and hasattr(adapter, "account"):
+                    await core.role.wake(adapter,self.runtime.cores)
+                    from companion_core.group_learning import tick as learn_from_group
+                    await learn_from_group(core, platform, adapter.account)
+            if getattr(core.store, "backend", None) == "postgres":
+                from companion_core.expression_patterns import synthesize
+                await synthesize(core)
+        explore = [a for a in adapters if hasattr(a,"public_wake")]
+        if explore and not incoming and not paused and not run.get("reply_test") and self.clock()>=state.next_cycle:
+            for adapter in explore:
+                await core.role.react("public_timer",adapter=adapter)
+            state.next_cycle=self.clock()+core.store.read("policy")["data"].get("cycle_minutes",15)*60
+        elif not custom and not run.get("reply_test") and self.clock() >= state.next_cycle:
             if paused:
                 await core.cycle(receive=False)
             else:

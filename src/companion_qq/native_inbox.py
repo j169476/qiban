@@ -29,19 +29,23 @@ class NativeInbox:
         from companion_core.reply_audience import Audience, read
         policy = read(self.store, Audience("qq",self.module.account,kind))
         epoch = [policy["version"]] if policy["version"] else []
+        if kind == "group" and not policy["enabled"]:
+            from companion_core.group_modes import settings
+            scope = ReplyScope("qq", self.module.account, kind, target)
+            mode = settings(self.store, scope)
+            if mode["listen"] and not ReplyAuthorizations(self.store).record(scope)["enabled"]:
+                epoch.extend(["observe", mode["since"]])
         return self._key(kind,target,epoch)
 
     def _key(self,kind,target,epoch):
         return "qq-native-window:" + stable_key("scope", self.module.account, kind, target, *epoch)
 
     def _queued_scopes(self, db):
-        from companion_core.reply_audience import Audience, read
         counts = dict(db.execute("SELECT scope,COUNT(*) FROM qq_native_inbox GROUP BY scope"))
         if counts and self.module.intake_options:
             for kind, field in (("private","private_targets"),("group","groups")):
-                version = read(self.store,Audience("qq",self.module.account,kind),db)["version"]
                 for target in self.module.intake_options[field]:
-                    key = self._key(kind,target,[version] if version else [])
+                    key = self.key(kind, target)
                     if key in counts:
                         yield key, counts[key]
 
@@ -173,6 +177,9 @@ class NativeInbox:
                 previous = self.store.state(seen_key, None, db)
                 require(previous in (None, body_digest), "qq_event_conflict")
                 self.store.set_state(seen_key, body_digest, db)
+                if previous is None:
+                    from companion_core.group_modes import observe_event
+                    observe_event(self.store, scope, event, db)
                 if ReplyAuthorizations(self.store).version(self.module.scope(event), db=db) is None:
                     continue
                 if previous is None:

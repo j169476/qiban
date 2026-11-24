@@ -385,6 +385,11 @@ def test_governed_private_turn_freezes_only_approved_aggregate_types(pg_store):
     admin, _, _, _ = aggregate(pg_store)
     event = Event("alpha", "bot", "event", OWNER, "private-a", "2026-10-23T00:00:00Z", "test", "private")
     governed = GovernedContext(pg_store, event)
+    # The event's account-qualified thread is the private scope persisted by desktop ingestion.
+    assert governed.read("relationships", OWNER.key) is None
+    previous = admin.repository.policy(RESOURCE)
+    admin.repository.set_policy(replace(previous, version="source-session", conversation=event.thread),
+                                previous.version, "fixture")
     governed.read("relationships", OWNER.key)
     governed.freeze()
     assert RESOURCE not in dict(governed.proof()["pins"])

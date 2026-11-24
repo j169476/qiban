@@ -12,7 +12,9 @@ the half-written directory happens to contain.
 """
 import contextlib
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -91,10 +93,6 @@ def prepared_phase(root, tmp_path, monkeypatch, *, phase='staged'):
         {'identity_sha256': previous['sha256'], 'count': previous['count'],
          'bytes': previous['bytes']},
         artifact(root), transaction=TRANSACTION)
-    import upgrade.registry as registry_module
-
-    registry_module.protect_directory = lambda path: None
-    program.protect_directory = lambda path: None
     carrier = program.copy_carrier(root, old_dir, previous, installation=INSTALLATION,
                                    transaction=TRANSACTION, roles=['carrier'])
     record = journal.save(root, record)
@@ -160,18 +158,28 @@ def _nothing():
     yield
 
 
-def install_channel(monkeypatch, *, fail=False):
+def install_channel(monkeypatch, *, fail=False, receipt_age=1):
     calls = []
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # Pin only the verifier's clock. Other modules keep the runner's real clock.
+    monkeypatch.setattr(verification, 'time', SimpleNamespace(time=now.timestamp))
 
     def handler(request):
         calls.append(request)
         if fail:
             raise AssistantError('upgrade_verification_invalid', 'cancelled')
-        return {'session': 'windows-1', 'at': __import__('datetime').datetime.now(
-            __import__('datetime').timezone.utc).isoformat()}
+        return {'session': 'windows-1', 'at': (now - timedelta(seconds=receipt_age)).isoformat()}
 
     verification.install(handler)
     return calls
+
+
+@pytest.mark.parametrize('receipt_age', [-1, verification.MAX_AGE_SECONDS + 1])
+def test_rollback_rejects_future_and_expired_verifications(monkeypatch, receipt_age):
+    install_channel(monkeypatch, receipt_age=receipt_age)
+    with pytest.raises(AssistantError) as error:
+        verification.authorize({'installation': INSTALLATION, 'id': TRANSACTION})
+    assert error.value.code == 'upgrade_verification_expired'
 
 
 @pytest.fixture(autouse=True)

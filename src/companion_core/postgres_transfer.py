@@ -31,20 +31,33 @@ TABLES = (
     "record_owners", "source_dependencies", "grant_resources", "source_retention", "core_event_receipts", "core_delivery_state",
     "actor_nodes", "relationship_claims", "asset_restore_jobs", "governance_provenance", "conversation_index", "input_image_blobs",
     "personal_fact_index", "qq_native_inbox", "media_originals", "media_original_holds", "sticker_library", "file_library",
-    "library_version_bodies", "library_versions", "preset_reply_turns",
+    "library_version_bodies", "library_versions", "preset_reply_turns", "role_reminders",
+    "privacy_jobs", "privacy_slices", "matter_contacts", "role_matters", "matter_watches", "privacy_dependencies", "privacy_review_sources",
+    "privacy_corrections","role_activity",
 )
 VERSION_TABLES = {
     "library_version_bodies": ["kind", "id", "sha256", "size", "body"],
     "library_versions": ["kind", "id", "position", "revision", "sha256", "size", "metadata", "archived_at"],
 }
-ADDITIVE_TABLES = {17: VERSION_TABLES, 18: {"preset_reply_turns": ["kind", "id", "preset_id", "sent_at"]}}
+ADDITIVE_TABLES = {17: VERSION_TABLES, 18: {"preset_reply_turns": ["kind", "id", "preset_id", "sent_at"]},
+                   19: {"role_reminders": ["id", "scope", "platform", "account", "due", "status", "version",
+                                            "body", "attempt", "wake_after"]},
+                   20: {"privacy_jobs": ["resource","source_version","cursor_pos","due","complete"],
+                        "privacy_slices": ["id","resource","source_version","version","status","level","category","fingerprint","body"],
+                        "matter_contacts": ["id","platform","account","thread","actor","anchor","occurred","permission"],
+                        "role_matters": ["id","version","status","delivery","platform","account","wake","attempt","body"],
+                        "matter_watches": ["matter","contact"]},
+                   21: {"privacy_dependencies": ["derived","fragment","revision"]},
+                   22: {"privacy_review_sources": ["resource","context_source"]},
+                   23: {"privacy_corrections":["resource","fingerprint","level"]},
+                   24: {"role_activity":["matter","updated_at"]}}
 
 
 def upgrade_version_tables(snapshot):
     """Older snapshots can supply empty tables for features added since export."""
     versions = snapshot.get("migrations")
     blocks = snapshot.get("tables")
-    if (not isinstance(versions, list) or not isinstance(blocks, dict) or len(versions) not in (16, 17) or
+    if (not isinstance(versions, list) or not isinstance(blocks, dict) or len(versions) not in range(16, max(ADDITIVE_TABLES)) or
             [v[0] for v in versions if isinstance(v, list) and len(v) == 2] != list(range(1, len(versions) + 1))):
         return snapshot
     missing = {t for n, fields in ADDITIVE_TABLES.items() if n > len(versions) for t in fields}
@@ -241,6 +254,10 @@ def finish_restore(store, db, assets, finalize):
     from .library_versions import verify_versions
 
     verify_versions(store)
+    for table,domain in (("privacy_slices","privacy:"),("role_matters","matter:")):
+        with db.stream("SELECT id,body FROM "+table) as rows:
+            for row in rows:
+                store.ledger_decode(domain+row["id"],row["body"])
     # Restore requires stopped tasks. Holds belonged to exited task owners;
     # their processing receipts and unfinished events remain in the snapshot.
     db.execute('DELETE FROM media_original_holds')
@@ -248,6 +265,15 @@ def finish_restore(store, db, assets, finalize):
     from .reply_authorization import ReplyAuthorizations
 
     ReplyAuthorizations(store).reset_after_restore()
+    db.execute("UPDATE role_matters SET status=CASE WHEN attempt IS NULL THEN 'stopped' ELSE 'uncertain' END,"
+               "delivery=CASE WHEN attempt IS NULL THEN delivery ELSE 'uncertain' END,"
+               "version=md5(version || ':restore') WHERE status IN ('ready','waiting','processing')")
+    db.execute("DELETE FROM matter_contacts")
+    db.execute("DELETE FROM matter_watches")
+    # A restored snapshot cannot prove no send occurred after it was taken.
+    db.execute("UPDATE role_reminders SET status=CASE WHEN status='processing' THEN 'uncertain' ELSE 'cancelled' END,"
+               "version=md5(version || ':restore'),attempt=NULL WHERE status IN ('pending','processing')")
+    db.execute("DELETE FROM state WHERE key LIKE 'alarm-source:%' OR key LIKE 'group-mode:%' OR key LIKE 'group-samples:%'")
     for table in ("actions", "core_actions"):
         db.execute("UPDATE " + table + " SET status='cancelled' WHERE status='prepared'")
         db.execute("UPDATE " + table + " SET status='uncertain' WHERE status='dispatching'")

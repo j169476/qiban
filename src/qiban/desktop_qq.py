@@ -30,15 +30,18 @@ class DesktopQQ:
             saved = self.store.state(KEY, {"revision": 0, "selected": None})
             options = targets.saved_options(self, saved)
             permissions = targets.ReplyAuthorizations(self.store)
+            if options:
+                config = saved["configurations"][options["account"]]
+                reply_options = {**options, "groups": config.get("manual_groups", config["groups"])}
             return {**deepcopy(self.value), "running": self.store.state("core-run:qq", {}).get("status") == "active", "busy": bool(self.thread and self.thread.is_alive()),
                     "selected": saved["selected"], "revision": saved["revision"],
                     "directory": deepcopy(self.directory),
-                    "targets": {"private_targets": options["private_targets"], "groups": options["groups"],
-                                "authorized": all(permissions.version(scope) for scope in targets.scopes(options))}
+                    "targets": {"private_targets": options["private_targets"], "groups": reply_options["groups"],
+                                "authorized": all(permissions.version(scope) for scope in targets.scopes(reply_options))}
                                if options else None,
                     "preview": {"token": self.preview["token"],
                                 "private_targets": self.preview["options"]["private_targets"],
-                                "groups": self.preview["options"]["groups"]} if self.preview else None}
+                                "groups": self.preview.get("manual_groups", self.preview["options"]["groups"])} if self.preview else None}
 
     def _set(self, **value):
         with self.lock:
@@ -124,8 +127,11 @@ class DesktopQQ:
                 return
             if operation == "directory":
                 directory = targets.directory(worker, options)
+                from .desktop_role_tools import remember_directory
                 with self.lock:
                     if not self.cancelled.is_set():
+                        remember_directory(self.store, "qq", options["account"],
+                                           {r["id"]: r["label"] for r in directory["groups"]}, complete=True)
                         self.directory = directory
                         self.value = {"state": "directory_ready", "message": "好友和群名称已读取。请选择要添加的会话。", "accounts": []}
                 worker.request("close")

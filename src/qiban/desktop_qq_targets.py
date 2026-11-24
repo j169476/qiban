@@ -48,12 +48,18 @@ def scopes(options):
 
 
 def verify(manager, worker, options, revision):
+    from companion_core.group_modes import settings
+    manual_groups = list(options["groups"])
+    saved = manager.store.state("desktop-qq-account", {})
+    existing = saved.get("configurations", {}).get(options["account"], {}).get("groups", [])
+    options = {**options, "groups": list(dict.fromkeys(manual_groups + [target for target in existing
+        if settings(manager.store, ReplyScope("qq", options["account"], "group", target))["listen"]]))}
     provider = NativeProvider(manager.store, native_parameters(options), worker_factory=lambda _: worker)
     identity = provider.probe()
     authorizations = ReplyAuthorizations(manager.store)
     versions = {scope.id: authorizations.record(scope)["version"] for scope in scopes(options)}
     return {"token": secrets.token_hex(16), "revision": revision, "options": deepcopy(options),
-            "identity": identity, "versions": versions}
+            "identity": identity, "versions": versions, "manual_groups": manual_groups}
 
 
 def save(manager, preview, saved, actor, db):
@@ -64,6 +70,8 @@ def save(manager, preview, saved, actor, db):
         raise AssistantError("edit_conflict", "QQ 账号或会话设置已改变，请重新核验。")
     authorizations = ReplyAuthorizations(manager.store)
     desired = {scope.id: scope for scope in scopes(options)}
+    if "manual_groups" in preview:
+        desired = {k: s for k, s in desired.items() if s.kind != "group" or s.target_id in preview["manual_groups"]}
     # Revoke removed targets on this account, including previously retained scopes.
     for record in authorizations.records():
         scope = ReplyScope(**record["scope"])
@@ -74,7 +82,8 @@ def save(manager, preview, saved, actor, db):
         authorizations.update(scope, enabled=True, expected_version=preview["versions"][identifier], actor=actor, db=db)
     configurations = deepcopy(saved.get("configurations", {}))
     configurations[selected["uin"]] = {"uid": selected["uid"],
-        "private_targets": options["private_targets"], "groups": options["groups"]}
+        "private_targets": options["private_targets"], "groups": options["groups"],
+        "manual_groups": preview.get("manual_groups", options["groups"])}
     # Enrollment and authorization commit together. Neither starts a role.
     manager.store.set_state("qq-enrollment:" + selected["uin"],
                             {"intent": enrollment_intent(options), "identity": preview["identity"]}, db)
@@ -87,6 +96,30 @@ def saved_options(manager, saved):
     if value is None or value["uid"] != selected["uid"]:
         return None
     return configuration(manager, saved, value["private_targets"], value["groups"])
+
+
+def _observe_group(manager, account, target, db):
+    """Directory evidence registers a receive target. Reply grants stay with save()."""
+    store = manager.store
+    saved = store.state("desktop-qq-account", {}, db)
+    configs = deepcopy(saved.get("configurations", {}))
+    current = configs.get(account)
+    if current and target in current["groups"]:
+        return
+    selected = saved.get("selected") or {}
+    if selected.get("uin") != account or store.state("core-run:qq", {}, db).get("status") == "active":
+        raise AssistantError("platform_active", "请在所选账号停止运行后登记新旁听群")
+    config = current or {"uid": selected["uid"], "private_targets": [], "groups": []}
+    config.setdefault("manual_groups", list(config["groups"]))
+    config["groups"] = [*config["groups"], target]
+    options = {"version": 2, "transport": "native", "account": account,
+               **{key: config[key] for key in ("uid", "private_targets", "groups")}}
+    previous = store.state("qq-enrollment:" + account, {}, db).get("identity", {})
+    configs[account] = config
+    store.set_state("qq-enrollment:" + account, {"intent": enrollment_intent(options), "identity": {
+        **previous, "account": account, "account_label": selected.get("label") or account,
+        "private_targets": config["private_targets"], "groups": config["groups"]}}, db)
+    store.set_state("desktop-qq-account", {**saved, "configurations": configs, "revision": saved["revision"]+1}, db)
 
 
 def adapter(manager):

@@ -1,0 +1,9 @@
+**
+!src/companion_core/*.py
+!src/companion_core/*.json
+!src/companion_core/sql/*.sql
+!platforms/linux/core/core_init.py
+!platforms/linux/core/core_control.py
+!platforms/linux/core/dialogue_service.py
+!platforms/linux/core/dialogue_store.py
+!platforms/linux/core/requirements.txt

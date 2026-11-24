@@ -74,6 +74,19 @@ def test_publication_keeps_exact_content_and_never_claims_it_private_on_first_se
 @pytest.mark.asyncio
 async def test_same_complete_baseline_public_and_private_with_learning_and_isolation(pg_store):
     expected = register(pg_store)
+    # The source-integrity test below pins a manually published, already-reviewed
+    # foundation. New, unreviewed material is exercised by the fragment suite.
+    from companion_core import privacy
+    for pin in expected["pins"]:
+        if pin["kind"]=="memories":
+            resource="memories/"+pin["id"]
+            item=pg_store.read("memories",pin["id"])
+            with pg_store.db() as db:
+                privacy.add_slice(pg_store,db,{"resource":resource,"source_version":item["version"]},0,
+                    text="公开固定设定",value="",category="ordinary",level="social",evidence="general",
+                    subject="",thread="",actor="",at=NOW.isoformat(),visibility="public",until=None,
+                    policy=GovernanceRepository(pg_store).policy(resource).version,dependencies=[])
+                db.execute("UPDATE privacy_jobs SET complete=1 WHERE resource=?",(resource,))
     patch(pg_store, "manifest", account_uid="123")
     patch(pg_store, "policy", min_action_interval_seconds=0)
     patch(pg_store, "companion", memory_maintenance=False, daily_reflection=False, knowledge_review=False,
@@ -114,7 +127,7 @@ async def test_same_complete_baseline_public_and_private_with_learning_and_isola
         for pin in expected["pins"]:
             assert pg_store.version(pin["kind"], pin["id"]) == pin["version"]
         assert {r["data"]["content"] for r in PublicWorkspace(pg_store).records("memories")[0]
-                if not r["data"]["id"].startswith("foundation-")} == {"public-memory"}
+                if not r["data"]["id"].startswith("foundation-")} == set()
     finally:
         core.stop()
 

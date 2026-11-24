@@ -64,6 +64,8 @@ body[data-tab-model="choice"] [data-model-pane]:not([data-model-pane~="choice"])
 body[data-tab-model="accounts"] [data-model-pane]:not([data-model-pane~="accounts"]),
 body[data-tab-model="quota"] [data-model-pane]:not([data-model-pane~="quota"]),
 body[data-tab-records="tasks"] [data-records-pane]:not([data-records-pane~="tasks"]),
+body[data-tab-records="matters"] [data-records-pane]:not([data-records-pane~="matters"]),
+body[data-tab-records="reminders"] [data-records-pane]:not([data-records-pane~="reminders"]),
 body[data-tab-records="trace"] [data-records-pane]:not([data-records-pane~="trace"]),
 body[data-tab-media="attachments"] [data-media-pane]:not([data-media-pane~="attachments"]),
 body[data-tab-media="library"] [data-media-pane]:not([data-media-pane~="library"]),

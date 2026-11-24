@@ -283,7 +283,7 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
                 raise AssistantError("ungrounded_mention", "动态提及需提供已读取视频的 bvid，以核实作者")
         return dict(payload)
 
-    def prepare(self, kind, payload, retry_failed=False, retry_unsent=False):
+    def prepare(self, kind, payload, retry_failed=False, retry_unsent=False, *, reminder_attempt=None):
         run = self.role_run()
         if run.get("read_only"):
             raise AssistantError("action_disabled", "本次为平台只读运行，禁止账号互动")
@@ -298,6 +298,10 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
                 content += json.dumps([r["id"] for r in payload["images"]], sort_keys=True)
             target = hashlib.sha256(content.encode()).hexdigest()
         dedupe = f"{run['account']}:{kind}:{target}"
+        if reminder_attempt:
+            if kind != "dm_reply":
+                raise AssistantError("reminder_scope", "只能在原私聊发出定时提醒")
+            dedupe = f"{run['account']}:reminder:{reminder_attempt}"
         action_id = uuid.uuid4().hex
         with self.store.lock, self.store.db() as db:
             old = db.execute("SELECT * FROM actions WHERE dedupe=?", (dedupe,)).fetchone()
@@ -390,7 +394,11 @@ class Engine(RunLifecycle, ActionExecution, RelationshipUpdates):
             expected_kind = "reply" if kind == "comment_like" else kind
             if not event or event["kind"] != expected_kind:
                 raise AssistantError("unknown_event", "只能回复适配器实际收到的相应互动")
-            if datetime.fromisoformat(event["received"]) < datetime.fromisoformat(
+            reminder_prefix = f"{run['account']}:reminder:"
+            if kind == "dm_reply" and action["dedupe"].startswith(reminder_prefix):
+                from companion_core.reminder_runner import verify_bili_attempt
+                verify_bili_attempt(self.store, db, run, payload, action["dedupe"][len(reminder_prefix):], event["uid"])
+            elif datetime.fromisoformat(event["received"]) < datetime.fromisoformat(
                 run.get("pending_since", run["started_at"])
             ):
                 raise AssistantError("old_event", "不追发启动以前的互动")

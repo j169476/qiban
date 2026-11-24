@@ -102,8 +102,12 @@ async def directory_page(manager, request, login, expected, kind, query, page):
     if (kind not in ("private", "group") or not isinstance(query, str) or len(query) > 100
             or type(page) is not int or not 1 <= page <= 10000):
         raise AssistantError("management_request", "微信目录分页无效")
-    return await _contact_request(manager, request, login, expected, "setup_directory_page",
-                                  kind=kind, query=query, page=page)
+    result = await _contact_request(manager, request, login, expected, "setup_directory_page",
+                                    kind=kind, query=query, page=page)
+    if kind == "group":
+        from .desktop_role_tools import remember_directory
+        remember_directory(manager.store, "wechat", login, {r["username"]: r["name"] for r in result["items"]})
+    return result
 
 
 async def directory_sync(manager, request, login, expected):

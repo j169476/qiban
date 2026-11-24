@@ -88,7 +88,7 @@ async def test_private_inbox_public_learning_and_sends_are_separate(pg_store,dra
     assert len(model.calls) == 3 and len(platform.sent) == 3
     for context in model.calls:
         serialized = json.dumps(context, ensure_ascii=False)
-        if "event" in context:
+        if context.get("event", {}).get("visibility") == "private":
             own = context["event"]["actor"]["user_id"]
             assert "private-canary-" + own in serialized
             assert "private-canary-" + ("22" if own == "11" else "11") not in serialized

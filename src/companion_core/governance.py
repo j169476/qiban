@@ -290,6 +290,9 @@ class GovernanceRepository:
         if cursor.rowcount != 1:
             raise AssistantError("edit_conflict", "资料权限已由另一入口修改")
         if getattr(db, "dialect", "sqlite") == "postgres":
+            if current and current["version"] != policy.version:
+                from .privacy import invalidate
+                invalidate(db,policy.resource)
             db.execute("DELETE FROM record_owners WHERE resource=?", (policy.resource,))
             db.executemany("INSERT INTO record_owners VALUES(?,?)", [(policy.resource, owner) for owner in policy.owners])
             db.execute("DELETE FROM source_dependencies WHERE derived=?", (policy.resource,))
@@ -417,13 +420,19 @@ class ContextService:
     def __init__(self, store, access):
         self.store, self.access = store, access
 
-    def memory(self, request, query, *, references=(), uids=(), queries=()):
+    def memory(self, request, query, *, references=(), uids=(), queries=(), only_current_member=False):
         readable = self.access.repository.readable_resources(self.access, request)
 
         def allowed(item):
-            return resource_id(item["kind"], item["data"]["id"]) in readable
+            key = resource_id(item["kind"], item["data"]["id"])
+            if key not in readable:
+                return False
+            if only_current_member:
+                policy = self.access.repository.policy(key)
+                return bool(policy and request.actor in policy.owners and policy.conversation == request.conversation)
+            return True
 
-        view = ReadView(self.store, readable)
+        view = ReadView(self.store, readable, request)
         context = view.context(query, references, uids, queries, record_filter=allowed)
         used = {resource_id(item["kind"], item["data"]["id"]) for item in context["records"]}
         used.update(resource_id(item["kind"], item["id"]) for item in context["catalog"])
@@ -442,6 +451,8 @@ class ContextService:
 
         def revalidate():
             self.access.revalidate(lease)
+            from .privacy import require_raw
+            require_raw(self.store, request, used)
             verify_record_versions(self.store, versions)
 
         revalidate()
@@ -469,14 +480,17 @@ class ReadView:
     No plaintext index is written for PostgreSQL. Configs used internally to
     bound retrieval are not themselves returned as role material.
     """
-    def __init__(self, store, readable):
+    def __init__(self, store, readable, request=None):
         self.store, self.readable = store, readable
+        self.disclosure_request = request
 
     def __getattr__(self, name):
         return getattr(self.store, name)
 
     def records(self, kind):
-        ids = [resource.split("/", 1)[1] for resource in self.readable if resource.startswith(kind + "/")]
+        from .privacy import raw_allowed
+        ids = [resource.split("/", 1)[1] for resource in self.readable if resource.startswith(kind + "/")
+               and (not self.disclosure_request or raw_allowed(self.store,self.disclosure_request,resource))]
         if hasattr(self.store, "records_selected"):
             return self.store.records_selected(kind, ids)
         return [r for r in self.store.records(kind)[0] if r["data"]["id"] in set(ids)], []
@@ -492,6 +506,9 @@ class ReadView:
             return original
         if resource_id(kind, item_id) not in self.readable:
             raise AssistantError("not_found", "资料不存在或无权访问")
+        if self.disclosure_request:
+            from .privacy import require_raw
+            require_raw(self.store,self.disclosure_request,[resource_id(kind,item_id)])
         return self.store.read(kind, item_id)
 
     def context(self, *args, **kwargs):
@@ -526,6 +543,8 @@ def record_provenance(store, kind, item_id, proof):
                           proof["conversation"], proof["audience"], tuple(source for source, _ in pins),
                           source_versions=pins)
     repository.set_policy(policy, current.version if current else None, "derived-provenance")
+    from .privacy import bind
+    bind(store, resource, proof.get("privacy", ()))
 
 
 class GovernedContext:
@@ -543,10 +562,12 @@ class GovernedContext:
         self.access = AccessService(self.repository, self.authority)
         self.contexts = ContextService(store, self.access)
         self.resources, self.versions, self.guards = set(), {}, []
+        self.fragment_pins = []
 
     def read(self, kind, item_id=None, default=None):
         resource = resource_id(kind, item_id)
-        if not self.access.can_read(self.request, resource):
+        from .privacy import raw_allowed
+        if not self.access.can_read(self.request, resource) or not raw_allowed(self.store, self.request, resource):
             return default
         item = self.contexts.get(self.request, kind, item_id)
         self.resources.add(resource)
@@ -555,10 +576,11 @@ class GovernedContext:
 
     def records(self, kind):
         readable = self.repository.readable_resources(self.access, self.request)
-        return ReadView(self.store, readable).records(kind)
+        return ReadView(self.store, readable, self.request).records(kind)
 
-    def memory(self, query, *, references=(), uids=(), queries=()):
-        result, guard = self.contexts.memory(self.request, query, references=references, uids=uids, queries=queries)
+    def memory(self, query, *, references=(), uids=(), queries=(), only_current_member=False):
+        result, guard = self.contexts.memory(self.request, query, references=references, uids=uids, queries=queries,
+                                             only_current_member=only_current_member)
         guard()
         self.resources.update(resource_id(item["kind"], item["data"]["id"]) for item in result["records"])
         self.resources.update(resource_id(item["kind"], item["id"]) for item in result["catalog"])
@@ -566,21 +588,27 @@ class GovernedContext:
         self.versions.update({(item["kind"], item["id"]): item["version"] for item in result["catalog"]})
         return result
 
-    def conversation(self, account, tid, *, query="", queries=(), ranker=None, current_sender=None):
+    def conversation(self, account, tid, *, query="", queries=(), ranker=None, current_sender=None, only_sender=None):
         from .conversations import context
 
         owner = self
 
         class View:
             def records(self, kind):
+                if only_sender is not None and kind == "conversation_summaries":
+                    return [], []
                 if getattr(owner.store, "backend", None) == "postgres" and kind in (
                         "conversation_turns", "conversation_summaries"):
                     from .conversation_index import candidates
 
                     roots = [resource_id(kind, value) for value in candidates(owner.store, kind, account, tid)]
                     allowed = owner.repository.readable_resources(owner.access, owner.request, candidates=roots)
-                    return ReadView(owner.store, allowed).records(kind)
-                return owner.records(kind)
+                    rows, errors = ReadView(owner.store, allowed, owner.request).records(kind)
+                else:
+                    rows, errors = owner.records(kind)
+                if only_sender is not None and kind == "conversation_turns":
+                    rows = [row for row in rows if row["data"]["sender_uid"] == only_sender]
+                return rows, errors
 
             def exists(self, kind, item_id=None):
                 return owner.access.can_read(owner.request, resource_id(kind, item_id)) and owner.store.exists(kind, item_id)
@@ -626,7 +654,7 @@ class GovernedContext:
 
     def proof(self):
         return {"owners": [self.request.actor], "conversation": self.request.conversation,
-                "audience": self.request.audience, "pins": list(self.frozen_sources)}
+                "audience": self.request.audience, "pins": list(self.frozen_sources), "privacy": list(self.fragment_pins)}
 
     def rebase_written(self, kind, item_id, version):
         from .provenance import rebase
@@ -640,6 +668,8 @@ class GovernedContext:
 
     def check(self):
         self.access.revalidate(self.lease)
+        from .privacy import require_raw
+        require_raw(self.store, self.request, self.resources - {"event/" + self.event.id})
         for guard in self.guards:
             guard()
         verify_record_versions(self.store, self.versions)
@@ -664,6 +694,8 @@ class GovernedContext:
                               frozenset((self.request.actor,)), self.request.conversation,
                               self.request.audience, dependencies, source_versions=tuple(pins))
         self.repository.set_policy(policy, previous.version if previous else None, "core-provenance")
+        from .privacy import bind
+        bind(self.store,resource,self.fragment_pins)
 
     def classify_event(self):
         # A verified inbound event is owned by its actual sender. Mentioning
@@ -680,7 +712,7 @@ class GovernedContext:
     def persona_context(self):
         from . import baseline
 
-        bundle = baseline.load(self.store, read=self.read)
+        bundle = baseline.load(self.store, read=self.read,audience=self.request)
         if bundle:
             self.guards.append(bundle.check)
             return bundle.context

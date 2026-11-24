@@ -215,6 +215,12 @@ class RuntimeSession(RoleSession):
         for event in incoming:
             stamp = seconds(event.occurred_at)
             scope = self.reply_scope(record, event.conversation)
+            if (event.id in fresh_ids and event.visibility == "group" and self.family and
+                    event.actor.scope == self.account and event.metadata.get("wechat", {}).get("epoch") == record["epoch"]
+                    and event.metadata["wechat"].get("target_ref") == scope.target_id
+                    and event.metadata["wechat"].get("binding_revision") == record["bindings"][event.conversation]["revision"]):
+                from companion_core.group_modes import observe_event
+                observe_event(self.store, scope, event, db)
             marker = self.store.state(event_scope_key(self.account,event.native_id),None,db)
             if marker:
                 policy = read(self.store,Audience("wechat",record["identity"],event.visibility),db)
@@ -353,7 +359,8 @@ class RuntimeSession(RoleSession):
                                                                               batch["id"], message_time=stamp)
                     else:
                         admission["ticket"] = self.participation.admit(scope, event.id,
-                            event.metadata["wechat"]["trigger"], run["generation"], message_time=stamp)
+                            event.metadata["wechat"]["trigger"], run["generation"], message_time=stamp,
+                            allow_voluntary=False)
                     if admission["ticket"] is None:
                         if event.visibility == "group":
                             self.merged.finish(batch, "not_admitted")

@@ -7,10 +7,23 @@ from companion_core.public_workspace import PublicWorkspace
 
 
 def seed(store):
+    from companion_core import privacy, privacy_review
+
     workspace = PublicWorkspace(store)
-    relationship = {"schema_version": 1, "id": "public-person", "display_name": "Public person",
+    relationship = {"schema_version": 1, "id": "public-person", "display_name": "一起下棋",
                     "affinity": 50, "interactions": 0, "events": [], "locked": False}
     workspace.write("relationships", relationship, None, "fixture", relationship["id"])
+    # This provenance fixture uses a synthetic ordinary label. New archives must be reviewed first.
+    resource = "relationships/" + relationship["id"]
+    with pytest.raises(AssistantError, match="资料适用范围"):
+        workspace.read("relationships", relationship["id"])
+    current, event, version = privacy.source(store, resource)
+    fact = {"quote": current, "value": "", "category": "ordinary", "level": "social",
+            "subject": "none", "evidence": "general"}
+    with store.db() as db:
+        privacy_review.store_facts(store, db, {"resource": resource, "source_version": version},
+                                   0, current, {"facts": [fact]}, event, workspace.repository.policy(resource), [])
+        db.execute("UPDATE privacy_jobs SET complete=1 WHERE resource=?", (resource,))
     workspace.read("relationships", relationship["id"])
     growth = workspace.read("growth")
     workspace.before_model({"growth": growth["data"]})
@@ -28,6 +41,20 @@ def test_routine_public_relationship_update_keeps_growth_readable(pg_store):
                     relationship["version"], "fixture", "public-person")
     workspace.check()
     assert PublicWorkspace(pg_store).read("growth")["data"]
+
+
+def test_pending_custom_growth_is_hidden_and_preserved(pg_store):
+    workspace = PublicWorkspace(pg_store)
+    initial = workspace.read("growth")
+    saved = workspace.write("growth", {**initial["data"], "traits": ["合成场馆在槐影路19号"]},
+                            initial["version"], "fixture")
+    fresh = PublicWorkspace(pg_store)
+    projected = fresh.read("growth")
+    assert projected["data"] == pg_store.profile.defaults["growth"]
+    with pytest.raises(AssistantError) as error:
+        fresh.write("growth", projected["data"], projected["version"], "fixture")
+    assert error.value.code == "context_changed"
+    assert pg_store.state("public-growth") == saved
 
 
 def test_manual_public_relationship_correction_still_revokes_growth(pg_store):

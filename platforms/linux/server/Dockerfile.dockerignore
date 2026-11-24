@@ -1,0 +1,9 @@
+**
+!platforms/linux/server/service.py
+!platforms/linux/server/jobs.py
+!platforms/linux/server/gateway.py
+!platforms/linux/server/supervisor.py
+!platforms/linux/server/sshd_config
+!src/companion_core/__init__.py
+!src/companion_core/index_cache.py
+!src/companion_core/passages.py

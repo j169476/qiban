@@ -12,7 +12,7 @@ class TaskWorkspace(ReadView):
     def __init__(self, store, authority, request, task_id, guard):
         self.repository = GovernanceRepository(store)
         self.access, self.request = AccessService(self.repository, authority), request
-        super().__init__(store, self.repository.readable_resources(self.access, request))
+        super().__init__(store, self.repository.readable_resources(self.access, request), request)
         self.scope_key, self.guard = task_id, guard
         root = "task_requests/" + task_id
         self.pins = {root: self.repository.policy(root).version}
@@ -20,6 +20,8 @@ class TaskWorkspace(ReadView):
 
     def check(self):
         self.guard()
+        from .privacy import require_raw
+        require_raw(self.store,self.request,self.pins)
         lease = self.access.lease(self.request, self.pins)
         current = dict(lease.versions)
         if any(current.get(key) != version for key, version in self.pins.items()):
@@ -31,7 +33,8 @@ class TaskWorkspace(ReadView):
             # Collector controls only; the handler selects the material sent to Codex.
             return self.store.read(kind)
         resource = resource_id(kind, item_id)
-        if not self.access.can_read(self.request, resource):
+        from .privacy import raw_allowed
+        if not self.access.can_read(self.request, resource) or not raw_allowed(self.store,self.request,resource):
             raise AssistantError("not_found", "资料不存在或不可在当前任务使用")
         lease = self.access.lease(self.request, [resource])
         item = self.store.read(kind, item_id)

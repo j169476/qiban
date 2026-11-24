@@ -523,11 +523,11 @@
  element('inbox-jump').onkeydown=event=>{if(event.key==='Enter')element('inbox-go').onclick();};
  async function loadRuntime(){
   if(runtimeRefreshing||!ready||!identity||identity.locked)return;
-  runtimeRefreshing=true;const runtimeEpoch=accessEpoch,revision=observationRevision;let snapshotApplied=false;
+  runtimeRefreshing=true;const runtimeEpoch=accessEpoch,revision=observationRevision,roomSession=identity.room_session;let snapshotApplied=false;
   element('runtime-refresh').disabled=true;
   try{
    const state=await call('runtime.status');
-   if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch||revision!==observationRevision)return;
+   if(!ready||!identity||identity.locked||identity.room_session!==roomSession||runtimeEpoch!==accessEpoch||revision!==observationRevision)return;
    const activities=state.activities||[],active=activities[0];
    const fault=state.platforms.some(p=>p.scheduler_error||p.failed)||state.handoff_pending;
    const activityLabels={replying:'正在撰写回复',learning:'正在学习',watching:'正在观看视频',browsing:'正在浏览内容'};
@@ -588,7 +588,7 @@
    if(!inboxBusy)await loadInbox(inboxPage);
    lastRuntimeRefresh=Date.now();element('runtime-refresh').textContent='立即刷新';
   }catch(error){
-   if(!ready||!identity||identity.locked||runtimeEpoch!==accessEpoch||revision!==observationRevision)return;
+   if(!ready||!identity||identity.locked||identity.room_session!==roomSession||runtimeEpoch!==accessEpoch||revision!==observationRevision)return;
    if(!snapshotApplied){
     element('monitor-state').textContent='监控连接中断';
     paintMonitor(element('monitor-scene').dataset.state,true);

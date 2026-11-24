@@ -129,16 +129,43 @@ class CoreScheduler(Scheduler):
 
     async def model(self, instructions, context, output_schema, images=(), *, native=None, guard=None):
         self.alive()
+        from companion_core import expression_learning, expression_patterns
+        from companion_core.contracts import stable_key
         from companion_core.public_workspace import PublicWorkspace
 
+        training_source = None
         if isinstance(self.engine.store, PublicWorkspace):
             from .connector import normalize
 
             for event in context.get("material", {}).get("events", []):
                 if event["kind"] == "dm_reply":
                     raise AssistantError("access_denied", "私信不能进入公开探索模型上下文")
-                self.engine.store.direct.add("event/" + normalize(self.engine.account, event).id)
+                resource = "event/" + normalize(self.engine.account, event).id
+                self.engine.store.current_material.add(resource)
+                self.engine.store.direct.add(resource)
             access_guard = self.engine.store.before_model(context)
+            evidence, scene = [], []
+            with self.core.store.lock, self.core.store.db() as db:
+                access_guard()
+                for item in context.get("material", {}).get("events", [])[:12]:
+                    event = normalize(self.engine.account, item)
+                    evidence.append(event.id)
+                    scene.append(event.text[:400])
+                    expression_learning.observe(self.core.store, "bilibili", event.thread, event.id, event.text, db)
+                video = context.get("material", {}).get("video") or {}
+                if video.get("bvid"):
+                    # Only consume bounded text supplied by the current public video reader.
+                    transcript = " ".join(s.get("text", "") for s in video.get("segments", [])[:16]
+                                          if isinstance(s, dict) and isinstance(s.get("text"), str))
+                    expression_learning.observe(self.core.store, "bilibili", video["bvid"], video["bvid"], transcript, db)
+                    evidence.append(video["bvid"])
+                    scene.extend((video.get("title", ""), transcript[:800]))
+            if evidence and "video_topics" in output_schema.get("properties", {}):
+                training_source = stable_key("public-expression", self.engine.account, sorted(evidence))
+                output_schema = {**output_schema, "properties": {**output_schema["properties"],
+                                 "expression_signal": expression_patterns.OPTIONAL}}
+                context = {**context, "shared_expression": expression_learning.context(self.core.store, " ".join(scene))}
+                instructions += " shared_expression 为通用表达建议，服从基础人设和当下语境。" + expression_patterns.PROMPT
             previous_guard = guard
 
             def guard():
@@ -146,8 +173,16 @@ class CoreScheduler(Scheduler):
                 if previous_guard:
                     previous_guard()
 
-        return await self.core.model(instructions, context, output_schema, images,
-                                     native=native, guard=guard, phase=self.phase)
+        result = await self.core.model(instructions, context, output_schema, images,
+                                       native=native, guard=guard, phase=self.phase)
+        if training_source:
+            decision = result["result"] if native else result
+            signal = decision.pop("expression_signal", None)
+            if signal:
+                with self.core.store.lock, self.core.store.db() as db:
+                    guard()
+                    expression_patterns.record(self.core.store, training_source, signal, db)
+        return result
 
 
 def companion(engine, model=None):

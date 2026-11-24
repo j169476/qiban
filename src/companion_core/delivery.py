@@ -54,9 +54,7 @@ def eligible(core, event, version, run, *, keep_pending=False):
             or record.get("config_token") != config_token(core.store))
 
 
-def defer(core, event, version, run, reason):
-    now = core.clock()
-    policy = core.store.read("policy")["data"]
+def retry_at(now, policy, reason):
     if reason in {"quota_exhausted", "reply_loop_limit", "model_quota"}:
         local = now.astimezone(ZoneInfo(policy["timezone"]))
         due = (local + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -66,6 +64,12 @@ def defer(core, event, version, run, reason):
         due = now  # Compatibility only; new scheduling never emits this reason.
     else:
         due = now + timedelta(seconds=30)
+    return due
+
+
+def defer(core, event, version, run, reason):
+    now = core.clock()
+    due = retry_at(now, core.store.read("policy")["data"], reason)
     with core.store.lock, core.store.db() as db:
         source = db.execute("SELECT version,deleted FROM core_events WHERE id=?", (event.id,)).fetchone()
         if not source or source["deleted"] or source["version"] != version:

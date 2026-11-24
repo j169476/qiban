@@ -58,6 +58,7 @@ def normalize_native(raw, options, *, identity, sent_reference):
     parts = raw.get("elements")
     require(isinstance(parts, list) and len(parts) <= 200, "qq_array_messages_required")
     text, media, trigger = [], [], "direct" if kind == "private" else "none"
+    addressed = set()
     media_types = {2: ("image", "picElement"), 3: ("file", "fileElement"), 4: ("audio", "pttElement")}
     for position, part in enumerate(parts):
         require(isinstance(part, dict), "qq_event_invalid")
@@ -65,6 +66,11 @@ def normalize_native(raw, options, *, identity, sent_reference):
             element = part.get("textElement")
             require(isinstance(element, dict) and isinstance(element.get("content"), str), "qq_event_invalid")
             text.append(element["content"])
+            if kind=="group" and element.get("atType")==2:
+                member=str(element.get("atUid",""))
+                known=identity["friends"].get(member)
+                if known and known==element.get("atNtUid") and member!=options["account"]:
+                    addressed.add(ActorRef("qq",member,options["account"]).key)
             if (kind == "group" and trigger != "reply" and element.get("atType") == 2
                     and str(element.get("atUid")) == options["account"] and element.get("atNtUid") == self_uid):
                 trigger = "mention"
@@ -104,4 +110,5 @@ def normalize_native(raw, options, *, identity, sent_reference):
                  kind + ":" + target, datetime.fromtimestamp(stamp, timezone.utc).isoformat(), content, kind,
                  attachments=attachments,
                  metadata={"qq": {"target_id": target, "trigger": trigger, "identity_quality": "verified",
+                                   **({"addressed_members":sorted(addressed)} if addressed else {}),
                                    **({"attachments_omitted": omitted} if omitted else {})}})

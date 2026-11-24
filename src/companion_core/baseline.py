@@ -156,7 +156,7 @@ class Bundle:
     check: object
 
 
-def load(store, *, read=None):
+def load(store, *, read=None, audience=None):
     """Read all fixed material or fail; never silently truncate or switch persona."""
     if not enabled(store):
         return None
@@ -169,12 +169,19 @@ def load(store, *, read=None):
     access = AccessService(repository, authority)
     request = authority.issue(actor=None, conversation="shared-baseline", audience="public", lifetime=3600)
     reader = read or store.read
+    scoped_store = store.store if getattr(store,"is_public_workspace",False) else store
+    scoped_request = audience or getattr(store,"request",None)
 
     def get(kind, identifier=None):
         resource = resource_id(kind, identifier)
         policy = repository.policy(resource)
         if policy is None or policy.classification != "public" or not access.can_read(request, resource):
             raise AssistantError("baseline_unavailable", "共用人物设定缺失、被撤销或尚未公开；未替换为默认人设")
+        # Always validate the complete administrator-published baseline. Defer
+        # individual foundation memories outside their current fragment scope.
+        from .privacy import raw_allowed
+        if kind=="memories" and scoped_request and not raw_allowed(scoped_store,scoped_request,resource):
+            return scoped_store.read(kind,identifier)
         result = reader(kind, identifier)
         if result is None:
             raise AssistantError("baseline_unavailable", "当前请求不能读取完整共用人物设定")
@@ -191,8 +198,16 @@ def load(store, *, read=None):
         if store.state(STATE) != state:
             raise AssistantError("context_changed", "共用设定登记已变化")
         access.revalidate(lease)
-        verify_record_versions(store, versions)
+        verify_record_versions(scoped_store, versions)
 
     check()
-    return Bundle({"persona": card["data"], "foundation_memories": [item for _, _, item in records[1:]],
-                   "baseline_guidance": GUIDANCE}, versions, lease.versions, check)
+    from .privacy import raw_allowed
+    visible=[(kind,key,item) for kind,key,item in records[1:] if not scoped_request or
+             raw_allowed(scoped_store,scoped_request,resource_id(kind,key))]
+    def check_scope():
+        check()
+        if scoped_request:
+            from .privacy import require_raw
+            require_raw(scoped_store,scoped_request,[resource_id(kind,key) for kind,key,_ in visible])
+    return Bundle({"persona": card["data"], "foundation_memories": [item for _, _, item in visible],
+                   "baseline_guidance": GUIDANCE}, versions, lease.versions, check_scope)

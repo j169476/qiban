@@ -1,6 +1,8 @@
 """Release privacy checks exercise actual new stores and exported archives."""
 import importlib.util
 import json
+import os
+import subprocess
 import tomllib
 import zipfile
 from pathlib import Path
@@ -103,8 +105,48 @@ def test_repository_is_exportable_with_empty_defaults():
     assert "tests_core/fixtures/retrieval/cases.json" in names
     assert "src/companion_wechat/native/LICENSE.helper" in names
     assert set(release.REVIEWED_TEXT) | set(release.REVIEWED_ASSETS) <= names
+    assert {"platforms/linux/README.md", "platforms/linux/server/sshd_config",
+            "platforms/linux/core/Dockerfile.dockerignore", "platforms/linux/core/core_acceptance.py",
+            "platforms/windows-remote/build.ps1", "platforms/windows-remote/verify.py",
+            "tests_postgres/test_windows_generic_actions.py", "tests_postgres/matter_fixture.py",
+            "src/companion_core/sql/019_role_reminders.sql", "src/companion_core/sql/024_role_activity.sql"} <= names
     assert not any(name.startswith(release.PRIVATE_PREFIXES) for name in names)
     assert not any(name.startswith(release.LOCAL_BUILD_PREFIXES) for name in names)
+
+
+def test_git_discovers_platform_source_while_export_requires_review(tmp_path):
+    root = synthetic_source(tmp_path)
+    (root / ".gitignore").write_bytes((ROOT / ".gitignore").read_bytes())
+    public = sorted(name for name in release.ROOT_FILES if name.startswith("platforms/"))
+    unreviewed = ["platforms/linux/server/new_feature.py", "platforms/windows-remote/Display/NewView.cs",
+                  "platforms/linux/new_package/tests/test_new.py", "platforms/experimental/README.md"]
+    private = [
+        "platforms/linux/core/endpoint.json", "platforms/linux/server/keys/id_ed25519",
+        "platforms/linux/server/acceptance-results.json",
+        "platforms/linux/server/handoff.md", "platforms/linux/server/sshd_config.local",
+        "platforms/windows-remote/Display/display.json", "platforms/windows-remote/build/console.exe",
+        "platforms/windows-remote/vendor/QQNT.node",
+        "scripts/private/runtime/README.md", "scripts/obj/project.assets.json", "tests/endpoint.json",
+        "src/module/data.sqlite-wal", "scripts/node_modules/vendor/package.json",
+        "scripts/handoff/checkpoint.md", "tests/.ssh/config", "plugins/qiban/bin/runtime.dll",
+        "scripts/host/known_hosts", "scripts/host/ssh_host_ed25519_key", "scripts/engine.node",
+    ]
+    for name in private + unreviewed:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("SYNTHETIC-LOCAL-ONLY", encoding="utf8")
+    # Exercise the real ignore engine in a disposable, empty repository.
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    result = subprocess.run(["git", "-c", f"core.excludesFile={os.devnull}", "check-ignore",
+                             "--no-index", "-z", "--stdin"], cwd=root, check=True, capture_output=True,
+                            input=("\0".join(public + unreviewed + private) + "\0").encode())
+    assert set(result.stdout.decode().rstrip("\0").split("\0")) == set(private)
+    output = tmp_path / "release"
+    report = release.export(root, output, ("SYNTHETIC-LOCAL-ONLY",))
+    with zipfile.ZipFile(output / "source.zip") as archive:
+        exported = {entry.removeprefix("repository/") for entry in archive.namelist()}
+    assert exported == {item["path"] for item in report["manifest"]}
+    assert set(public) <= exported and not exported.intersection(private + unreviewed)
 
 
 @pytest.mark.parametrize("connector", ["companion-qq", "companion-wechat"])
@@ -132,6 +174,11 @@ def test_public_attribution_does_not_allow_other_private_content(tmp_path):
     approved = release.PUBLIC_TEXT[0]
     marker = approved.split("和")[0]
     (root / "README.md").write_text(approved, encoding="utf-8")
+    assert release.audit(root, (marker,))[1]["ok"]
+    (root / "docs/桌面声明.md").write_text(approved, encoding="utf-8")
+    browser_check = root / "scripts/desktop_probe/check_workspace_browser.cjs"
+    browser_check.parent.mkdir(parents=True, exist_ok=True)
+    browser_check.write_text("开发者：" + approved, encoding="utf-8")
     assert release.audit(root, (marker,))[1]["ok"]
     (root / "src/private.py").write_text(approved, encoding="utf-8")
     with pytest.raises(release.ReleaseError, match="src/private.py"):

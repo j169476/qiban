@@ -186,7 +186,7 @@ async function checkPublicReader(p){
  const displayedRows=()=>article.locator('tr').evaluateAll(rs=>rs.map(r=>Array.from(r.cells,c=>c.textContent)));
  await p.goto('https://workspace.test/index.html');
  const before=await p.evaluate(()=>requests.length);
- await enter('declaration');await article.getByText('开发者：Yi_Ning和ta的龙娘').waitFor();
+ await enter('declaration');await article.getByText('开发者：Ning_Yi和ta的龙娘').waitFor();
  await article.locator('summary').filter({hasText:'MIT'}).click();await article.locator('pre').first().filter({hasText:'Permission is hereby granted'}).waitFor();
  const upstream=article.locator('.reader-upstreams');await upstream.locator('summary').click();
  const source=await fs.readFile(path.join(__dirname,'../../THIRD_PARTY_NOTICES.md'),'utf8');

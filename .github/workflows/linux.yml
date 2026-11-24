@@ -1,0 +1,40 @@
+name: Linux acceptance
+
+on:
+  push:
+    paths:
+      - ".github/workflows/linux.yml"
+      - "platforms/linux/**"
+      - "src/companion_core/**"
+  pull_request:
+    paths:
+      - ".github/workflows/linux.yml"
+      - "platforms/linux/**"
+      - "src/companion_core/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      QIBAN_LINUX_IMAGE_TAG: ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the index and PostgreSQL images
+        run: python3 -B platforms/linux/core/core_lab.py build
+
+      - name: Verify read-only SSH and offline document indexing
+        run: |
+          python3 -B platforms/linux/server/lab.py --name qiban-linux-ci-index up --port 22470
+          python3 -B platforms/linux/server/lab.py --name qiban-linux-ci-index accept
+          python3 -B platforms/linux/server/lab.py --name qiban-linux-ci-index stop
+
+      - name: Verify synthetic dialogue and PostgreSQL recovery
+        run: |
+          python3 -B platforms/linux/core/core_lab.py --name qiban-linux-core-ci up --port 22471
+          python3 -B platforms/linux/core/core_lab.py --name qiban-linux-core-ci accept
+          python3 -B platforms/linux/core/core_lab.py --name qiban-linux-core-ci stop

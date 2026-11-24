@@ -41,14 +41,14 @@ def status(store, policy, now):
             "remaining": max(0, policy["daily_model_cycles"] - record["used"])}
 
 
-def reserve(store, policy, now, *, account=None):
+def reserve(store, policy, now, *, account=None, leave=0):
     """Charge before calling the model; cancellation does not refund a started call."""
     day = now.astimezone(ZoneInfo(policy["timezone"])).date().isoformat()
     source = f"model-cycles:{account}:{day}" if account is not None else "core-model:" + day
     with store.lock, store.db() as db:
         db.execute("BEGIN IMMEDIATE")
         key, record = _usage(store, day, db)
-        if record["used"] >= policy["daily_model_cycles"]:
+        if record["used"] >= policy["daily_model_cycles"] - leave:
             raise AssistantError("model_quota", "当日模型额度已用完")
         value = max(store.state(source, 0, db), record["sources"].get(source, 0)) + 1
         record["used"] += 1

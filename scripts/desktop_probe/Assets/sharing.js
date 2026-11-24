@@ -31,7 +31,7 @@
  const SCOPE_DISCLAIMER='以上都只是现存依据；实际读取仍须通过来源检查，本页不把它当作最终可读结论。';
  const LIST_LIMIT=20;
  const TIMEOUT='操作超时，请重新读取资料共享设置。';
- let allowed=false,epoch=0,stale=false;
+ let allowed=false,epoch=0,stale=false,roomSession=null;
  let list=null,listSeq=0,listActive=0;
  let selected=null,record=null,detailToken=0,detailActive=0;
  let targets=null,targetsLoaded=false,targetsNext=null,targetsSeq=0,targetsActive=0;
@@ -209,6 +209,7 @@
  // --- detail ----------------------------------------------------------------
  async function openRecord(kind,identifier){
   if(!allowed||typeof kind!=='string'||typeof identifier!=='string'||listBusy()||previewBusy())return;
+  window.QibanPrivacy?.selectSource(kind,identifier);
   // A new selection owns a fresh token, so an older reply can never paint it back.
   const current=epoch,token=++detailToken;
   selected={kind,identifier};record=null;detailActive=token;
@@ -456,6 +457,10 @@
   }
   if(!record){paragraph(box,note('detail')||'正在读取这条资料的共享设置……','note');return;}
   heading(box,'h3',kindText(record.kind)+' · '+textValue(record.identifier));
+  if(window.QibanPrivacy){
+   const range=button(box,'查看此资料的隐私范围','secondary');
+   range.onclick=()=>window.QibanPrivacy.open(record.kind,record.identifier);
+  }
   lines(box,policyLines(record.policy));
   paragraph(box,'资料版本：'+textValue(record.record_version)+
    (record.locked?' · 已锁定（锁定只禁止角色自动修改）':''),'note');
@@ -995,6 +1000,9 @@
  window.addEventListener('qiban-management-state',({detail})=>{
   el('panel').hidden=document.getElementById('management-panel').hidden;
   const now=Boolean(detail&&detail.ready&&!detail.locked);
+  const session=now?detail.roomSession:null;
+  if(allowed&&now&&roomSession!==session)setAllowed(false);
+  roomSession=session;
   if(now===allowed)return;
   setAllowed(now);
   if(allowed)void loadPage('');

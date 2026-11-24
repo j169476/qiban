@@ -48,6 +48,7 @@ class OwnedCompanion(Companion):
             from .desktop_bili_policy import BiliRuntimeStore
             store = BiliRuntimeStore(store,adapters[0].account)
         super().__init__(store,model,host,adapters,run_key=run_key)
+        self.role.cores = host.runtime.cores
 
     def start(self, *, read_only=False, reply_test=None):
         with self.store.lock:
@@ -155,6 +156,7 @@ class DesktopRuntime:
                 self.tasks.block()
                 session.update(held=previous.get('held', []), account_switch=previous['account_switch'])
             self.store.set_state(SESSION,session,db)
+            self._pause_record("run","desktop_role_cutover",db)
             # A previous worker's active bit cannot authorize continuing its actions.
             for platform in PLATFORMS:
                 run = self.store.state('core-run:'+platform,{},db)
@@ -307,7 +309,9 @@ class DesktopRuntime:
             self.management.notifications.record(code, generation, platform)
 
     def _pause(self, platform, reason, db):
-        key = 'core-run:'+platform
+        self._pause_record('core-run:'+platform,reason,db)
+
+    def _pause_record(self,key,reason,db):
         run = self.store.state(key,{},db)
         if run.get('status')=='active':
             self.store.set_state(key,{**run,'status':'paused','reason':reason},db)
@@ -317,6 +321,8 @@ class DesktopRuntime:
 
     def status(self):
         from companion_core.context_workspace import revision
+
+        from .desktop_matters import recent
 
         self.require_current()
         preferences = self.store.state(PREFERENCES)
@@ -342,7 +348,8 @@ class DesktopRuntime:
                 'generated_at':datetime.now(timezone.utc).isoformat(), 'active_preset':revision(self.store)['preset'],
                 'preference_revision':preferences['revision'],'platforms':platforms,'tasks_blocked':self.tasks.blocked,
                 'intake_paused':self.intake_paused(),
-                'handoff_pending':self.handoff_pending(), 'activities':self.activity.snapshot()}
+                'handoff_pending':self.handoff_pending(), 'activities':self.activity.snapshot(),
+                'recent_actions':recent(self.store)}
 
     def platform_model(self, platform):
         if platform in ("local","bilibili") and self.room_model is not None:

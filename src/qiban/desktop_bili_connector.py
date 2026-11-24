@@ -48,9 +48,50 @@ class BoundCredentials:
 
 
 class DesktopBiliConnector(BilibiliConnector):
+    async def runtime_poll(self, *, receive=True):
+        from companion_core import delivery, events
+        core=self.engine.core
+        run=core.guard()
+        batch=await core.poll(receive=receive)
+        permitted=[]
+        blocked=core.store.read("preferences")["data"]
+        for event in batch:
+            kind=event.metadata["kind"]
+            with core.store.db() as db:
+                terminal=db.execute("SELECT 1 FROM actions WHERE account=? AND dedupe=? AND status IN "
+                                    "('succeeded','uncertain','dispatching')",
+                                    (self.account,f"{self.account}:{kind}:{event.native_id}")).fetchone()
+            consumed=terminal or core.store.state(f"processed:{self.account}:{event.native_id}")
+            if (consumed or kind not in {"reply","dm_reply"} or event.actor.user_id in [self.account,*blocked["blocked_uids"]]
+                or any(t.casefold() in event.text.casefold() for t in blocked["blocked_topics"] if t)):
+                delivery.finish(core,event,events.get(core.store,event.id)["version"],run,"prior_receipt_or_ineligible")
+            else:
+                permitted.append(event)
+        return permitted
+
+    async def public_wake(self,core):
+        from .desktop_public_tools import wake
+        await wake(core,self)
+
+    def workflow(self,core):
+        from companion_core.orchestration import Flow, Stage, Workflow
+        async def receive(state):
+            incoming=await self.runtime_poll()
+            if incoming:
+                from companion_core.reply_batch import handle_batch
+                await handle_batch(core,incoming[:core.store.read("policy")["data"]["items_per_cycle"]])
+                return Flow.STOP
+        async def public_timer(state):
+            await core.role.react("public_timer",adapter=self)
+        return Workflow(self.platform,self.account,(Stage("role_inbox",receive,0,"prepare"),
+                                                   Stage("public_timer",public_timer,1,requires_model=True)))
+
     def backlog_workflow(self, core):
-        from bili_assistant.governed_workflow import definition
-        return definition(self.engine, core, receive=False)
+        from companion_core.orchestration import Stage, Workflow
+        from companion_core.reply_batch import handle_batch
+        async def drain(state):
+            await handle_batch(core,await self.runtime_poll(receive=False))
+        return Workflow(self.platform,self.account,(Stage("role_backlog",drain,0,"prepare"),))
 
     async def close(self):
         from .desktop_bili import close_sdk_session

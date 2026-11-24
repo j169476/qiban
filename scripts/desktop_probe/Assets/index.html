@@ -1,6 +1,9 @@
 <!doctype html>
 <html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>栖伴 Qiban</title><link rel="stylesheet" href="/static/app.css"><link rel="stylesheet" href="/static/qiban.css"><link rel="stylesheet" href="/probe.css"><link rel="stylesheet" href="/help.css"><link rel="stylesheet" href="/workspace.css"><link rel="stylesheet" href="/house.css"><script src="/room-assets.js" defer></script><script src="/room-player.js" defer></script><script src="/house.js" defer></script><script src="/trace-result.js" defer></script><script src="/workspace.js" defer></script><script src="/workspace-map.js" defer></script><script src="/workspace-learning.js" defer></script><script src="/workspace-presets.js" defer></script><script src="/workspace-sources.js" defer></script><script src="/workspace-context.js" defer></script><script src="/feedback.js" defer></script><script src="/auto-read.js" defer></script><script src="/help.js" defer></script><script src="/probe.js" defer></script><script src="/management.js" defer></script><script src="/room.js" defer></script><script src="/tasks.js" defer></script><script src="/model.js" defer></script><script src="/model-choice.js" defer></script><script src="/contacts.js" defer></script><script src="/audience.js" defer></script><script src="/reply_quota.js" defer></script><script src="/reply_trace.js" defer></script><script src="/bili.js" defer></script><script src="/qq.js" defer></script><script src="/media.js" defer></script><script src="/stickers.js" defer></script><script src="/files.js" defer></script><script src="/growth.js" defer></script><script src="/memories.js" defer></script><script src="/baseline.js" defer></script><script src="/relationship.js" defer></script><script src="/sharing.js" defer></script><script src="/relation-claims.js" defer></script><script src="/navigation.js" defer></script></head>
 <body data-nav-page="home" data-tab-persona="profile" data-tab-platforms="qq" data-tab-records="tasks" data-tab-media="attachments" data-tab-backup="local" data-tab-model="choice"><main class="probe">
+<script src="/management-list.js" defer></script>
+<script src="/conversation-controls.js" defer></script>
+<script src="/role-records.js" defer></script>
 <script src="/public-reader.js" defer></script>
 <dialog id="public-reader" aria-labelledby="reader-title">
 <div class="reader-head"><h1 id="reader-title" tabindex="-1">支持</h1><button type="button" id="reader-back" class="secondary">返回</button></div>
@@ -95,7 +98,8 @@
 <section class="house-hero" id="monitor-scene" data-state="idle"><div class="house-hero-copy"><h2 id="monitor-state" role="status">等待连接</h2><p id="monitor-detail"></p><p id="home-service" class="probe-service-state" role="status">正在连接应用后台</p><p id="house-preset-line" hidden>当前生效方案　<strong id="house-active-preset"></strong></p></div><qiban-room id="monitor-window" quiet aria-hidden="true"></qiban-room></section>
 <div class="house-pair"><section class="card" id="runtime-panel" hidden><div class="house-card-head"><h2>平台动态</h2><span id="house-platform-count"></span></div><div id="runtime-platforms"></div>
 <details class="house-stop"><summary>运行管理</summary><button id="runtime-stop-all" class="secondary" disabled>停止全部运行与任务</button></details></section>
-<div class="house-stack"><section class="card house-journal"><div class="house-card-head"><h2>值班手记</h2></div><ol id="house-events"></ol><p id="house-events-empty">等待运行快照</p></section><section class="card" id="notification-panel" hidden data-nav-page="home"><h2 id="notification-title">应用通知</h2><div class="inbox-toolbar" id="inbox-tools" hidden>
+<div class="house-stack"><section class="card house-journal" id="house-actions" hidden><div class="house-card-head"><h2>最近行动</h2><button type="button" class="secondary">查看事项</button></div><ol></ol><p class="note" data-empty>暂无行动记录。</p></section>
+<section class="card house-journal"><div class="house-card-head"><h2>值班手记</h2></div><ol id="house-events"></ol><p id="house-events-empty">等待运行快照</p></section><section class="card" id="notification-panel" hidden data-nav-page="home"><h2 id="notification-title">应用通知</h2><div class="inbox-toolbar" id="inbox-tools" hidden>
 <label><input type="checkbox" id="inbox-select"> 本页全选</label>
 <button class="secondary" id="inbox-read" disabled>标为已读</button>
 <button class="secondary" id="inbox-delete" disabled>删除所选</button>
@@ -197,6 +201,12 @@
 <button id="sharing-next" class="secondary" disabled>下一页资料</button>
 <div id="sharing-preview-area" hidden><div id="sharing-preview"></div></div>
 </section>
+<section class="card conversation-controls" id="privacy-panel" data-nav-page="persona" data-persona-pane="sharing">
+<details data-disclosure><summary><strong>隐私使用范围</strong></summary>
+<p data-scope hidden>已按单条资料筛选。 <button type="button" class="secondary" data-all>查看全部资料</button></p>
+<p role="status" data-notice></p><div data-items></div>
+<div class="actions"><button type="button" class="secondary" data-refresh disabled>刷新范围</button><button type="button" class="secondary" data-prev hidden>上一页</button><button type="button" class="secondary" data-next hidden>下一页</button></div>
+</details></section>
 <nav class="probe-tabs" id="platform-tabs" data-nav-page="platforms" aria-label="平台与会话分组">
 <button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="qq" aria-pressed="true"><svg class="platform-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15c-1-2-1-4 0-6C7 2 17 2 17 9c1 2 1 4 0 6l2 3-4-1c-2 2-4 2-6 0l-4 1z"/><path d="M9 11h6M9 21l3-2 3 2"/></svg>QQ</button>
 <button type="button" class="probe-tab" data-tab-group="platforms" data-tab-target="wechat" aria-pressed="false"><svg class="platform-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 16a8 6 0 1 1 3-9"/><path d="m5 14-1 4 4-2"/><path d="M22 14a6 5 0 1 0-3 4l3 2-1-4"/><path d="M7 9h.01M12 9h.01M13 14h.01M18 14h.01"/></svg>微信</button>
@@ -241,6 +251,11 @@
 <button id="audience-remove-one" class="secondary">移出勾选</button>
 <p id="audience-selection-info" role="status"></p></div>
 </section>
+<section class="card conversation-controls" id="group-modes-panel" data-nav-page="platforms" data-platform-pane="qq wechat">
+<h2>群聊行为</h2><p class="note" data-scope></p>
+<p role="status" data-notice></p><div data-items></div>
+<div class="actions"><button type="button" class="secondary" data-refresh disabled>刷新群设置</button><button type="button" class="secondary" data-prev hidden>上一页</button><button type="button" class="secondary" data-next hidden>下一页</button><button type="button" class="secondary" data-all hidden>查看全部群</button></div>
+</section>
 <section class="card" id="bili-panel" hidden data-nav-page="platforms" data-platform-pane="bilibili"><h2>B 站账号</h2>
 <p id="bili-current"></p><p id="bili-candidate" hidden></p>
 <p id="bili-status" role="status"></p><img id="bili-qr" width="220" height="220" alt="用哔哩哔哩手机应用扫描登录" hidden>
@@ -280,6 +295,8 @@
 <div id="reply-quota-accounts"></div></section>
 <nav class="probe-tabs" id="records-tabs" data-nav-page="records" aria-label="任务与记录分组">
 <button type="button" class="probe-tab" data-tab-group="records" data-tab-target="tasks" aria-pressed="true">手动任务</button>
+<button type="button" class="probe-tab" data-tab-group="records" data-tab-target="matters" aria-pressed="false">自主事项</button>
+<button type="button" class="probe-tab" data-tab-group="records" data-tab-target="reminders" aria-pressed="false">角色提醒</button>
 <button type="button" class="probe-tab" data-tab-group="records" data-tab-target="trace" aria-pressed="false">回复处理记录</button>
 </nav>
 <section class="card" id="tasks-panel" data-nav-page="records" data-records-pane="tasks"><div class="help-heading"><h2>手动任务</h2><details class="help"><summary aria-label="手动任务说明">i</summary><div class="help-body">选择任务、填写内容后提交，在下方查看进度和结果。</div></details></div>
@@ -295,6 +312,16 @@
 <label for="tasks-reason">阅读要求</label><textarea id="tasks-reason" maxlength="2000" rows="3" disabled></textarea></div>
 <div class="actions"><button id="tasks-submit" disabled>提交视频任务</button><button id="tasks-refresh" class="secondary" disabled>重新读取任务</button></div>
 <p id="tasks-notice" role="status" aria-live="polite"></p><div id="tasks-items"></div>
+</section>
+<section class="card conversation-controls" id="matters-panel" data-nav-page="records" data-records-pane="matters">
+<h2>自主事项</h2><p role="status" data-notice></p><div data-items></div>
+<div class="actions"><button type="button" class="secondary" data-refresh disabled>刷新事项</button><button type="button" class="secondary" data-all hidden>查看全部事项</button><button type="button" class="secondary" data-prev hidden>上一页</button><button type="button" class="secondary" data-next hidden>下一页</button></div>
+</section>
+<section class="card conversation-controls" id="reminders-panel" data-nav-page="records" data-records-pane="reminders">
+<h2>角色提醒</h2><label class="reminder-filter">显示<select data-filter><option value="pending">待提醒</option><option value="all">全部记录</option></select></label>
+<p role="status" data-notice></p><div data-items></div>
+<div class="actions"><button type="button" class="secondary" data-refresh disabled>刷新提醒</button><button type="button" class="secondary" data-prev hidden>上一页</button><button type="button" class="secondary" data-next hidden>下一页</button></div>
+<details class="reminder-delivery" data-delivery hidden><summary>到期发送范围</summary><ul></ul></details>
 </section>
 <section class="card" id="reply-trace-panel" hidden data-nav-page="records" data-records-pane="trace"><div class="help-heading"><h2>回复处理记录</h2><details class="help"><summary aria-label="回复处理记录说明">i</summary><div class="help-body">查看每次回复的结果、用时和处理步骤。</div></details></div>
 <label for="reply-trace-limit">最近数量（1 至 100 条）</label>

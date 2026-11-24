@@ -234,7 +234,29 @@ class BilibiliConnector:
             context["images_read"] = len(images)
             yield {"context": context, "images": images}
 
+    def reminder_eligible(self, event):
+        policy = self.engine.store.read("policy")["data"]
+        prefs = self.engine.store.read("preferences")["data"]
+        if (event.visibility != "private" or event.account != self.account or event.actor.user_id == self.account
+                or event.actor.user_id in prefs["blocked_uids"] or not policy["actions"]["dm_reply"]["enabled"]):
+            raise AssistantError("reply_not_authorized", "当前账号或私信策略不允许到期提醒")
+
+    def public_origin(self, event):
+        if (event.account != self.account or event.visibility != "public"
+                or event.metadata.get("kind") != "reply" or event.actor.user_id == self.account):
+            return False
+        policy = self.engine.store.read("policy")["data"]
+        prefs = self.engine.store.read("preferences")["data"]
+        return policy["actions"]["reply"]["enabled"] and event.actor.user_id not in prefs["blocked_uids"]
+
+    async def deliver_reminder(self, event, text, attempt, job, *, guard):
+        return await self._action("message.reply", {"_event": event.as_dict(), "text": text},
+                                  guard=guard, reminder_attempt=attempt)
+
     async def execute(self, capability, arguments, *, guard):
+        return await self._action(capability, arguments, guard=guard)
+
+    async def _action(self, capability, arguments, *, guard, reminder_attempt=None):
         guard()
         arguments = dict(arguments)
         event = arguments.pop("_event", None)
@@ -252,7 +274,8 @@ class BilibiliConnector:
         else:
             raise AssistantError("unknown_capability", "未声明该平台能力")
         try:
-            prepared = self.engine.prepare(kind, arguments, retry_unsent=retry_unsent)
+            options = {"reminder_attempt": reminder_attempt} if reminder_attempt else {}
+            prepared = self.engine.prepare(kind, arguments, retry_unsent=retry_unsent, **options)
         except AssistantError as exc:
             return ActionResult("cancelled", error=exc.code)
         if disclosure and not prepared.get("duplicate"):

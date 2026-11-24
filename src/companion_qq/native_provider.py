@@ -103,7 +103,9 @@ class NativeProvider:
                 self.next_target = start + len(targets)
             for kind,target in targets:
                 guard()
-                if ReplyAuthorizations(self.store).version(ReplyScope("qq", module.account, kind, target)) is not None:
+                from companion_core.group_modes import observing
+                scope = ReplyScope("qq", module.account, kind, target)
+                if ReplyAuthorizations(self.store).version(scope) is not None or observing(self.store, scope):
                     outcomes.append(self.receiver.poll(kind, target))
             guard()
             return outcomes

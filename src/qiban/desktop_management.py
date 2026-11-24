@@ -369,6 +369,16 @@ class DesktopManagement:
             fields.update(desktop_learning.FIELDS)
             fields.update(desktop_record_versions.FIELDS)
             fields.update(desktop_library_versions.FIELDS)
+            fields.update({
+                'group_modes.list': {'platform','account','after'} | ({'target'} if 'target' in args else set()),
+                'group_modes.save': {'platform','account','target','expected','listen','proactive'},
+                'reminders.list': {'after'} | ({'status','id'} & args.keys()),
+                'matters.list': {'after'} | ({'id'} & args.keys()),
+                'matters.stop': {'id','expected'},
+                'privacy.list': {'after'} | ({'kind','identifier','id'} & args.keys()),
+                'privacy.correct': {'id','expected','level'},
+                'reminders.cancel': {'id','expected'}, 'reminders.reschedule': {'id','expected','due_at'},
+            })
             if op == 'model.configure' and 'ultrafast' in args:
                 fields[op] = fields[op] | {'ultrafast'}
             if not isinstance(op,str) or op not in fields or set(args)!=fields[op]:
@@ -405,7 +415,8 @@ class DesktopManagement:
                 result = self.disable_lock(args['password'])
             else:
                 request = self.request()
-                if op in {'context.source_save','context.preset_save','context.preset_apply',
+                if op in {'group_modes.save','reminders.cancel','reminders.reschedule','matters.stop','privacy.correct',
+                          'context.source_save','context.preset_save','context.preset_apply',
                           'records.restore_version','facts.restore_version','library.replace','library.restore',
                           'config.patch','records.correct','records.advanced_commit','records.delete','growth.rebuild','facts.retention_save','facts.confirm','facts.correct','foundation.add','baseline.publish','relationship.save','relationship.clear','relationship.link_confirm','relationship.link_revoke','audience.save','media.configure','media.preserve','media.budget.configure','media.capacity.configure','media.voice.configure','stickers.import_file','stickers.configure','files.import_file','files.configure','files.settings.configure','reply_quota.account_save','reply_quota.scope_save','reply_quota.scope_reset','reply_exclusion.exclude','reply_exclusion.restore','sharing.commit','relations.commit'}:
                     if self.store.state('desktop-last-restore',{}).get('status')=='assets_pending':
@@ -426,6 +437,10 @@ class DesktopManagement:
                     if op == 'audience.save' and not prior and result['scope']['platform']=='wechat' and self.runtime:
                         from .desktop_wechat import adapter
                         self.runtime.configure_platform("wechat",adapter(self.store,self.installation,self.wechat_resources))
+                    if op == 'group_modes.save' and not prior and args['platform']=='qq' and self.runtime and self.qq:
+                        from .desktop_qq_targets import adapter
+                        if self.store.state('core-run:qq', {}).get('status') != 'active':
+                            self.runtime.configure_platform('qq', adapter(self.qq))
                 else:
                     result = self._operation(request,op,args)
             return {'ok':True,'result':result}
@@ -453,6 +468,13 @@ class DesktopManagement:
             raise AssistantError('management_request','请提供基础记忆标识和人物卡版本')
 
     def _operation(self, request, op, args):
+        if op.startswith(('matters.', 'privacy.')):
+            from .desktop_matters import operate
+            self.authority.require(request, administrator=True)
+            return operate(self.store, op, args)
+        if op.startswith(('group_modes.', 'reminders.')):
+            from .desktop_role_tools import operate
+            return operate(self, request, op, args)
         from . import desktop_library_versions, desktop_record_versions
         if op in desktop_record_versions.FIELDS:
             return desktop_record_versions.operate(self, request, op, args)

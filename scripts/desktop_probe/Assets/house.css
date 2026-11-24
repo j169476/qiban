@@ -148,6 +148,33 @@ body[data-room-open] .probe #room-open {color:#59416f;background:var(--tint);bor
 .probe .room-grid {grid-template-columns:minmax(0,1fr) minmax(210px,29%);align-items:start}
 .probe .room-side h2 {margin-top:0}
 .ws .ws-order label {flex:1}.probe .probe-rail-pre {white-space:pre-wrap;overflow-wrap:anywhere}
+.probe .contact-list li:has(.contact-group-settings){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+.probe .contact-group-settings{font-size:.84rem}
+.conversation-controls [data-items]{display:grid;gap:8px}
+.matter-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:13px 13px 9px 13px;background:#fbf8fc}
+.matter-row div{min-width:0;overflow-wrap:anywhere}
+.matter-row small{display:block;margin-top:4px;color:var(--soft)}
+#house-actions ol{max-height:15rem;overflow:auto;list-style:none;margin:0;padding:0}
+#house-actions li{padding:8px 0;overflow-wrap:anywhere}
+#house-actions li+li{border-top:1px dashed var(--line)}
+#house-actions small,#house-actions time{display:block;color:var(--soft);font-size:.84rem}
+#house-actions .action-link{min-height:24px;padding:0;background:transparent;border:0;color:var(--ink);font:inherit;text-align:left;text-decoration:underline;text-decoration-color:#bdabcd;text-underline-offset:.18em;overflow-wrap:anywhere}
+#house-actions .action-link:hover,#house-actions .action-link:focus-visible{color:#674480;text-decoration-color:currentColor}
+.matter-row button{flex-shrink:0}
+#privacy-panel select{display:block;margin:4px 0 10px;max-width:100%}
+#privacy-panel,#group-modes-panel{scroll-margin-top:calc(var(--probe-bar) + 10px)}
+#sharing-detail{overflow-wrap:anywhere}
+#privacy-panel [data-disclosure]>summary{padding:4px 0}
+.conversation-controls [data-items]>details{min-width:0;background:#fbf8fc;border:1px solid var(--line);border-radius:13px 13px 9px 13px}
+.conversation-controls summary{cursor:pointer;padding:12px 14px;overflow-wrap:anywhere}
+.conversation-controls summary small{display:block;margin:3px 0 0 16px;color:var(--soft);font-weight:400}
+.probe .conversation-controls fieldset{margin:0;padding:4px 16px 14px;border:0;min-width:0;overflow-wrap:anywhere}
+.probe .conversation-controls .probe-check{display:flex;align-items:center;gap:8px;margin:8px 0}
+.probe .conversation-controls .probe-check input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
+.probe .conversation-controls input[type=datetime-local]{display:block;margin-top:5px;width:min(100%,19rem)}
+.probe .reminder-filter{display:flex;align-items:center;gap:8px}
+.probe .reminder-filter select{width:auto}
+.conversation-controls [data-notice]:empty,.conversation-controls [data-scope]:empty{display:none}
 .probe #room-dialog .room-main {border-radius:18px}
 .probe :where(button,select,input,textarea,summary):focus-visible {outline:2px solid #956bb2;outline-offset:2px}
 .probe button:not(:disabled):active {transform:translateY(1px)}

@@ -67,7 +67,7 @@ class BilibiliWorkflow:
 
             recover_platform_turns(engine)
 
-    async def prepare(self, state):
+    async def prepare(self, state, *, include_inbox=True):
         if not self.scheduler.remaining_model_calls():
             self.scheduler.phase("waiting", wait_reason="model_quota")
             return Flow.STOP
@@ -99,7 +99,7 @@ class BilibiliWorkflow:
                 "a.dedupe=events.account || ':' || events.kind || ':' || events.id AND "
                 f"a.status NOT IN ('failed','prepared','cancelled')) ORDER BY {stamp},id",
                 (account, engine.run(check_host=False).get("pending_since", engine.run(check_host=False)["started_at"])),
-            ) if not engine.store.state(f"processed:{account}:{row['id']}", db=db)]
+            ) if not engine.store.state(f"processed:{account}:{row['id']}", db=db)] if include_inbox else []
         inbox = list({event["id"]: event for event in [*pending, *state["inbox"]]}.values())
         if getattr(engine.store, "is_public_workspace", False):
             inbox = [event for event in inbox if event["kind"] != "dm_reply"]

@@ -57,6 +57,11 @@ class NativeReceiver:
             # Only the exclusion wrapper is absent here, not the category revision.
             if authorization and policy["version"]:
                 authorization = stable_key("manual-reply", policy["version"], authorization)
+            if not authorization and kind == "group":
+                from companion_core.group_modes import settings
+                mode = settings(self.store, scope, db)
+                if mode["listen"]:
+                    authorization = stable_key("observe", scope.id, mode["since"])
         return {"uin": self.identity["uin"], "uid": self.identity["uid"], "authorization": authorization,
                 "peer": target if kind == "group" else self.identity["friends"][target]}
 
@@ -108,7 +113,9 @@ class NativeReceiver:
             if self._excluded(scope):
                 # Stop reading this one conversation, without closing the provider.
                 return {"status": "excluded"}
-            require(ReplyAuthorizations(self.store).version(scope) is not None, "reply_not_authorized")
+            from companion_core.group_modes import observing
+            require(ReplyAuthorizations(self.store).version(scope) is not None or observing(self.store, scope),
+                    "reply_not_authorized")
         saved = self.store.state(key)
         if saved is None:
             from companion_core.reply_audience import Audience, catchup_since, read

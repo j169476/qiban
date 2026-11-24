@@ -212,7 +212,7 @@ test('分组标签：默认值来自 HTML，点击只改 body 属性与 aria-pre
  const media=tabGroups.find(group=>group.name==='media');
  assert.deepEqual(media.targets,['attachments','library','stickers']);
  const records=tabGroups.find(group=>group.name==='records');
- assert.deepEqual(records.targets,['tasks','trace']);
+ assert.deepEqual(records.targets,['tasks','matters','reminders','trace']);
  for(const tab of page.tabs){
   tab.onclick();
   assert.deepEqual(page.pressed(tab.dataset.tabGroup),[tab.dataset.tabTarget]);

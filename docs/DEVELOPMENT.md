@@ -1,6 +1,10 @@
-# Windows 开发与发布
+# 开发与构建
 
-## 构建应用
+## 源码入口
+
+Windows 个人版的桌面界面使用 WebView2。Ubuntu 后台调用共享核心处理合成会话，Windows 上的独立远程控制台通过 SSH 读取后台状态。[Windows 桌面源码](../scripts/desktop_probe/) · [Ubuntu 后台](../platforms/linux/README.md) · [Windows 远程控制台](../platforms/windows-remote/README.md) · [共享核心源码](../src/companion_core/)
+
+## 构建 Windows 个人版
 
 桌面程序使用 .NET 和 WebView2，存储后台使用 Windows x64 的 CPython 3.11。准备 PostgreSQL 运行组件、Inno Setup 及所需的平台运行资源后，在仓库根目录执行以下命令。示例中的工具路径需要替换成本机位置。
 
@@ -10,19 +14,33 @@ python -m venv .dev/storage-python
 .dev/storage-python/Scripts/python.exe scripts/desktop_probe/build_storage.py --output .dev/storage --work .dev/storage-work
 python scripts/desktop_probe/build_postgres.py --source "C:/BuildTools/postgresql" --output .dev/postgres
 ./scripts/desktop_probe/build.ps1 -ManagedApplication -SubscriptionValidation -OutputDirectory .dev/desktop
-python scripts/desktop_probe/assemble_application.py --desktop .dev/desktop --storage .dev/storage/Qiban.Storage --postgres .dev/postgres --qq-runtime .dev/qq --wechat-runtime .dev/wechat --speech .dev/speech --output dist/Qiban-1.0.0
-python scripts/desktop_probe/installer/build_installer.py --app dist/Qiban-1.0.0 --output-dir dist/Qiban-1.0.0-Installer --iscc "C:/BuildTools/InnoSetup/ISCC.exe"
+python scripts/desktop_probe/assemble_application.py --desktop .dev/desktop --storage .dev/storage/Qiban.Storage --postgres .dev/postgres --qq-runtime .dev/qq --wechat-runtime .dev/wechat --speech .dev/speech --output dist/Qiban-1.1.0
+python scripts/desktop_probe/installer/build_installer.py --app dist/Qiban-1.1.0 --output-dir dist/Qiban-1.1.0-Installer --iscc "C:/BuildTools/InnoSetup/ISCC.exe"
 ```
 
 组装时可用 `--qq-runtime`、`--wechat-runtime` 和 `--speech` 指定已准备的对应组件。生成的 `installer-build.json` 记录安装包大小和 SHA-256。
 
+## Windows 1.1.0 角色运行
+
+桌面后台从 `storage_worker.py` 建立 `DesktopRuntime`。QQ、微信已获准的消息、B 站公开回复与私信以及会客室消息，经 `Companion.handle` 进入 `RoleRuntime.react`。模型可以在收到消息的这一轮回复当前会话，也可以通过 `message.reply` 选择一个或多个有权联系的会话。选择其他会话时只提交目标，后台为每个收件会话分别检索资料、生成正文并记录投递结果。个人微信仍使用连接器已支持的原会话回复能力。
+
+模型可以等待新消息、设置下次唤醒时间或结束事项。闹钟只约定时间，角色醒来后再决定是否发消息以及发给谁。连续唤醒且没有新进展时，后台逐步延长间隔，最终等待新输入。此前已保存的提醒继续沿用原 ID、许可和投递账本。B 站公开探索在定时唤醒中选择工具，收藏、视频和公开资料使用各自的账号权限。管理员可在「任务与记录」停止事项，在「人物与记忆 → 资料共享」查看或更正片段的受众。投递回执不明时，后台停止该次投递的重试。
+
+后台隐私审查使用已配置的模型和同一额度，在独立任务中领取所属账号的短片段。更换收件人会重新取材并校验来源版本和受众，已更正或撤回的片段会使旧投递依据失效。适用群成员及受邀活动由服务端判定。
+
 ## 测试和公开源码
+
+在独立测试库设置 `COMPANION_TEST_DATABASE` 和 `COMPANION_REQUIRE_POSTGRES=1` 后，可执行以下合成回归。
+
+```powershell
+python -m pytest -q tests_postgres/test_windows_generic_actions.py tests_postgres/test_windows_role_matters.py tests_postgres/test_windows_fragment_review.py tests_postgres/test_windows_role_upgrade.py
+```
 
 项目的 Windows 验证流程见 [GitHub Actions 配置](../.github/workflows/tests.yml)。数据库集成测试使用独立测试实例。前端浏览器检查位于 `scripts/desktop_probe`。
 
 ```powershell
 python scripts/prepare_release.py
-python scripts/prepare_release.py --output .dev/releases/windows-1.0.0
+python scripts/prepare_release.py --output .dev/releases/windows-1.1.0
 ```
 
 发布工具导出经审查的源码、使用文档、许可与美术素材。公开仓库保留当前用户指南和模型参考表。原始测试记录、交接文档和完整安装包存放在本机。

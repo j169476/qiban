@@ -1,0 +1,18 @@
+Port 22
+HostKey /var/lib/qiban-hostkey/ssh_host_ed25519_key
+PidFile /run/sshd.pid
+UsePAM no
+AllowUsers qiban-status
+AuthenticationMethods publickey
+AuthorizedKeysFile /etc/qiban/authorized_keys
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+PermitTTY no
+DisableForwarding yes
+PermitTunnel no
+PermitUserRC no
+X11Forwarding no
+MaxSessions 4
+LoginGraceTime 20
+ForceCommand /usr/bin/python3 -I /opt/qiban/gateway.py

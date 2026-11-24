@@ -30,9 +30,10 @@ class PublicWorkspace(ReadView):
         self.request = self.authority.issue(actor=None, conversation="public-autonomy", audience="public",
                                             purpose="exploration", lifetime=3600)
         self.access = AccessService(self.repository, self.authority)
-        super().__init__(store, self.repository.readable_resources(self.access, self.request))
+        super().__init__(store, self.repository.readable_resources(self.access, self.request), self.request)
         self.known, self.direct, self.leases = {}, set(), []
         self.sources = {}
+        self.current_material = set()
         self.baseline_guards = []
 
     def _remember(self, kind, item):
@@ -57,6 +58,9 @@ class PublicWorkspace(ReadView):
             from .public_growth import require_readable
 
             require_readable(self, result, policy)
+            from .privacy import raw_allowed
+            if not raw_allowed(self.store,self.request,policy.resource):
+                return {"data":deepcopy(self.profile.defaults["growth"]), "version":result["version"]}
             self.direct.add(policy.resource)
             return result
         if kind == "persona" and resource_id(kind) not in self.readable:
@@ -67,6 +71,8 @@ class PublicWorkspace(ReadView):
             return {"data": deepcopy(self.profile.defaults["persona"]), "version": self.store.version(kind)}
         if resource_id(kind, item_id) not in self.readable:
             raise AssistantError("not_found", "资料不存在或不属于公开工作区")
+        from .privacy import require_raw
+        require_raw(self.store,self.request,[resource_id(kind,item_id)])
         item = self.store.read(kind, item_id)
         self._remember(kind, item)
         self.direct.add(resource_id(kind, item_id))
@@ -134,6 +140,8 @@ class PublicWorkspace(ReadView):
         return guard
 
     def check(self):
+        from .privacy import require_raw
+        require_raw(self.store, self.request, self.sources.keys() - self.current_material)
         for guard in self.baseline_guards:
             guard()
         for lease in self.leases:
@@ -165,6 +173,9 @@ class PublicWorkspace(ReadView):
             if kind == "growth":
                 if self.read(kind)["version"] != expected:
                     raise AssistantError("edit_conflict", "公开成长状态已经变化")
+                from .privacy import raw_allowed
+                if self.store.state("public-growth") is not None and not raw_allowed(self.store,self.request,resource):
+                    raise AssistantError("context_changed","公开成长资料正在重新分级，请在审查后续办")
                 self.profile.validate(kind, data)
                 result = {"data": deepcopy(data), "version": self._version(data)}
                 self.store.set_state("public-growth", result)

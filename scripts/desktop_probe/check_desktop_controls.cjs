@@ -26,6 +26,10 @@ function records(){
 }
 // Measure the first line of visible label text, separately from the native input's box.
 function geometry(input){
+ if(typeof input==='string'){
+  input=document.querySelector(input);
+  input.scrollIntoView({block:'center',behavior:'instant'});
+ }
  const label=input.labels[0],walker=document.createTreeWalker(label,NodeFilter.SHOW_TEXT);
  let node;do{node=walker.nextNode();}while(node&&!node.textContent.trim());
  const range=document.createRange();range.selectNodeContents(node);const text=range.getClientRects()[0],box=input.getBoundingClientRect();
@@ -34,7 +38,8 @@ function geometry(input){
 }
 async function clickText(page,selector){
  const input=page.locator(selector),before=await input.isChecked();
- await input.evaluate(n=>n.scrollIntoView({block:'center',behavior:'instant'}));const pos=await input.evaluate(geometry);
+ // Contact directory refreshes can replace a row. Resolve its current label in the same call that measures it.
+ const pos=await page.evaluate(geometry,selector);
  assert.ok(pos.width>=12&&pos.width<=24&&pos.gap>=3&&pos.gap<=20,selector+' '+JSON.stringify(pos));
  const caption=input.locator('..').locator('strong');
  if(await caption.count())await caption.click();else await page.mouse.click(pos.x,pos.y);

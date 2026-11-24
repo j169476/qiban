@@ -99,22 +99,29 @@ def test_history_respects_protected_capacity_and_rolls_back(desktop_store):
     assert len(versions.listing(item["id"], None)["items"]) == 1
 
 
-def test_old_backup_restores_original_as_first_editable_revision(desktop_store, tmp_path):
+@pytest.mark.parametrize("old_schema", [16, 17, 18, 19, 20, 21, 22])
+def test_old_backup_restores_original_as_first_editable_revision(desktop_store, tmp_path, old_schema):
     store, key = desktop_store, secrets.token_bytes(32)
     lib = FileLibrary(store)
     item = lib.import_bytes(b"old", "资料.txt", [], actor="test")["item"]
     def previous_records(db):
+        newer = {t for v, fields in postgres_transfer.ADDITIVE_TABLES.items() if v > old_schema for t in fields}
+        skip = False
         for entry in backup_stream.records(store, db):
             if entry[0] == "schema":
-                yield ["schema", entry[1][:16]]
-            elif entry[0] != "table" or entry[1] not in {*postgres_transfer.VERSION_TABLES, "preset_reply_turns"}:
-                yield entry
+                yield ["schema", entry[1][:old_schema]]
+            else:
+                if entry[0] == "table":
+                    skip = entry[1] in newer
+                if not skip:
+                    yield entry
     old_path = tmp_path / "previous.qbk"
     with old_path.open("wb") as writer, store.db() as db:
         backup_stream.write(writer, previous_records(db), key)
     blob = old_path.read_bytes()
     snapshot = postgres_transfer.unpack(blob, key)
-    assert snapshot["migrations"][-1][0] == 18
+    assert snapshot["migrations"][-1][0] == max(postgres_transfer.ADDITIVE_TABLES)
+    assert snapshot["tables"]["role_reminders"]["rows"] == []
     assert snapshot["tables"]["library_versions"]["rows"] == []
     versions = LibraryVersions(store, "files")
     versions.save(item["id"], item["revision"], actor="test", content=b"new")

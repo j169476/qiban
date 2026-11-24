@@ -27,6 +27,8 @@ class Companion(RelationshipUpdates):
         from .hybrid_history import HybridHistory
 
         self.history_ranker = HybridHistory.configured()
+        from .role_runtime import RoleRuntime
+        self.role = RoleRuntime(self)
         self.run_key = run_key
         self.store, self.host = store, host
         self.decisions = DecisionService(model)
@@ -145,7 +147,7 @@ class Companion(RelationshipUpdates):
         return current
 
     async def model(self, instructions, context, schema, images=(), *, native=None, guard=None, phase=None,
-                    interactive=False):
+                    interactive=False, reserve_for_replies=0):
         checkpoint = getattr(self, "interactive_checkpoint", None)
         if checkpoint and not interactive:
             await checkpoint()
@@ -153,14 +155,15 @@ class Companion(RelationshipUpdates):
         policy = self.store.read("policy")["data"]
         if guard:
             guard()
-        budget.reserve(self.store, policy, self.clock())
+        budget.reserve(self.store, policy, self.clock(), leave=reserve_for_replies)
 
         def alive():
             self.guard(run["generation"])
             if guard:
                 guard()
 
-        result = await self.decisions.generate(instructions, context, schema, images,
+        from .privacy import mask
+        result = await self.decisions.generate(instructions, mask(context), schema, images,
                                                store=self.store, policy=policy, native=native,
                                                guard=alive, phase=phase or (lambda value: None))
         alive()
@@ -366,7 +369,7 @@ class Companion(RelationshipUpdates):
             from .reply_trace import record_outcome, reply
 
             with reply(self.store, event, run):
-                result = await self._handle(event, run)
+                result = await self.role.react("message",event=event)
                 record_outcome(result)
                 return result
         except AssistantError as exc:
@@ -455,7 +458,7 @@ class Companion(RelationshipUpdates):
                              on_write=(lambda key: governed.classify_written(
                                  "conversation_turns", key, sources=["event/" + event.id])) if governed else None)
 
-    async def _handle(self, event, run):
+    async def respond(self, event, run):
         from . import context_workspace
 
         workspace = context_workspace.revision(self.store)
@@ -492,6 +495,11 @@ class Companion(RelationshipUpdates):
         governed = self.governed_context(event) if enabled(self.store) else None
         if governed:
             governed.classify_event()
+            if (getattr(self.store, "backend", None) == "postgres" and
+                    not run["read_only"] and not run.get("reply_test")):
+                from .role_matters import observe
+                for source in batch_events if batch else [event]:
+                    observe(self, source, events.get(self.store, source.id)["version"], adapter)
         scope = self.conversation_scope(event)
         for source in batch_events if batch else [event]:
             self.record_user_turn(source, self.governed_context(source) if governed else None)
@@ -564,6 +572,44 @@ class Companion(RelationshipUpdates):
                    "relationship_updates": {"enabled": companion["data"]["auto_relationships"],
                                             "locked": bool(relationship and relationship["data"]["locked"])}}
         context.update(governed.persona_context() if governed else {"persona": persona["data"]})
+        from . import expression_learning, role_actions, role_matters
+        activity = None
+        if governed and event.platform in {"bilibili", "wechat", "qq", "local"}:
+            context["shared_expression"] = expression_learning.context(self.store, event.text)
+            if event.visibility == "private" or event.platform=="bilibili" and event.visibility=="public":
+                context["expression_choices"] = {k: v[0] for k, v in expression_learning.HABITS.items()}
+            if (getattr(self.store, "backend", None) == "postgres" and not run["read_only"]
+                    and not run.get("reply_test")):
+                try:
+                    basis = role_matters.authority(self.store, event, adapter, outbound=False)
+                except AssistantError:
+                    basis = None
+                from . import reminders
+                old_timers = reminders.pending(self.store, event)
+                if basis or old_timers:
+                    cores = self.role.cores or {a.platform: self for a in self.platforms.all()}
+                    contacts, cursor, choices, pins = role_actions.destinations(self, event, cores) if basis else ({}, None, [], [])
+                    waiting = role_matters.waiting(self.store, event, governed) if basis else []
+                    for item in waiting:
+                        if item["origin"] not in contacts:
+                            item.pop("origin")
+                    waiting.extend({"id":r["id"], "version":r["version"], "wake_at":r["due_at"], "bound_timer":True}
+                                   for r in old_timers)
+                    activity = contacts, cursor, waiting
+                    context["role_activity"] = {"contacts": choices, "more_contacts": bool(cursor),
+                                                "waiting": waiting, "now": self.clock().isoformat()}
+                    capabilities = role_actions.capabilities(capabilities, contacts)
+                    context["capabilities"] = [cap.as_dict() for cap in capabilities]
+                    governed.fragment_pins.extend(pins)
+                    if pins:
+                        governed.guards.append(lambda deps=pins: role_actions.privacy.check_projection(self.store, event, deps))
+            if getattr(self.store,"backend",None)=="postgres":
+                from .privacy import check_projection, project
+                fragments, pins = project(self.store,event)
+                if fragments:
+                    context["reviewed_fragments"] = fragments
+                    governed.fragment_pins.extend(pins)
+                    governed.guards.append(lambda: check_projection(self.store,event,pins))
         context_workspace.apply_guidance(context, workspace, event.visibility)
         relation = context.get("persona", {}).get("relationship_baseline", {})
         person_bound = relation.get("target") == "person"
@@ -590,6 +636,9 @@ class Companion(RelationshipUpdates):
                 from .relations import RelationService
 
                 graph = RelationService(governed.repository, governed.authority).query(governed.request, event.actor.key)
+                if event.visibility=="public":
+                    graph={**graph,"claims":[{k:v for k,v in claim.items() if k in
+                           {"id","subject","object","declarer","status","hop"}} for claim in graph["claims"]]}
                 context["social_relations"] = graph
                 for claim in graph["claims"]:
                     governed.resources.add("relation/" + claim["id"])
@@ -720,13 +769,39 @@ class Companion(RelationshipUpdates):
         # A failed permission recheck rolls back the whole local update batch.
         with self.store.lock, (self.store.db() if governed else nullcontext()):
             check_context()
+            if governed and "shared_expression" in context:
+                with self.store.db() as db:
+                    action = result["action"]
+                    targets = (action["arguments"].get("targets", []) if action
+                               and action["capability"] == "message.reply" else [])
+                    if targets:
+                        # A target-only choice is never dispatched by the original platform reply adapter.
+                        result["action"] = None
+                    if activity and (targets or result.get("continuation")):
+                        contacts, cursor, waiting = activity
+                        sources = [(s, events.get(self.store, s.id)["version"]) for s in batch_events
+                                   if s.thread == event.thread and s.actor == event.actor] if batch else [(event, receipt["version"])]
+                        if sources:
+                            try:
+                                role_actions.commit(self, event, receipt["version"], targets, result.get("continuation"),
+                                                    contacts, cursor, waiting, db, sources, governed.proof())
+                            except AssistantError as error:
+                                if error.code not in {"edit_conflict","matter_scope","role_alarm_time","reminder_time","reminder_state"}:
+                                    raise
+                                result["action"] = None
+                    if event.visibility == "private" or event.platform=="bilibili" and event.visibility=="public":
+                        expression_learning.observe(self.store, event.platform, event.thread, event.id,
+                                                    event.text, db, result.get("expression_cue"))
+                        from .expression_patterns import record
+                        record(self.store, event.id, result.get("expression_signal"), db)
             claims = result["identity_proposals"]
             if batch:
                 claims = [p for p in claims if all(any(ref["quote"] in text for text in
                           claim_sources.get((ref["event_id"], ref["version"]), ())) for ref in p["evidence"])]
             self.identities.apply_model(claims, allowed_evidence={key[0] for key in claim_sources} if batch else {event.id},
                                         allowed_kinds={"claim"})
-            if (result.get("relationship") and companion["data"]["auto_relationships"]
+            if (result.get("relationship") and context.get("event_material", {}).get("mode") != "voluntary"
+                    and companion["data"]["auto_relationships"]
                     and not (relationship and relationship["data"]["locked"])
                     and (not governed or not relationship or governed.access.can_read(
                         governed.request, resource_id("relationships", relationship_id)))):

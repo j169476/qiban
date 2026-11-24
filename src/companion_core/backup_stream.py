@@ -219,7 +219,7 @@ def restore(store, path, key, *, expected, digest, finalize=None):
         entries = read(reader, key)
         actual = migrations(db)
         header = next(entries, None)
-        supported = [n for n in (16, 17, 18) if header == ["schema", actual[:n]] and n <= len(actual)]
+        supported = [n for n in (16, *ADDITIVE_TABLES) if header == ["schema", actual[:n]] and n <= len(actual)]
         if not supported:
             raise AssistantError("backup_schema", "备份数据库版本不一致")
         missing_tables = {t for n, fields in ADDITIVE_TABLES.items() if n > supported[0] for t in fields}

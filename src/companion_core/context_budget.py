@@ -73,6 +73,21 @@ def pack(context, settings, instructions="", schema=None, *, explain_sources=Fal
             parent = parent[key]
         return parent, path[-1]
 
+    # Destination evidence competes for the same budget as memory and conversation.
+    # Keep the routing handles even when their optional excerpts do not fit.
+    routing = result.get("role_activity", result)
+    prefix = ("role_activity",) if "role_activity" in result else ()
+    for index, contact in enumerate(routing.get("contacts", ())):
+        if isinstance(contact, dict) and "known_context" in contact:
+            fragments, contact["known_context"] = contact["known_context"], []
+            for item in fragments:
+                candidate("contact_context", 65, (*prefix, "contacts", index, "known_context"), item)
+    for field in ("provided", "reviewed_fragments"):
+        if field in result and isinstance(result[field], list):
+            fragments, result[field] = result[field], []
+            for item in sorted(fragments,key=lambda row: row.get("said_at",""),reverse=True):
+                candidate(field, 12, (field,), item)
+
     facts = result.get("personal_facts")
     if facts:
         items, facts["items"] = facts["items"], []

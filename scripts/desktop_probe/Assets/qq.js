@@ -2,10 +2,10 @@
  'use strict';
  const el=id=>document.getElementById(id),pending=new Map();
  let allowed=false,state=null,submitting=false,refreshing=false,refreshQueued=false,epoch=0,signature='';
- let targetRevision=null;
+ let targetRevision=null,managementSession=null;
  let followingLogin=false;
  let operationArea='login';
- const picker=new window.QibanContacts.Picker(el('qq-contact-picker'),{selected:row=>numbers(row.kind==='group'?'qq-group-targets':'qq-private-targets').includes(row.id),toggle:(row,on)=>{const id=row.kind==='group'?'qq-group-targets':'qq-private-targets';const values=new Set(numbers(id));if(on)values.add(row.id);else values.delete(row.id);el(id).value=[...values].join('\n');render();},sync:()=>perform('directory')});
+ const picker=new window.QibanContacts.Picker(el('qq-contact-picker'),{selected:row=>numbers(row.kind==='group'?'qq-group-targets':'qq-private-targets').includes(row.id),toggle:(row,on)=>{const id=row.kind==='group'?'qq-group-targets':'qq-private-targets';const values=new Set(numbers(id));if(on)values.add(row.id);else values.delete(row.id);el(id).value=[...values].join('\n');render();},sync:()=>perform('directory'),groupSettings:row=>window.QibanGroupModes?.open('qq',row.id)});
  let entrySync=false;
  const visible=()=>document.body.dataset.navPage==='platforms'&&document.body.dataset.tabPlatforms==='qq';
  for(const event of ['qiban-nav-change','qiban-tab-change'])window.addEventListener(event,()=>{if(!visible())entrySync=false;});
@@ -24,6 +24,7 @@
   });
  }
  function render(){
+  window.QibanGroupModes?.setAccount('qq',allowed?state?.selected?.uin:null);
   const busy=submitting||!!state?.busy,accounts=allowed?(state?.accounts||[]):[];
   const passwordMode=el('qq-login-method').value==='password';
   el('qq-password-fields').hidden=!passwordMode;
@@ -101,6 +102,7 @@
    await refresh();
    if(operation==='select'){notice.textContent='账号已保存。';entrySync=document.body.dataset.navPage==='platforms'&&document.body.dataset.tabPlatforms==='qq';}
    if(operation==='targets.save')notice.textContent='回复会话已保存。';
+   if(operation==='targets.save'||operation==='directory')window.QibanGroupModes?.refresh('qq');
    if(operation==='cancel')notice.textContent='已请求取消，正在结束当前 QQ 账号操作。';
   }catch(error){if(allowed&&current===epoch)notice.textContent=error.message;}
   finally{submitting=false;render();if(entrySync&&allowed&&!state?.busy&&state?.selected){entrySync=false;void perform('directory');}}
@@ -111,9 +113,11 @@
  el('qq-selection').onchange=render;
  el('qq-login-method').onchange=()=>{el('qq-login-password').value='';render();};
  window.addEventListener('qiban-management-state',({detail})=>{
-  const changed=allowed!==(detail.ready&&!detail.locked);allowed=detail.ready&&!detail.locked;
+  const next=detail.ready&&!detail.locked,session=next?detail.roomSession:null;
+  const switched=allowed&&next&&managementSession!==session;
+  const changed=allowed!==next||switched;allowed=next;managementSession=session;
   el('qq-panel').hidden=el('management-panel').hidden;
-  if(!allowed){el('qq-login-password').value='';followingLogin=false;state=null;epoch++;el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
+  if(!allowed||switched){el('qq-login-password').value='';followingLogin=false;state=null;epoch++;entrySync=!!switched&&visible();el('qq-notice').textContent=el('qq-targets-notice').textContent='';}
   render();if(allowed&&changed)void refresh();
  });
  window.chrome.webview.addEventListener('message',({data})=>{

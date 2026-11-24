@@ -3,7 +3,7 @@
  const el = id => document.getElementById('audience-'+id);
  const pending = new Map();
  let allowed=false, busy=false, epoch=0, state=null, preview=null;
- let profiles=null;
+ let profiles=null,managementSession=null;
  const accountDetails=new Map();
  function accountLabel(login){
   const item=accountDetails.get(login);
@@ -29,6 +29,7 @@
  function clearDirectory(){picker.setRows([]);picker.search.value='';picker.status.textContent='';}
  function clearPreview(){preview=null;el('warning').textContent='';el('preview').hidden=true;}
  function render(){
+  window.QibanGroupModes?.setAccount('wechat',allowed?profiles?.selected:null);
   el('actions').hidden=!state?.ready;
   el('load').disabled=!allowed||busy;
   el('platform').disabled=busy;
@@ -137,7 +138,7 @@
   setTimeout(()=>syncDirectory(),0);
  });
  const picker=new window.QibanContacts.Picker(el('contact-picker'),{
-  selected:row=>chosen.has(row.id),toggle:(row,on)=>{if(on)chosen.set(row.id,{kind:row.kind,title:row.name||row.nickname||row.alias||row.id});else chosen.delete(row.id);summary();render();},sync:()=>syncDirectory()
+  selected:row=>chosen.has(row.id),toggle:(row,on)=>{if(on)chosen.set(row.id,{kind:row.kind,title:row.name||row.nickname||row.alias||row.id});else chosen.delete(row.id);summary();render();},sync:()=>syncDirectory(),groupSettings:row=>window.QibanGroupModes?.open('wechat',row.id)
  });
  async function syncDirectory(){
   return work(async live=>{
@@ -155,7 +156,8 @@
     if(!listVersion){const saved=await call('wechat.targets.saved',{login:active.selected,expected:active.revision});if(!live())return;
      listVersion=saved.version;for(const t of saved.targets)chosen.set(t.username,{kind:t.kind,title:t.username});}
     for(const row of result.items){if(chosen.has(row.id))chosen.get(row.id).title=row.name||row.nickname||row.alias||row.id;}
-    picker.setRows(result.items);summary();picker.status.textContent='已同步 '+result.items.length+' 个联系人';
+   picker.setRows(result.items);summary();picker.status.textContent='已同步 '+result.items.length+' 个联系人';
+   window.QibanGroupModes?.refresh('wechat');
    }catch(error){if(live())picker.status.textContent=error.message;}
   });
  }
@@ -178,6 +180,7 @@
     version:listVersion,targets});
    if(!live())return;
    listVersion=result.version;el('selection-info').textContent='回复名单已保存，共 '+result.targets.length+' 个会话。';
+   window.QibanGroupModes?.refresh('wechat');
   }catch(error){if(live())el('selection-info').textContent=error.message;}
  });
  el('verify').onclick=()=>work(async live=>{
@@ -215,13 +218,17 @@
   const saved=await call('audience.save',{token:value.token});
   if(!live())return;
   state.categories[value.scope.kind]=saved;
+  window.QibanGroupModes?.refresh(el('platform').value);
   el('notice').textContent=saved.enabled?'已开启持续授权。':'已恢复手动回复范围。';
  });
  window.addEventListener('qiban-management-state',({detail})=>{
   const now=detail.ready&&!detail.locked;
   document.getElementById('audience-panel').hidden=document.getElementById('management-panel').hidden;
   document.getElementById('audience-scope-panel').hidden=!now;
-  if(now!==allowed){allowed=now;reset();}
+  const session=now?detail.roomSession:null,switched=allowed&&now&&managementSession!==session;
+  managementSession=session;
+  if(now!==allowed||switched){allowed=now;reset();}
+  if(switched&&document.body.dataset.navPage==='platforms'&&document.body.dataset.tabPlatforms==='wechat')void syncDirectory();
  });
  window.chrome.webview.addEventListener('message',({data})=>{
   const job=pending.get(data.request_id);

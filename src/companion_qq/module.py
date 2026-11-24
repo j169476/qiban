@@ -199,6 +199,8 @@ class QQModule:
                     self.merged.record_history(event, history_status)
                 return
             self.store.set_state(key, fingerprint, db)
+            from companion_core.group_modes import observe_event
+            observe_event(self.store, self.scope(event), event, db)
             if ReplyAuthorizations(self.store).version(self.scope(event), db=db) is None:
                 return
             # A conversation the administrator excluded, or one whose exclusion was
@@ -460,6 +462,57 @@ class QQModule:
 
     async def read(self, reference):
         raise AssistantError("qq_read_unsupported", "QQ模块不提供任意聊天读取")
+
+    async def deliver_reminder(self, event, text, attempt, job, *, guard):
+        from threading import Event as CancelEvent
+
+        from .native_sender import NativeSendReceipt
+        cancelled = CancelEvent()
+        def check():
+            require(not cancelled.is_set(), "core_before_send_cancelled")
+            guard()
+
+        def send():
+            reserved = False
+            submitted = False
+            with self.store.lock:
+                try:
+                    check()
+                    require(self.ready and not self.tainted, "qq_provider_unavailable")
+                    require(str(self.provider.identity()["user_id"]) == self.account, "qq_account_mismatch")
+                    scope = self.scope(event)
+                    run = self.core.guard()
+                    self.participation.reserve_reminder(scope, ReplyAuthorizations(self.store).version(scope),
+                                                        run["generation"], attempt)
+                    reserved = True
+                    check()
+                    submitted = True
+                    if callable(getattr(self.provider, "send_reply_action", None)):
+                        receipt = self.provider.send_reply_action(attempt, scope, {"text": text},
+                            {"format": "text", "text": text, "fallback": None}, guard=check)
+                    else:
+                        receipt = self.provider.send_action(attempt, scope, text)
+                    require(isinstance(receipt, NativeSendReceipt), "qq_send_unconfirmed")
+                    for ref in (receipt.message_id, receipt.reference):
+                        if ref is not None:
+                            self.store.set_state(self.sent_key(scope.kind, scope.target_id, ref), {"action": attempt})
+                    self.participation.settle(attempt, "succeeded")
+                    return ActionResult("succeeded", {"message_id": receipt.message_id})
+                except Exception as exc:
+                    status = "uncertain" if submitted else "cancelled"
+                    if reserved:
+                        if submitted:
+                            self.tainted = True
+                        self.participation.settle(attempt, status)
+                    return ActionResult(status, error=getattr(exc, "code", "qq_send_unconfirmed"))
+        async with self.send_lock:
+            task = asyncio.create_task(asyncio.to_thread(send))
+            try:
+                return await asyncio.shield(task)
+            except asyncio.CancelledError:
+                cancelled.set()
+                await task
+                raise
 
     def _submit(self, event, capability, arguments, guard, prepared_reply=None):
         submitted, action_id = False, None

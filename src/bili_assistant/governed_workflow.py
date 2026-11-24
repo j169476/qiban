@@ -49,7 +49,7 @@ def definition(original, core, *, receive=True):
             return Flow.STOP
         if not receive and not state["guided_bvid"]:
             state["room"] = 0
-        workspace.readable = workspace.repository.readable_resources(workspace.access, workspace.request)
+        workspace.readable = workspace.repository.readable_resources(workspace.access,workspace.request)
         return result
 
     async def favorite_tools(state):

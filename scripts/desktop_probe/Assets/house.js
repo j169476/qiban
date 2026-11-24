@@ -30,6 +30,7 @@
   if(list.childElementCount>8)list.lastElementChild.remove();el('house-events-empty').hidden=true;
  }
  function snapshot(data){
+  window.QibanRoleRecords?.showRecent(data.recent_actions);
   const when=Number.isFinite(Date.parse(data.generated_at))?data.generated_at:null;
   const initial=!previous||previous.runtime_instance!==data.runtime_instance;
   if(initial)record(previous?'已连接新的后台实例':'已收到运行快照',when);
@@ -56,6 +57,7 @@
  }
  window.addEventListener('qiban-context-applied',event=>showPreset(event.detail));
  function clear(){
+  window.QibanRoleRecords?.showRecent(null);
   showPreset(null);
   previous=null;stale=false;paused=false;el('house-platform-count').textContent='';
   el('house-events').replaceChildren();el('house-events-empty').hidden=false;status();

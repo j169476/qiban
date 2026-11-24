@@ -2,7 +2,8 @@
  'use strict';
  const filter=(rows,query,kind)=>{const q=query.trim().toLocaleLowerCase();return rows.filter(r=>(!kind||r.kind===kind)&&[r.name,r.nickname,r.alias,r.id].some(v=>String(v||'').toLocaleLowerCase().includes(q)));};
  class Picker{
-  constructor(root,{selected,toggle,sync}){
+  constructor(root,{selected,toggle,sync,groupSettings}){
+   this.groupSettings=groupSettings;
    this.rows=[];this.page=1;this.busy=false;this.allowed=false;this.selected=selected;this.toggle=toggle;
    root.classList.add('contact-picker');
    const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n;};
@@ -34,6 +35,11 @@
     name.textContent=row.name||row.nickname||row.alias||row.id;
     detail.textContent=[row.alias&&'微信号：'+row.alias,row.nickname&&row.nickname!==row.name&&'昵称：'+row.nickname,row.id].filter(Boolean).join(' · ');
     text.append(name,detail);label.append(box,text);li.append(label);this.list.append(li);
+    if(row.kind==='group'&&this.groupSettings){
+     const settings=document.createElement('button');settings.type='button';settings.className='secondary contact-group-settings';
+     settings.textContent='群聊行为';settings.setAttribute('aria-label','设置 '+name.textContent+' 的群聊行为');
+     settings.disabled=!this.allowed||this.busy;settings.onclick=()=>this.groupSettings(row);li.append(settings);
+    }
     box.onchange=()=>{this.toggle(row,box.checked);this.render();};
    }
    this.count.textContent=`第 ${this.page} / ${pages} 页 · ${matches.length} 条`;this.jump.max=String(pages);this.jump.value=String(this.page);

@@ -37,6 +37,8 @@ def ingest(store, event):
         if enabled(store) and (old is None or old[0] != version):
             register_event(store, event, version, db=db)
             if getattr(store, "backend", None) == "postgres":
+                from .privacy import enqueue
+                enqueue(db, "event", event.id, version)
                 from .access import RequestAuthority
                 from .governance import GovernanceRepository
                 from .relations import RelationService

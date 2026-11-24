@@ -121,6 +121,10 @@ class LiveMembers:
         entry = self.tokens.get(target)
         return entry[1] if entry and self.revision == revision else None
 
+    def identity(self, revision, target):
+        entry = self.tokens.get(target)
+        return entry[0] if entry and self.revision == revision else None
+
 
 def catchup_since(policy):
     since = policy.get("since")
