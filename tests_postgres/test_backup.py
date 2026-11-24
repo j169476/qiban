@@ -47,6 +47,26 @@ def test_tampered_backup_and_stale_preview_leave_data_unchanged(pg_store):
     assert exc.value.code == "edit_conflict" and pg_store.state("new-receipt") is True
 
 
+@pytest.mark.parametrize("domain,body,error", [
+    ("role-reminder:other", {"clue": "synthetic"}, "storage_integrity"),
+    ("role-reminder:timer", ["synthetic"], "backup_invalid"),
+])
+def test_restore_rejects_unusable_reminder_before_committing(pg_store, domain, body, error):
+    key = secrets.token_bytes(32)
+    with pg_store.db() as db:
+        db.execute("INSERT INTO role_reminders(id,scope,platform,account,due,status,version,body) "
+                   "VALUES('timer','scope','qq','test',0,'pending','v1',?)",
+                   (pg_store.ledger_encode(domain, body),))
+    blob = create(pg_store, key)
+    with pg_store.db() as db:
+        db.execute("DELETE FROM role_reminders WHERE id='timer'")
+    before = fingerprint(pg_store)
+    with pytest.raises(AssistantError) as refused:
+        restore(pg_store, blob, key, expected=before)
+    assert refused.value.code == error
+    assert fingerprint(pg_store) == before
+
+
 def test_registered_image_restores_with_recoverable_failed_file_write(pg_store, monkeypatch):
     from companion_core import asset_transfer
 

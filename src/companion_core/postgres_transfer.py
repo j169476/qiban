@@ -254,10 +254,13 @@ def finish_restore(store, db, assets, finalize):
     from .library_versions import verify_versions
 
     verify_versions(store)
-    for table,domain in (("privacy_slices","privacy:"),("role_matters","matter:")):
-        with db.stream("SELECT id,body FROM "+table) as rows:
+    from .portable_validation import ROLE_BODY_PAYLOADS
+
+    for field in ROLE_BODY_PAYLOADS:
+        with db.stream("SELECT id,body FROM " + _identifier(field.table)) as rows:
             for row in rows:
-                store.ledger_decode(domain+row["id"],row["body"])
+                if not isinstance(store.ledger_decode(field.prefix + row["id"], row["body"]), dict):
+                    raise AssistantError("backup_invalid", "恢复资料的加密正文结构无效")
     # Restore requires stopped tasks. Holds belonged to exited task owners;
     # their processing receipts and unfinished events remain in the snapshot.
     db.execute('DELETE FROM media_original_holds')

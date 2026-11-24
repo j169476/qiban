@@ -3,6 +3,8 @@ import hashlib
 import json
 import secrets
 import zlib
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -45,6 +47,65 @@ def exported(portable_class, directory):
     target = directory / "kit.ccbackup"
     result = portable_class.export(str(target), PASSWORD)
     return target, directory / result["key_file"], result
+
+
+def test_role_and_privacy_tables_roundtrip_with_their_source_permissions(service, tmp_path):
+    from companion_core import events, privacy, privacy_review, reminders, role_matters
+    from companion_core.governance import GovernanceRepository
+    from companion_core.reply_authorization import ReplyAuthorizations
+    from qiban.desktop_matters import operate
+    from tests_postgres.matter_fixture import legacy_alarm
+    from tests_postgres.test_windows_fragment_review import answer, source
+
+    store = service.store
+    now = datetime.now(timezone.utc)
+    origin = source("合成展馆", "10002", "10002", 1, now, "private")
+    other = source("另一位", "10004", "10004", 2, now, "private")
+    context = source("展馆背景", "10002", "10002", 3, now, "private")
+    scopes = ReplyAuthorizations(store)
+    scope = reminders.scope_for(store, origin)
+    scopes.update(scope, enabled=True, expected_version=None, actor="fixture")
+    events.ingest(store, context)
+    version = events.ingest(store, origin)["version"]
+    resource = "event/" + origin.id
+    context_key = "event/" + context.id
+    repo = GovernanceRepository(store)
+    role_matters.observe(SimpleNamespace(store=store), origin, version, None)
+    alarm = legacy_alarm(store, origin, now + timedelta(hours=1), "合成提醒")
+    with store.db() as db:
+        matter = role_matters.create(store, origin, version, now.timestamp(), db)
+        role_matters.touch(db, matter)
+        job = db.execute("SELECT * FROM privacy_jobs WHERE resource=?", (resource,)).fetchone()
+        privacy_review.store_facts(store, db, job, 0, origin.text,
+                                   {"facts": [answer(origin.text, origin.text, "ordinary", "social", "general")]},
+                                   origin, repo.policy(resource), [(context_key, repo.policy(context_key).version)])
+        db.execute("UPDATE privacy_jobs SET complete=1 WHERE resource=?", (resource,))
+    _, pins = privacy.project(store, other, [resource])
+    part, revision = pins[0]
+    operate(store, "privacy.correct", {"id": part, "expected": revision, "level": "private"})
+    allowed, pins = privacy.project(store, origin, [resource])
+    assert [v["text"] for v in allowed] == [origin.text]
+    assert privacy.project(store, other, [resource]) == ([], [])
+    privacy.bind(store, "memories/derived-test", pins)
+
+    portable_class = portable(service)
+    path, keys, _ = exported(portable_class, tmp_path)
+    portable_class.preview(str(path), str(keys), PASSWORD)
+    blob, key = path.read_bytes(), portable_class._backup_key(store._test_key)
+    tables = postgres_transfer.unpack(blob, key)["tables"]
+    feature_tables = {name for n in range(19, 25) for name in postgres_transfer.ADDITIVE_TABLES[n]}
+    assert all(tables[name]["rows"] for name in feature_tables)
+    assert postgres_transfer.restore(store, blob, key, expected=postgres_transfer.fingerprint(store))["restored"]
+    restored = postgres_transfer.unpack(postgres_transfer.create(store, key), key)["tables"]
+    for name in feature_tables - {"role_reminders", "role_matters", "matter_watches", "matter_contacts"}:
+        assert restored[name] == tables[name], name
+    assert not restored["matter_watches"]["rows"] and not restored["matter_contacts"]["rows"]
+    assert reminders.listing(store, id=alarm["id"])["items"][0]["status"] == "cancelled"
+    with store.db() as db:
+        row = db.execute("SELECT * FROM role_matters WHERE id=?", (matter,)).fetchone()
+        assert row["status"] == "stopped" and role_matters.unpack(store, row)["sources"][0]["event"] == origin.id
+    assert scopes.version(scope) is None
+    assert privacy.project(store, origin, [resource]) == privacy.project(store, other, [resource]) == ([], [])
 
 
 def test_export_writes_an_authenticated_pair_and_never_overwrites(service, tmp_path):

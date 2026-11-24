@@ -142,6 +142,14 @@ CIPHER_PAYLOADS = (
                   max_bytes=MAX_ASSET_BYTES),
 )
 
+# These writers encrypt bodies using the row ID. Their original migrations
+# declare TEXT without an enc1 CHECK. Direct and staged restores verify them too.
+ROLE_BODY_PAYLOADS = (
+    LedgerPayload("role_reminders", "body", prefix="role-reminder:", key_column="id", mapping=True),
+    LedgerPayload("role_matters", "body", prefix="matter:", key_column="id", mapping=True),
+    LedgerPayload("privacy_slices", "body", prefix="privacy:", key_column="id", mapping=True),
+)
+
 LEDGER_PAYLOADS = (
     # postgres.PostgresStore.set_state: ledger_encode("state:" + key, value)
     LedgerPayload("state", "value", prefix="state:", key_column="key"),
@@ -163,6 +171,7 @@ LEDGER_PAYLOADS = (
     LedgerPayload("sticker_library", "metadata", prefix="sticker:", key_column="id", mapping=True),
     LedgerPayload("file_library", "metadata", prefix="file-library:", key_column="id", mapping=True),
     LedgerPayload("library_versions", "metadata", prefix="library-version:", key_column="revision", mapping=True),
+    *ROLE_BODY_PAYLOADS,
 )
 
 # The PostgreSQL backend never journals a pending relationship: relationship_store.commit

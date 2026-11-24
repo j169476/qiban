@@ -182,6 +182,12 @@ def full_snapshot(key=KEY):
             {"revision": "v1", "metadata": ledger({"data": {"name": "旧版资料"}},
                                                  "library-version:v1", key)},
         ]),
+        "role_reminders": block(("id", "body"), [
+            {"id": "timer", "body": ledger({"source_event": "c1"}, "role-reminder:timer", key)}]),
+        "role_matters": block(("id", "body"), [
+            {"id": "matter", "body": ledger({"sources": []}, "matter:matter", key)}]),
+        "privacy_slices": block(("id", "body"), [
+            {"id": "part", "body": ledger({"level": "private"}, "privacy:part", key)}]),
     })
 
 
@@ -235,7 +241,8 @@ def failure(snapshot, key=KEY, profile=None):
 # --- coverage of every registered domain --------------------------------------------------
 
 def test_full_snapshot_verifies_every_registered_payload():
-    result = validate_snapshot(full_snapshot(), KEY, Profile())
+    synthetic = full_snapshot()
+    result = validate_snapshot(synthetic, KEY, Profile())
     assert result["payloads"] == {
         "content_records.body": 2,
         "content_history.body": 1,
@@ -258,16 +265,21 @@ def test_full_snapshot_verifies_every_registered_payload():
         "library_version_bodies.body": 1,
         "library_versions.metadata": 1,
         "asset_restore_jobs.body": 1,
+        "role_reminders.body": 1,
+        "role_matters.body": 1,
+        "privacy_slices.body": 1,
     }
-    assert result["payloads_total"] == 26
-    assert result["ciphertexts"] == 9
-    assert result["ledger"] == 17
+    counts = result["payloads"]
+    assert result["payloads_total"] == sum(counts.values())
+    assert result["ciphertexts"] == sum(counts[f.path] for f in CIPHER_PAYLOADS)
+    assert result["ledger"] == sum(counts[f.path] for f in LEDGER_PAYLOADS)
     assert result["legacy_ledger"] == 0
     assert "preset_reply_turns" in TABLES
-    assert result["tables"] == len(TABLES) == 38
-    assert result["encrypted_tables"] == 16
-    assert result["plain_tables"] == 22
-    assert result["rows"] == 21
+    encrypted_tables = {path.split(".")[0] for path in counts}
+    assert result["tables"] == len(TABLES)
+    assert result["encrypted_tables"] == len(encrypted_tables)
+    assert result["plain_tables"] == len(set(TABLES) - encrypted_tables)
+    assert result["rows"] == sum(len(b["rows"]) for b in synthetic["tables"].values())
     assert result["current_records"] == 2
     assert result["history_records"] == 1
     assert result["null_payloads"] == 3
@@ -295,8 +307,9 @@ def test_validation_does_not_mutate_the_snapshot():
 
 def test_snapshot_survives_the_json_based_unpack_shape():
     # unpack returns json.loads of the snapshot, so only plain JSON values may be assumed.
-    restored = json.loads(json.dumps(full_snapshot()))
-    assert validate_snapshot(restored, KEY, Profile())["payloads_total"] == 26
+    synthetic = full_snapshot()
+    restored = json.loads(json.dumps(synthetic))
+    assert validate_snapshot(restored, KEY, Profile()) == validate_snapshot(synthetic, KEY, Profile())
 
 
 def test_cleaned_media_body_and_optional_results_are_allowed():
@@ -597,7 +610,7 @@ def test_profile_extra_tables_take_part_in_the_table_set():
     with_extra = snapshot(extra_tables=("videos",))
     result = validate_snapshot(with_extra, KEY, Profile({"videos"}))
     assert result["tables"] == len(TABLES) + 1
-    assert result["plain_tables"] == 23
+    assert result["plain_tables"] == validate_snapshot(snapshot(), KEY, Profile())["plain_tables"] + 1
     assert failure(with_extra, profile=Profile()).code == "snapshot_schema"
     assert failure(snapshot(), profile=Profile({"videos"})).code == "snapshot_schema"
 
@@ -673,7 +686,7 @@ def definitions(body):
 
 
 def sql_encrypted_columns(documents=None):
-    """Every BYTEA and ``left(column,5)='enc1:'`` column of the installed migrations."""
+    """Encrypted binary fields, text bodies and columns with explicit ledger constraints."""
     if documents is None:
         documents = [(path.name, path.read_text(encoding="utf-8"))
                      for path in sorted(SQL.glob("*.sql"))]
@@ -685,6 +698,8 @@ def sql_encrypted_columns(documents=None):
                 name = COLUMN.match(definition)
                 if name and name.group(1).lower() not in NOT_A_COLUMN and BYTEA.search(definition):
                     bytea.add((match.group(1), name.group(1)))
+                if re.match(r"body\s+TEXT\b", definition, re.I):
+                    enc1.add((match.group(1), "body"))
             enc1.update((match.group(1), column) for column in ENC1.findall(body))
         for match in ALTER_TABLE.finditer(text):
             enc1.update((match.group(1), column) for column in ENC1.findall(match.group(2)))
@@ -693,7 +708,6 @@ def sql_encrypted_columns(documents=None):
 
 def test_registry_covers_every_encrypted_column_of_the_current_sql():
     bytea, enc1 = sql_encrypted_columns()
-    assert len(bytea) == 8 and len(enc1) == 13
     assert bytea == {(field.table, field.column) for field in CIPHER_PAYLOADS}
     assert enc1 == {(field.table, field.column) for field in LEDGER_PAYLOADS}
 
@@ -705,15 +719,27 @@ def test_detector_reacts_to_a_newly_encrypted_column():
      id TEXT PRIMARY KEY, body BYTEA NOT NULL,
      metadata TEXT NOT NULL CHECK(left(metadata,5)='enc1:'),
      kept TEXT NOT NULL, CHECK(left(kept,5)='enc1:'));
+    CREATE TABLE text_payloads(id TEXT PRIMARY KEY, body TEXT NOT NULL);
     ALTER TABLE media_originals ADD CONSTRAINT preview_encrypted CHECK(left(preview,5)='enc1:');
     ALTER TABLE conversation_index ALTER COLUMN sequence TYPE BIGINT;
     """
     bytea, enc1 = sql_encrypted_columns([("999_synthetic.sql", synthetic)])
     assert bytea == {("new_payloads", "body")}
-    assert enc1 == {("new_payloads", "metadata"), ("new_payloads", "kept"),
+    assert enc1 == {("new_payloads", "metadata"), ("new_payloads", "kept"), ("text_payloads", "body"),
                     ("media_originals", "preview")}
     assert (bytea | enc1) - {(field.table, field.column)
                              for field in (*CIPHER_PAYLOADS, *LEDGER_PAYLOADS)}
+
+
+def test_transfer_and_additive_tables_match_installed_migrations():
+    declared = {int(path.name.split("_")[0]): set(CREATE_TABLE.findall(path.read_text(encoding="utf8")))
+                for path in SQL.glob("*.sql")}
+    # Schema metadata is installed locally; revision counters and history indexes are rebuilt.
+    local_tables = {"schema_migrations", "record_kinds", "maintenance_revision",
+                    "ordinary_history", "ordinary_history_total"}
+    assert set(TABLES) == set().union(*declared.values()) - local_tables
+    for version, fields in postgres_transfer.ADDITIVE_TABLES.items():
+        assert set(fields) == declared[version] - local_tables
 
 
 def test_registry_tables_are_transfer_tables():

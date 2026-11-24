@@ -86,7 +86,7 @@ def test_window_worker_follows_platform_start_stop_and_shutdown():
         async def empty_inbox():
             return []
         adapter = SimpleNamespace(runtime_poll=empty_inbox)
-        core = SimpleNamespace(run_key="core-run:wechat", guard=lambda *args: run,
+        core = SimpleNamespace(run_key="core-run:wechat", store=store, guard=lambda *args: run,
                                platforms=SimpleNamespace(all=lambda: [adapter]))
         runtime = SimpleNamespace(tasks=SimpleNamespace(blocked=False), cores={"wechat": core},
                                   store=store, require_current=lambda: None)
